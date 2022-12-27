@@ -1,0 +1,9 @@
+FROM nginx
+
+RUN mkdir -p /etc/nginx/ssl
+COPY nginx-files/nginx.crt /etc/nginx/ssl
+COPY nginx-files/nginx.key /etc/nginx/ssl
+
+COPY nginx-files/nginx.conf /etc/nginx/nginx.conf
+COPY nginx-files/beehive-ssl-api.mylab.conf /etc/nginx/conf.d/beehive-ssl-api.mylab.conf
+RUN rm /etc/nginx/conf.d/default.conf

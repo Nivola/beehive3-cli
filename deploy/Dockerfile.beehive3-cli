@@ -1,0 +1,74 @@
+FROM nivola/console-python
+
+ARG GITUSER=''
+ARG GITPWD=''
+ARG BRANCH=devel
+ARG GITURI=https://$GITUSER:$GITPWD@gitlab.csi.it/nivola
+
+ENV GITUSER ${GITUSER}
+ENV GITPWD ${GITPWD}
+
+ARG PYTHONPATH=/home/beehive3/pkgs
+
+# for copying the path depends on where the image build is launched
+#COPY ./files/beehive3 /usr/bin/beehive3
+COPY beehive3-cli/deploy/files/beehive3 /usr/bin/beehive3
+
+# copy from workspace instead of git clone
+COPY beecell $PYTHONPATH/beecell/
+COPY beedrones/ $PYTHONPATH/beedrones/
+COPY beehive/ $PYTHONPATH/beehive/
+COPY beehive3-cli/ $PYTHONPATH/beehive3-cli/
+# projects not required for first tests
+COPY beehive-ssh/ $PYTHONPATH/beehive-ssh/
+COPY beehive-resource/ $PYTHONPATH/beehive-resource/
+COPY beehive-service/ $PYTHONPATH/beehive-service/
+COPY beehive-service-netaas/ $PYTHONPATH/beehive-service-netaas/
+COPY beehive-oauth2/ $PYTHONPATH/beehive-oauth2/
+
+RUN mkdir -p /home/beehive3/.beehive3/config && \
+    mkdir -p /home/beehive3/.beehive3/env && \
+    mkdir -p /home/beehive3/.beehive3/.tokens && \
+    mkdir -p /home/beehive3/pkgs && \
+    chown -R beehive3:beehive3 /home/beehive3 && \
+    chmod +x /usr/bin/beehive3 && \
+    ln -s /usr/bin/beehive3 /usr/bin/beehive && \
+    # git clone instead of copy from workspace
+    #git clone -b $BRANCH $GITURI/cmp3/beecell.git $PYTHONPATH/beecell && \
+    #git clone -b $BRANCH $GITURI/cmp2/beedrones.git $PYTHONPATH/beedrones && \
+    #git clone -b $BRANCH $GITURI/cmp3/beehive3-cli.git $PYTHONPATH/beehive3-cli && \
+    echo "install requirements from MANIFEST" && \
+    cd $PYTHONPATH && pip3 install -r beecell/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beedrones/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beehive/MANIFEST.md  && \
+    #cd $PYTHONPATH && pip3 install -r beehive3-cli/MANIFEST.md  && \
+    # libs not required for first tests
+    cd $PYTHONPATH && pip3 install -r beehive-ssh/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beehive-resource/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beehive-service/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beehive-service-netaas/MANIFEST.md  && \
+    cd $PYTHONPATH && pip3 install -r beehive-oauth2/MANIFEST.md  && \
+    # script standard
+    mkdir -p /home/beehive3/.ansible/tmp && \
+    chown -R beehive3:beehive3 /home/beehive3/.ansible && \
+    curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl && \
+    chmod +x kubectl && \
+    mv ./kubectl /usr/local/bin/kubectl && \
+    echo '[defaults]\nhost_key_checking = False' > /home/beehive3/.ansible/ansible.cfg && \
+    # echo 'source <(kubectl completion bash)' >> .bashrc && \
+    mkdir -p /home/beehive3/.ssh/ && \
+    echo 'Host *\n   StrictHostKeyChecking no\n   UserKnownHostsFile=/dev/null' > /home/beehive3/.ssh/config && \
+    echo '\nsource /home/beehive3/pkgs/beehive3-cli/beehive3_cli/ext/beehive_completion.rc /home/beehive3/pkgs/beehive3-cli/beehive3_cli/ext/commands' >> .bashrc
+
+
+# necessary if you do not install the projects
+ENV PYTHONPATH /home/beehive3/pkgs/beehive:/home/beehive3/pkgs/beecell:/home/beehive3/pkgs/beedrones:\
+/home/beehive3/pkgs/beehive3-cli:\
+# projects not required for first tests
+/home/beehive3/pkgs/beehive-ssh:/home/beehive3/pkgs/beehive-resource:/home/beehive3/pkgs/beehive-service:\
+/home/beehive3/pkgs/beehive-service-netaas:/home/beehive3/pkgs/beehive-oauth2
+
+WORKDIR /home/beehive3
+USER beehive3:beehive3
+
+# CMD [ "uwsgi", "/etc/uwsgi/uwsgi.ini"]

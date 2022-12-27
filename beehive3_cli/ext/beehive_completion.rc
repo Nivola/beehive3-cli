@@ -1,0 +1,72 @@
+#/usr/bin/env bash
+# SPDX-License-Identifier: EUPL-1.2
+#
+# (C) Copyright 2018-2022 CSI-Piemonte
+
+# alias beehive="beehive"
+# alias beehive3="beehive3"
+
+unset CMDS
+declare -A CMDS
+#source commands
+source $1
+command=''
+#envs=''
+envs=`beehive3 bash-completion-envs`
+
+_bee_complete()
+{
+    local cur prev prev2 pos
+
+    COMPREPLY=()
+    pos=$COMP_CWORD
+    cur="${COMP_WORDS[$pos]}"
+
+    #echo $command
+
+    #cur2=$cur
+    #while [[ $cur2 == -* ]]; do
+    #    pos=$(( $pos-1 ))
+    #    cur2="${COMP_WORDS[$pos]}"
+    #done
+
+    if [ $COMP_CWORD -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "${CMDS[base]}" -- $cur) )
+    elif [[ ${cur} == -* ]];  then
+        #prev="${COMP_WORDS[$pos]}"
+        #prev2="${COMP_WORDS[$pos-1]}"
+        #COMPREPLY=( $(compgen -W "${CMDS[$prev2:$prev]}" -- $cur) )
+        # echo ${cur}
+        if [[ $command != "" ]]; then
+            COMPREPLY=( $(compgen -W "${CMDS[$command]}" -- $cur) )
+        fi
+    else
+        prev="${COMP_WORDS[$pos-1]}"
+        prev2="${COMP_WORDS[$pos-2]}"
+        #command=''
+        #echo $cur $prev2:$prev
+        STR=${CMDS[$prev]}
+        if [[ ${CMDS[$prev]} == "" ]]; then
+            STR=${CMDS[$prev2:$prev]}
+            if [[ ${CMDS[$prev2]} != "" ]]; then
+                command=$prev2:$prev
+            fi
+        fi
+        COMPREPLY=( $(compgen -W "$STR" -- $cur) )
+    fi
+
+    prev="${COMP_WORDS[$pos-1]}"
+
+    if [[ ${prev} == "-f" ]];  then
+        COMPREPLY=( $(compgen -W "json yaml text" -- $cur) )
+    elif [[ ${prev} == "-e" ]];  then
+        #if [[ $envs == "" ]]; then
+        #    envs=`beehive3 bash-completion-envs`
+        #fi
+        COMPREPLY=( $(compgen -W "$envs" -- $cur) )
+    fi
+
+    return 0
+}
+complete -F _bee_complete beehive3
+complete -F _bee_complete beehive

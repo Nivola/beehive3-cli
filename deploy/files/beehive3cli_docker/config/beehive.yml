@@ -1,0 +1,95 @@
+### beehive Configuration Settings
+---
+beehive:
+    debug: false
+    default_format: text
+    colored: true
+    encryption_key: GYAiqBlgCd88RhIpsiYFBkO1OPAhIBG6aqplWTDTZh8=
+    ansible_path: /tmp
+    local_package_path: /home/beehive3/pkgs
+    cmp_post_install_path: /tmp
+    environment_config_path: /home/beehive3/.beehive3/config/env
+    default_env: mylab
+    token_file_path: /tmp/.tokens
+    print_curl_request: false
+
+log.clilog:
+    ### Where the log file lives (no log file by default)
+    file: ~/beehive3.log
+
+    ### The level for which to log.  One of: info, warning, error, fatal, debug
+    # level: info
+    level: DEBUG
+    
+    colorize_file_log: true
+    colorize_console_log: false
+
+    ### Whether or not to log to console
+    to_console: false
+
+    ### Whether or not to rotate the log file when it reaches `max_bytes`
+    rotate: true
+
+    ### Max size in bytes that a log file can grow until it is rotated.
+    max_bytes: 10000000
+
+    ### The maximun number of log files to maintain when rotating
+    max_files: 4
+    
+    additional_loggers:
+    - beecell
+    - py.warnings
+    - beehive3
+    - beehive
+    - beehive_oauth2
+    - beehive_resource
+    - beehive_monitor
+    - beehive_service
+    - beedrones
+    - requests
+    - urllib3
+    # - ansible
+    - requests_oauthlib
+    
+plugin.platform:
+    enabled: true
+    
+plugin.auth:
+    enabled: true
+
+plugin.catalog:
+    enabled: true
+  
+plugin.ssh:
+    enabled: true
+    
+plugin.resource:
+    enabled: true
+    
+plugin.openstack:
+    enabled: true
+    
+plugin.provider:
+    enabled: true
+    
+plugin.vsphere:
+    enabled: true
+    
+plugin.awx:
+    enabled: true
+    
+plugin.domainname:
+    enabled: true
+    
+plugin.business:
+    enabled: true
+
+plugin.example:
+    enabled: false
+
+plugin.trilio:
+    enabled: true
+
+plugin.dq:
+    enabled: true
+

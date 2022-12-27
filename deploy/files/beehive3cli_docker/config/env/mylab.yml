@@ -1,0 +1,44 @@
+cmp:
+    ansible_vault: B2K1PPmj5MdekJwFFf0B2dQc7cstxG
+    endpoints:
+        auth: https://<HOST_NGINX>:443
+        event: https://<HOST_NGINX>:443
+        ssh: https://<HOST_NGINX>:443
+        resource: https://<HOST_NGINX>:443
+        service: https://<HOST_NGINX>:443
+    prefix_path: /mylab
+    authtype: keyauth
+    user: admin@local
+    #pwd: beehive_mylab
+    pwd: beehive_admin
+    catalog: beehive-external
+    http_proxy: 
+orchestrators:
+    nginx:
+        mylab:
+            hosts:
+            - <HOST_NGINX>
+            port: 443
+    mariadb:
+        mylab:
+            hosts:
+            - <HOST_DB>
+            port: 3306
+            users:
+              root: <DB_ROOT_PW>
+    redis: {}
+    k8s: {}
+    vsphere: {}
+    openstack: {}
+    veeam: {}
+    trilio: {}
+    graphite: {} 
+    zabbix: {}
+    awx: {}
+    kibana: {}
+    elk:
+      mylab:
+            hosts: 
+            - <HOST_ELASTIC>         
+    dns: {}
+
