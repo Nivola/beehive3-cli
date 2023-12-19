@@ -1,3 +1,3 @@
-# SPDX-License-Identifier: EUPL-1.2
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
-# (C) Copyright 2018-2022 CSI-Piemontes
+# (C) Copyright 2018-2023 CSI-Piemontes

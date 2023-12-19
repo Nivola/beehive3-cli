@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive3_cli.core.controller import CliController
 
@@ -24,17 +24,17 @@ class DqResourceState(object):
 
 class DqResourceController(CliController):
     class Meta:
-        label = 'dq_res'
-        stacked_on = 'base'
-        stacked_type = 'nested'
-        description = 'resource data quality'
-        help = 'resource data quality'
+        label = "dq_res"
+        stacked_on = "base"
+        stacked_type = "nested"
+        description = "resource data quality"
+        help = "resource data quality"
 
 
 class DqServiceController(CliController):
     class Meta:
-        label = 'dq_service'
-        stacked_on = 'base'
-        stacked_type = 'nested'
-        description = 'service data quality'
-        help = 'service data quality'
+        label = "dq_service"
+        stacked_on = "base"
+        stacked_type = "nested"
+        description = "service data quality"
+        help = "service data quality"

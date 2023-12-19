@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from cement.ext.ext_json import JsonOutputHandler as OriginalJsonOutputHandler
 from cement.utils.misc import minimal_logger
-import json
+from ujson import dumps
 
 LOG = minimal_logger(__name__)
 
 
 class JsonOutputHandler(OriginalJsonOutputHandler):
     class Meta:
-        label = 'json_output_handler'
+        label = "json_output_handler"
 
     def render(self, data, *args, **kwargs):
         """
@@ -31,4 +31,4 @@ class JsonOutputHandler(OriginalJsonOutputHandler):
 
         """
         LOG.debug("rendering output as Json via %s" % self.__module__)
-        return json.dumps(data, indent=2) + '\n'
+        return dumps(data, indent=2) + "\n"

@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from argparse import RawDescriptionHelpFormatter, _ArgumentGroup, _SubParsersAction, Action
+from argparse import (
+    RawDescriptionHelpFormatter,
+    _ArgumentGroup,
+    _SubParsersAction,
+    Action,
+)
 from cement.ext.ext_argparse import ArgparseArgumentHandler
 
 
@@ -21,7 +26,8 @@ class CliHelpFormatter(RawDescriptionHelpFormatter):
             if isinstance(result, tuple):
                 return result
             else:
-                return (result, ) * tuple_size
+                return (result,) * tuple_size
+
         return format
 
 
@@ -33,19 +39,18 @@ class _CliSubParsersAction(_SubParsersAction):
                 metavar = aliases[0]
                 # metavar += ' (%s)' % ', '.join(aliases)
             sup = super(_CliSubParsersAction._ChoicesPseudoAction, self)
-            sup.__init__(option_strings=[], dest=dest, help=help,
-                         metavar=metavar)
+            sup.__init__(option_strings=[], dest=dest, help=help, metavar=metavar)
 
 
 class ArgumentGroup(_ArgumentGroup):
     def __init__(self, container, title=None, description=None, **kwargs):
         super(ArgumentGroup, self).__init__(container, title=None, description=None, **kwargs)
-        self.register('action', 'parsers', _CliSubParsersAction)
+        self.register("action", "parsers", _CliSubParsersAction)
 
 
 class CliArgumentHandler(ArgparseArgumentHandler):
     class Meta:
-        label = 'cli_argument_handler'
+        label = "cli_argument_handler"
 
     def add_argument_group(self, *args, **kwargs):
         group = ArgumentGroup(self, *args, **kwargs)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 #
 # def load_config(file_config):
@@ -23,4 +23,3 @@
 #         data = json.loads(data)
 #     f.close()
 #     return data
-

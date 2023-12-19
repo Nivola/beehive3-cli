@@ -1,13 +1,12 @@
-beehive3-cli is written and maintained by: 
+beehive3-cli is written and maintained by:
 
-* Sergio Tonani
-* Michele Bello
-* Gianni Doria
-* Davide Sacchetto
+
 * Ahmad Nazha
-* Felice Cipriani
-* Filippo Vallero
-* Ignazio Cassano
-* Gianpiero Ardissono
-* Franco Frattini
 * Alessandro More'
+* Davide Sacchetto
+* Filippo Vallero
+* Franco Frattini
+* Gianni Doria
+* Michele Bello
+* Pietro Pilolli
+* Sergio Tonani

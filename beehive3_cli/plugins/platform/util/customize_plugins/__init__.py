@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 from beecell.types.type_dict import dict_get
@@ -13,14 +13,14 @@ class CustomizePlugin(object):
         self.manager = manager
 
     def error(self, msg):
-        if self.manager.app.config.get('beehive', 'colored') is True:
+        if self.manager.app.config.get("beehive", "colored") is True:
             msg = self.manager.app.colored_text.error(msg)
         print(msg)
 
     def write(self, msg):
         # if self.self.manager.app.config.get('beehive', 'colored') is True:
         #     msg = self.self.manager.app.colored_text.error(msg)
-        print('OUT   : %s' % msg)
+        print("OUT   : %s" % msg)
 
     def has_config(self, configs, config):
         return dict_get(configs, config, default=False)
@@ -40,7 +40,7 @@ class CustomizePlugin(object):
 
     def cmp_exists(self, uri, msg):
         try:
-            self.manager.controller.cmp_get(uri, data='')
+            self.manager.controller.cmp_get(uri, data="")
             self.error(msg)
             exists = True
         except:
@@ -48,9 +48,9 @@ class CustomizePlugin(object):
 
         return exists
 
-    def cmp_exists2(self, uri, msg, data=None, key='volumetypes.0.uuid'):
+    def cmp_exists2(self, uri, msg, data=None, key="volumetypes.0.uuid"):
         res = self.manager.controller.cmp_get(uri, data=data)
-        if res.get('count', 0) == 0:
+        if res.get("count", 0) == 0:
             exists = None
         else:
             exists = dict_get(res, key)
@@ -60,7 +60,7 @@ class CustomizePlugin(object):
 
         return exists
 
-    def cmp_get(self, uri, data='', msg=None):
+    def cmp_get(self, uri, data="", msg=None):
         return self.cmp_invoke(self.manager.controller.cmp_get, uri, data, msg)
 
     def cmp_post(self, uri, data, msg):

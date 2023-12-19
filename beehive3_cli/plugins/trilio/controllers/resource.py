@@ -1,24 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
-from beecell.simple import truncate
-from beehive3_cli.core.controller import BaseController, PARGS, ARGS
-from cement import ex
+from beehive3_cli.core.controller import BaseController
 
 
 class OpenstackTrilioController(BaseController):
     class Meta:
-        label = 'res_trilio'
-        stacked_on = 'base'
-        stacked_type = 'nested'
+        label = "res_trilio"
+        stacked_on = "base"
+        stacked_type = "nested"
         description = "openstack trilio orchestrator"
         help = "openstack trilio orchestrator"
 
-        cmp = {'baseuri': '/v1.0/nrs/openstack', 'subsystem': 'resource'}
+        cmp = {"baseuri": "/v1.0/nrs/openstack", "subsystem": "resource"}
 
-        headers = ['id', 'ext_id', 'name', 'desc', 'parent', 'container', 'state']
-        fields = ['id', 'ext_id', 'name', 'desc', 'parent', 'container', 'state']
+        headers = ["id", "ext_id", "name", "desc", "parent", "container", "state"]
+        fields = ["id", "ext_id", "name", "desc", "parent", "container", "state"]
 
     def pre_command_run(self):
         super(OpenstackTrilioController, self).pre_command_run()

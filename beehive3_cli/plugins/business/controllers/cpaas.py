@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from re import match
 from urllib.parse import urlencode
@@ -16,370 +16,600 @@ from beehive3_cli.plugins.business.controllers.business import BusinessControlle
 
 class CPaaServiceController(BusinessControllerChild):
     class Meta:
-        label = 'cpaas'
+        label = "cpaas"
         description = "compute service management"
         help = "compute service management"
 
     @ex(
-        help='get compute service info',
-        description='get compute service info',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-        ])
+        help="get compute service info",
+        description="get compute service info",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def info(self):
         account = self.app.pargs.account
-        account = self.get_account(account).get('uuid')
-        data = {'owner-id': account}
-        uri = '%s/computeservices' % self.baseuri
+        account = self.get_account(account).get("uuid")
+        data = {"owner-id": account}
+        uri = "%s/computeservices" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = dict_get(res, 'DescribeComputeResponse.computeSet.0')
+        res = dict_get(res, "DescribeComputeResponse.computeSet.0")
         # limits = res.pop('limits')
         self.app.render(res, details=True, maxsize=100)
         # self.output('Limits:')
         # self.app.render(limits, headers=['quota', 'value', 'allocated', 'unit'], maxsize=40)
 
     @ex(
-        help='get compute service quotas',
-        description='get compute service quotas',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-        ])
+        help="get compute service quotas",
+        description="get compute service quotas",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def quotas(self):
         account = self.app.pargs.account
-        account = self.get_account(account).get('uuid')
-        data = {'owner-id': account}
-        uri = '%s/computeservices/describeaccountattributes' % self.baseuri
+        account = self.get_account(account).get("uuid")
+        data = {"owner-id": account}
+        uri = "%s/computeservices/describeaccountattributes" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = dict_get(res, 'DescribeAccountAttributesResponse.accountAttributeSet')
-        headers = ['name', 'value', 'used']
-        fields = ['attributeName', 'attributeValueSet.0.item.attributeValue',
-                  'attributeValueSet.0.item.nvl-attributeUsed']
+        res = dict_get(res, "DescribeAccountAttributesResponse.accountAttributeSet")
+        headers = ["name", "value", "used"]
+        fields = [
+            "attributeName",
+            "attributeValueSet.0.item.attributeValue",
+            "attributeValueSet.0.item.nvl-attributeUsed",
+        ]
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='get compute service availibility zones',
-        description='get compute service availibility zones',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-        ])
+        help="get compute service availibility zones",
+        description="get compute service availibility zones",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def availability_zones(self):
         account = self.app.pargs.account
-        account = self.get_account(account).get('uuid')
-        data = {'owner-id': account}
-        uri = '%s/computeservices/describeavailabilityzones' % self.baseuri
+        account = self.get_account(account).get("uuid")
+        data = {"owner-id": account}
+        uri = "%s/computeservices/describeavailabilityzones" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = dict_get(res, 'DescribeAvailabilityZonesResponse.availabilityZoneInfo')
-        headers = ['name', 'state', 'region', 'message']
-        fields = ['zoneName', 'zoneState', 'regionName', 'messageSet.0.message']
+        res = dict_get(res, "DescribeAvailabilityZonesResponse.availabilityZoneInfo")
+        headers = ["name", "state", "region", "message"]
+        fields = ["zoneName", "zoneState", "regionName", "messageSet.0.message"]
         self.app.render(res, headers=headers, fields=fields)
 
 
 class ImageServiceController(BusinessControllerChild):
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'images'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "images"
         description = "image service management"
         help = "image service management"
 
     @ex(
-        help='list images',
-        description='list images',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-images'], {'help': 'list of image id comma separated', 'action': 'store', 'type': str,
-                           'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="list images",
+        description="list images",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-images"],
+                    {
+                        "help": "list of image id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
-        params = ['accounts', 'images']
+        params = ["accounts", "images"]
         mappings = {
-            'accounts': self.get_account_ids,
-            'tags': lambda x: x.split(','),
-            'images': lambda x: x.split(',')
+            "accounts": self.get_account_ids,
+            "tags": lambda x: x.split(","),
+            "images": lambda x: x.split(","),
         }
         aliases = {
-            'accounts': 'owner-id.N',
-            'images': 'image-id.N',
-            'tags': 'tag-key.N',
-            'size': 'Nvl-MaxResults',
-            'page': 'Nvl-NextToken'
+            "accounts": "owner-id.N",
+            "images": "image-id.N",
+            "tags": "tag-key.N",
+            "size": "Nvl-MaxResults",
+            "page": "Nvl-NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = '%s/computeservices/image/describeimages' % self.baseuri
+        uri = "%s/computeservices/image/describeimages" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeImagesResponse')
+        res = res.get("DescribeImagesResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('imagesSet')),
-            'page': page,
-            'total': res.get('nvl-imageTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'instances': res.get('imagesSet')
+            "count": len(res.get("imagesSet")),
+            "page": page,
+            "total": res.get("nvl-imageTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "instances": res.get("imagesSet"),
         }
 
-        headers = ['id', 'name', 'state', 'type', 'account', 'platform', 'hypervisor']
-        fields = ['imageId', 'name', 'imageState', 'imageType', 'imageOwnerAlias', 'platform', 'hypervisor']
-        self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=40)
+        headers = ["id", "name", "state", "type", "account", "platform", "hypervisor"]
+        fields = [
+            "imageId",
+            "name",
+            "imageState",
+            "imageType",
+            "imageOwnerAlias",
+            "platform",
+            "hypervisor",
+        ]
+        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='get image',
-        description='get image',
-        arguments=ARGS([
-            (['image'], {'help': 'image id', 'action': 'store', 'type': str}),
-        ])
+        help="get image",
+        description="get image",
+        arguments=ARGS(
+            [
+                (["image"], {"help": "image id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def get(self):
         image_id = self.app.pargs.image
         if self.is_uuid(image_id):
-            data = {'ImageId.N': [image_id]}
+            data = {"ImageId.N": [image_id]}
         elif self.is_name(image_id):
-            data = {'name.N': [image_id]}
+            data = {"name.N": [image_id]}
 
-        uri = '%s/computeservices/image/describeimages' % self.baseuri
+        uri = "%s/computeservices/image/describeimages" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeImagesResponse.imagesSet', default={})
+        res = dict_get(res, "DescribeImagesResponse.imagesSet", default={})
         if len(res) > 0:
             res = res[0]
-            if self.is_output_text():
-                self.app.render(res, details=True, maxsize=100)
-            else:
-                self.app.render(res, details=True, maxsize=100)
+            # if self.is_output_text():
+            #     self.app.render(res, details=True, maxsize=100)
+            # else:
+            self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception('image %s was not found' % image_id)
+            raise Exception("image %s was not found" % image_id)
 
     @ex(
-        help='get image templates',
-        description='get image templates',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-id'], {'help': 'template id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get image templates",
+        description="get image templates",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {
+                        "help": "account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-id"],
+                    {
+                        "help": "template id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def types(self):
-        self.get_service_definitions('ComputeImage')
+        self.get_service_definitions("ComputeImage")
 
     @ex(
-        help='create an image',
-        description='create an image',
-        arguments=ARGS([
-            (['name'], {'help': 'image name', 'action': 'store', 'type': str}),
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-            (['desc'], {'help': 'image description', 'action': 'store', 'type': str}),
-            (['type'], {'help': 'image type', 'action': 'store', 'type': str})
-        ])
+        help="create an image",
+        description="create an image",
+        arguments=ARGS(
+            [
+                (["name"], {"help": "image name", "action": "store", "type": str}),
+                (
+                    ["account"],
+                    {"help": "parent account id", "action": "store", "type": str},
+                ),
+                (
+                    ["desc"],
+                    {"help": "image description", "action": "store", "type": str},
+                ),
+                (["type"], {"help": "image type", "action": "store", "type": str}),
+            ]
+        ),
     )
     def add(self):
         name = self.app.pargs.name
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         itype = self.get_service_definition(self.app.pargs.type)
         desc = self.app.pargs.desc
 
         data = {
-            'ImageName': name,
-            'owner_id': account,
-            'ImageDescription': desc,
-            'ImageType': itype
+            "ImageName": name,
+            "owner_id": account,
+            "ImageDescription": desc,
+            "ImageType": itype,
         }
-        uri = '%s/computeservices/image/createimage' % self.baseuri
-        res = self.cmp_post(uri, data={'image': data}, timeout=600)
-        res = dict_get(res, 'CreateImageResponse.imageId')
-        self.app.render({'msg': 'add image: %s' % res})
+        uri = "%s/computeservices/image/createimage" % self.baseuri
+        res = self.cmp_post(uri, data={"image": data}, timeout=600)
+        res = dict_get(res, "CreateImageResponse.imageId")
+        self.app.render({"msg": "add image: %s" % res})
 
     @ex(
-        help='delete an image',
-        description='delete an image',
-        arguments=ARGS([
-            (['image'], {'help': 'image id', 'action': 'store', 'type': str}),
-        ])
+        help="delete an image",
+        description="delete an image",
+        arguments=ARGS(
+            [
+                (["image"], {"help": "image id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def delete(self):
         oid = self.app.pargs.image
-        data = {
-            'force': False,
-            'propagate': True
-        }
-        uri = '/v2.0/nws/serviceinsts/%s' % oid
-        self.cmp_delete(uri, data=data, timeout=180, entity='image %s' % oid)
+
+        # check type
+        version = "v2.0"
+        uri = "/%s/nws/serviceinsts/%s" % (version, oid)
+        res = self.cmp_get(uri).get("serviceinst")
+        plugintype = res["plugintype"]
+        name = res["name"]
+        if plugintype != "ComputeImage":
+            print("Instance is not a ComputeImage")
+        else:
+            data = {"force": False, "propagate": True}
+            uri = "/v2.0/nws/serviceinsts/%s" % oid
+            self.cmp_delete(uri, data=data, timeout=180, entity="image %s" % oid)
 
 
 class VolumeServiceController(BusinessControllerChild):
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'volumes'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "volumes"
         description = "volume service management"
         help = "volume service management"
 
-        cmp = {'baseuri': '/v1.0/nws', 'subsystem': 'service'}
+        cmp = {"baseuri": "/v1.0/nws", "subsystem": "service"}
 
     @ex(
-        help='load volumes from resources',
-        description='load volumes from resources',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-volumes'], {'help': 'list of volume id comma separated', 'action': 'store', 'type': str,
-                            'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="load volumes from resources",
+        description="load volumes from resources",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {
+                        "help": "account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["volume_name"],
+                    {
+                        "help": "name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["volume_resource_id"],
+                    {
+                        "help": "resource volume id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def load(self):
-        params = []
-        mappings = {
+        name = self.app.pargs.volume_name
+        account_id = self.get_account(self.app.pargs.account).get("uuid")
+        resource_id = self.app.pargs.volume_resource_id
+        data = {
+            "serviceinst": {
+                "name": name,
+                "account_id": account_id,
+                "plugintype": "ComputeVolume",
+                "container_plugintype": "ComputeService",
+                "resource_id": resource_id,
+            }
         }
-        aliases = {
-        }
-        data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-
-        self._meta.cmp = {'baseuri': '/v1.0/nrs', 'subsystem': 'resource'}
-        uri = '/v1.0/nrs/provider/volumes'
-        #res = self.cmp_get(uri, data=data)
-        #print(res)
-
-        self._meta.cmp = {'baseuri': '/v1.0/nws', 'subsystem': 'service'}
-        uri = '/v2.0/nws/serviceinsts'
-        data = {'size': 2, 'plugintype': 'ComputeInstance', 'order': 'asc'}
-        res = self.cmp_get(uri, data=data).get('serviceinsts')
-        for i in res:
-            print(i['id'], i['uuid'], i['name'], i['account']['uuid'], i['account']['name'], i['resource_uuid'],
-                  i['date']['creation'])
+        uri = "/v2.0/nws/serviceinsts/import"
+        self.cmp_post(uri, data=data)
+        self.app.render({"msg": "import service plugin instance %s" % name})
 
     @ex(
-        help='list volumes',
-        description='list volumes',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-volumes'], {'help': 'list of volume id comma separated', 'action': 'store', 'type': str,
-                            'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="list volumes",
+        description="list volumes",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-volumes"],
+                    {
+                        "help": "list of volume id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
-        params = ['accounts', 'volumes']
+        params = ["accounts", "volumes"]
         mappings = {
-            'accounts': self.get_account_ids,
-            'tags': lambda x: x.split(','),
-            'volumes': lambda x: x.split(',')
+            "accounts": self.get_account_ids,
+            "tags": lambda x: x.split(","),
+            "volumes": lambda x: x.split(","),
         }
         aliases = {
-            'accounts': 'owner-id.N',
-            'volumes': 'volume-id.N',
-            'tags': 'tag-key.N',
-            'size': 'MaxResults',
-            'page': 'NextToken'
+            "accounts": "owner-id.N",
+            "volumes": "volume-id.N",
+            "tags": "tag-key.N",
+            "size": "MaxResults",
+            "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = '%s/computeservices/volume/describevolumes' % self.baseuri
+        uri = "%s/computeservices/volume/describevolumes" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeVolumesResponse')
+        res = res.get("DescribeVolumesResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('volumesSet')),
-            'page': page,
-            'total': res.get('nvl-volumeTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'volumes': res.get('volumesSet')
+            "count": len(res.get("volumesSet")),
+            "page": page,
+            "total": res.get("nvl-volumeTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "volumes": res.get("volumesSet"),
         }
 
-        headers = ['id', 'name', 'state', 'size', 'type', 'account', 'platform', 'creation', 'instance']
-        fields = ['volumeId', 'nvl-name', 'status', 'size', 'volumeType', 'nvl-volumeOwnerAlias', 'nvl-hypervisor',
-                  'createTime', 'attachmentSet.0.instanceId']
-        self.app.render(resp, key='volumes', headers=headers, fields=fields, maxsize=40)
+        headers = [
+            "id",
+            "name",
+            "state",
+            "size",
+            "type",
+            "account",
+            "platform",
+            "creation",
+            "instance",
+        ]
+        fields = [
+            "volumeId",
+            "nvl-name",
+            "status",
+            "size",
+            "volumeType",
+            "nvl-volumeOwnerAlias",
+            "nvl-hypervisor",
+            "createTime",
+            "attachmentSet.0.instanceId",
+        ]
+        self.app.render(resp, key="volumes", headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='get volume',
-        description='get volume',
-        arguments=ARGS([
-            (['volume'], {'help': 'volume id', 'action': 'store', 'type': str}),
-        ])
+        help="get volume",
+        description="get volume",
+        arguments=ARGS(
+            [
+                (["volume"], {"help": "volume id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def get(self):
         volume_id = self.app.pargs.volume
         if self.is_uuid(volume_id):
-            data = {'VolumeId.N': [volume_id]}
+            data = {"VolumeId.N": [volume_id]}
         elif self.is_name(volume_id):
-            data = {'Nvl_Name.N': [volume_id]}
+            data = {"Nvl_Name.N": [volume_id]}
 
-        uri = '%s/computeservices/volume/describevolumes' % self.baseuri
+        uri = "%s/computeservices/volume/describevolumes" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeVolumesResponse.volumesSet', default={})
+        res = dict_get(res, "DescribeVolumesResponse.volumesSet", default={})
         if len(res) > 0:
             res = res[0]
-            if self.is_output_text():
-                self.app.render(res, details=True, maxsize=100)
-            else:
-                self.app.render(res, details=True, maxsize=100)
+            # if self.is_output_text():
+            #     self.app.render(res, details=True, maxsize=100)
+            # else:
+            self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception('volume %s was not found' % volume_id)
+            raise Exception("volume %s was not found" % volume_id)
 
     @ex(
-        help='get volumes types',
-        description='get volumes types',
-        arguments=ARGS([
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="get volumes types",
+        description="get volumes types",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {
+                        "help": "parent account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def types(self):
-        params = ['account']
+        params = ["account"]
         mappings = {
-            'account': lambda x: self.get_account(x)['uuid'],
+            "account": lambda x: self.get_account(x)["uuid"],
         }
-        aliases = {
-            'account': 'owner-id',
-            'size': 'MaxResults',
-            'page': 'NextToken'
-        }
+        aliases = {"account": "owner-id", "size": "MaxResults", "page": "NextToken"}
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '/v2.0/nws/computeservices/volume/describevolumetypes'
+        uri = "/v2.0/nws/computeservices/volume/describevolumetypes"
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeVolumeTypesResponse')
+        res = res.get("DescribeVolumeTypesResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('volumeTypesSet')),
-            'page': page,
-            'total': res.get('volumeTypesTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'types': res.get('volumeTypesSet')
+            "count": len(res.get("volumeTypesSet")),
+            "page": page,
+            "total": res.get("volumeTypesTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "types": res.get("volumeTypesSet"),
         }
-        headers = ['id', 'volume_type', 'desc']
-        fields = ['uuid', 'name', 'description']
-        self.app.render(resp, key='types', headers=headers, fields=fields)
+        headers = ["id", "volume_type", "desc"]
+        fields = ["uuid", "name", "description"]
+        self.app.render(resp, key="types", headers=headers, fields=fields)
 
     @ex(
-        help='create a volume',
-        description='create a volume',
-        arguments=ARGS([
-            (['name'], {'help': 'volume name', 'action': 'store', 'type': str}),
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-            (['availability_zone'], {'help': 'volume availability_zone', 'action': 'store', 'type': str}),
-            (['type'], {'help': 'volume type', 'action': 'store', 'type': str}),
-            (['size'], {'help': 'volume sise', 'action': 'store', 'type': str}),
-            (['-iops'], {'help': 'volume iops', 'action': 'store', 'type': int, 'default': -1}),
-            (['-snapshot'], {'help': 'volume snapshot', 'action': 'store', 'type': str, 'default': None}),
-            (['-hypervisor'], {'help': 'volume hypervisor. Can be: openstack or vsphere [default=openstack]',
-                               'action': 'store', 'type': str, 'default': 'openstack'}),
-        ])
+        help="create a volume",
+        description="create a volume",
+        arguments=ARGS(
+            [
+                (["name"], {"help": "volume name", "action": "store", "type": str}),
+                (
+                    ["account"],
+                    {"help": "parent account id", "action": "store", "type": str},
+                ),
+                (
+                    ["availability_zone"],
+                    {
+                        "help": "volume availability_zone",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (["type"], {"help": "volume type", "action": "store", "type": str}),
+                (["size"], {"help": "volume sise", "action": "store", "type": str}),
+                (
+                    ["-iops"],
+                    {
+                        "help": "volume iops",
+                        "action": "store",
+                        "type": int,
+                        "default": -1,
+                    },
+                ),
+                (
+                    ["-snapshot"],
+                    {
+                        "help": "volume snapshot",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-hypervisor"],
+                    {
+                        "help": "volume hypervisor. Can be: openstack or vsphere [default=openstack]",
+                        "action": "store",
+                        "type": str,
+                        "default": "openstack",
+                    },
+                ),
+            ]
+        ),
     )
     def add(self):
         name = self.app.pargs.name
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         itype = self.get_service_definition(self.app.pargs.type)
         snapshot = self.app.pargs.snapshot
         size = self.app.pargs.size
@@ -388,22 +618,22 @@ class VolumeServiceController(BusinessControllerChild):
         hypervisor = self.app.pargs.hypervisor
 
         data = {
-            'Nvl_Name': name,
-            'owner-id': account,
+            "Nvl_Name": name,
+            "owner-id": account,
             # 'SnapshotId': snapshot,
-            'VolumeType': itype,
-            'Size': size,
-            'Iops': iops,
-            'AvailabilityZone': zone,
-            'MultiAttachEnabled': False,
-            'Encrypted': False,
-            'Nvl_Hypervisor': hypervisor
+            "VolumeType": itype,
+            "Size": size,
+            "Iops": iops,
+            "AvailabilityZone": zone,
+            "MultiAttachEnabled": False,
+            "Encrypted": False,
+            "Nvl_Hypervisor": hypervisor,
         }
-        uri = '%s/computeservices/volume/createvolume' % self.baseuri
-        res = self.cmp_post(uri, data={'volume': data}, timeout=600)
-        res = dict_get(res, 'CreateVolumeResponse.volumeId')
+        uri = "%s/computeservices/volume/createvolume" % self.baseuri
+        res = self.cmp_post(uri, data={"volume": data}, timeout=600)
+        res = dict_get(res, "CreateVolumeResponse.volumeId")
         self.wait_for_service(res)
-        self.app.render({'msg': 'add volume: %s' % res})
+        self.app.render({"msg": "add volume: %s" % res})
 
     # @ex(
     #     help='update a volume',
@@ -426,278 +656,669 @@ class VolumeServiceController(BusinessControllerChild):
     #     self.app.render('update volume %s' % value)
 
     @ex(
-        help='delete a volume',
-        description='delete a volume',
-        arguments=ARGS([
-            (['volume'], {'help': 'volume id', 'action': 'store', 'type': str}),
-        ])
+        help="delete a volume",
+        description="delete a volume",
+        arguments=ARGS(
+            [
+                (["volume"], {"help": "volume id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def delete(self):
         volume_id = self.app.pargs.volume
         if self.is_name(volume_id):
-            raise Exception('only volume id is supported')
-        data = {'VolumeId': volume_id}
-        uri = '%s/computeservices/volume/deletevolume' % self.baseuri
-        self.cmp_delete(uri, data=data, timeout=600, entity='volume %s' % volume_id)
-        self.wait_for_service(volume_id, accepted_state='DELETED')
+            raise Exception("only volume id is supported")
+        data = {"VolumeId": volume_id}
+        uri = "%s/computeservices/volume/deletevolume" % self.baseuri
+        self.cmp_delete(uri, data=data, timeout=600, entity="volume %s" % volume_id)
+        self.wait_for_service(volume_id, accepted_state="DELETED")
 
     @ex(
-        help='attach a volume to an instance',
-        description='attach a volume to an instance',
-        arguments=ARGS([
-            (['volume'], {'help': 'volume id', 'action': 'store', 'type': str}),
-            (['instance'], {'help': 'instance id', 'action': 'store', 'type': str}),
-        ])
+        help="attach a volume to an instance",
+        description="attach a volume to an instance",
+        arguments=ARGS(
+            [
+                (["volume"], {"help": "volume id", "action": "store", "type": str}),
+                (["instance"], {"help": "instance id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def attach(self):
         volume = self.app.pargs.volume
         instance = self.app.pargs.instance
-        data = {'InstanceId': instance, 'VolumeId': volume, 'Device': '/dev/sda'}
-        uri = '%s/computeservices/volume/attachvolume' % self.baseuri
+        data = {"InstanceId": instance, "VolumeId": volume, "Device": "/dev/sda"}
+        uri = "%s/computeservices/volume/attachvolume" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(volume)
-        self.app.render({'msg': 'attach volume %s to instance %s' % (volume, instance)})
+        self.app.render({"msg": "attach volume %s to instance %s" % (volume, instance)})
 
     @ex(
-        help='detach a volume to an instance',
-        description='detach a volume to an instance',
-        arguments=ARGS([
-            (['volume'], {'help': 'volume id', 'action': 'store', 'type': str}),
-            (['instance'], {'help': 'instance id', 'action': 'store', 'type': str}),
-        ])
+        help="detach a volume to an instance",
+        description="detach a volume to an instance",
+        arguments=ARGS(
+            [
+                (["volume"], {"help": "volume id", "action": "store", "type": str}),
+                (["instance"], {"help": "instance id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def detach(self):
         volume = self.app.pargs.volume
         instance = self.app.pargs.instance
-        data = {'InstanceId': instance, 'VolumeId': volume, 'Device': '/dev/sda'}
-        uri = '%s/computeservices/volume/detachvolume' % self.baseuri
+        data = {"InstanceId": instance, "VolumeId": volume, "Device": "/dev/sda"}
+        uri = "%s/computeservices/volume/detachvolume" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(volume)
-        self.app.render({'msg': 'detach volume %s to instance %s' % (volume, instance)})
+        self.app.render({"msg": "detach volume %s to instance %s" % (volume, instance)})
 
 
 class VmServiceController(BusinessControllerChild):
+    host_groups = ["oracle", "amco", "sirmet"]
+
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'vms'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "vms"
         description = "virtual machine service management"
         help = "virtual machine service management"
 
-        cmp = {'baseuri': '/v2.0/nws', 'subsystem': 'service'}
+        cmp = {"baseuri": "/v2.0/nws", "subsystem": "service"}
 
     @ex(
-        help='list all the virtual machines',
-        description='list all the virtual machines',
-        arguments=ARGS([
-        ])
+        help="list all the virtual machines",
+        description="list all the virtual machines",
+        arguments=ARGS(
+            [
+                (
+                    ["start"],
+                    {
+                        "help": "vms range lower bound",
+                        "action": "store",
+                        "type": int,
+                    },
+                ),
+                (
+                    ["end"],
+                    {
+                        "help": "vms range upper bound",
+                        "action": "store",
+                        "type": int,
+                    },
+                ),
+            ]
+        ),
     )
     def list_all(self):
-        def get_instance(page):
-            data = {
-                'MaxResults': 100,
-                'NextToken': page
-            }
-            uri = '%s/computeservices/instance/describeinstances' % self.baseuri
-            res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-            res = res.get('DescribeInstancesResponse').get('reservationSet')[0]
-            total = res.get('nvl-instanceTotal')
-            res = res.get('instancesSet')
+        account_d = dict()
 
+        def get_account(account_uuid):
+            uri = "%s/accounts/%s" % (self.baseuri, account_uuid)
+            res = self.cmp_get(uri)
+            res = res.get("account")
+            account_name = res.get("name")
+            div_uuid = res.get("division_id")
+            return account_name, div_uuid
+
+        def get_division(div_uuid):
+            uri = "/v1.0/nws/divisions/%s" % div_uuid
+            res = self.cmp_get(uri)
+            res = res.get("division")
+            div_name = res.get("name")
+            org_uuid = res.get("organization_id")
+            return div_name, org_uuid
+
+        def get_organization(org_uuid):
+            uri = "/v1.0/nws/organizations/%s" % org_uuid
+            res = self.cmp_get(uri)
+            res = res.get("organization")
+            org_name = res.get("name")
+            return org_name
+
+        def get_instance(page, size):
+            data = {"MaxResults": size, "NextToken": page}
+            uri = "%s/computeservices/instance/describeinstances" % self.baseuri
+            res = self.cmp_get(uri, data=urlencode(data, doseq=True))
+            res = res.get("DescribeInstancesResponse").get("reservationSet")[0]
+            total = res.get("nvl-instanceTotal")
+            res = res.get("instancesSet")
             for item in res:
-                block_devices = item.pop('blockDeviceMapping', [])
-                instance_type = item.pop('nvl-InstanceTypeExt', {})
-                item['vcpus'] = instance_type.get('vcpus')
-                item['memory'] = instance_type.get('memory')
-                item['disk'] = sum([dict_get(b, 'ebs.volumeSize') for b in block_devices])
+                block_devices = item.pop("blockDeviceMapping", [])
+                instance_type = item.pop("nvl-InstanceTypeExt", {})
+                item["vcpus"] = instance_type.get("vcpus")
+                item["memory"] = instance_type.get("memory")
+                item["disk"] = sum(dict_get(b, "ebs.volumeSize") for b in block_devices)
+                # build account hierarchy i.e. org.div.account
+                account_uuid = item.get("nvl-ownerId")
+                if account_uuid in account_d:
+                    account_triplette = account_d[account_uuid]
+                else:
+                    account_name, div_uuid = get_account(account_uuid)
+                    div_name, org_uuid = get_division(div_uuid)
+                    org_name = get_organization(org_uuid)
+                    account_triplette = "%s.%s.%s" % (org_name, div_name, account_name)
+                    account_d[account_uuid] = account_triplette
+                item["nvl-ownerAlias"] = account_triplette
+
             return res, total
 
-        total = 1628
-        max_page = int(round(total/100, 0))+1
+        # secs = 0
+        size = 20
+        start = self.app.pargs.start
+        end = self.app.pargs.end
+        if not isinstance(start, int):
+            start = int(start)
+        if not isinstance(end, int):
+            end = int(end)
+        if start < 0 or end < 0:
+            raise Exception("Upper and/or lower bounds cannot be negative")
+        if start > end:
+            raise Exception("Lower bound cannot be greater that upper bound")
+        if start == 0:
+            start = 1
+        first_page = start // size
+        last_page = end // size + (end % size > 0)
+        headers = [
+            "id",
+            "name",
+            "account",
+            "state",
+            "privateIp",
+            "fqdn",
+            "image",
+            "avz",
+            "subnet",
+            "type",
+            "vcpus",
+            "memory",
+            "disk",
+            "hypervisor",
+            "creation",
+        ]
+        fields = [
+            "instanceId",
+            "nvl-name",
+            "nvl-ownerAlias",
+            "instanceState.name",
+            "privateIpAddress",
+            "dnsName",
+            "nvl-imageName",
+            "placement.availabilityZone",
+            "nvl-subnetName",
+            "instanceType",
+            "vcpus",
+            "memory",
+            "disk",
+            "hypervisor",
+            "launchTime",
+        ]
         resp = []
-        for page in range(0, max_page):
-            resp.extend(get_instance(page)[0])
-            print('get vm from %s to %s' % (page*100, (page+1)*100))
-
-        headers = ['name', 'type', 'account', 'image', 'fqdn', 'vcpus', 'memory', 'disk']
-        fields = ['nvl-name', 'instanceType', 'nvl-ownerAlias', 'nvl-imageName', 'dnsName', 'vcpus', 'memory', 'disk']
-        self.app.render(resp, headers=headers, fields=fields)
+        format = self.format
+        for page in range(first_page, last_page):
+            print("getting vms from %s to %s ..." % (page * size + 1, (page + 1) * size))
+            try:
+                chunk_resp = get_instance(page, size)[0]
+                if format == "text":
+                    self.app.render(chunk_resp, headers=headers, fields=fields)
+                else:
+                    resp += chunk_resp
+                print("got vms from %s to %s" % (page * size + 1, (page + 1) * size))
+                # time.sleep(secs)
+            except Exception as exc:
+                print(exc)
+                break
+        if format == "json":
+            self.app.render(resp, headers=headers, fields=fields)
 
     @ex(
-        help='get virtual machine',
-        description='get virtual machine',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-ids'], {'help': 'list of vm id comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'vm name', 'action': 'store', 'type': str, 'default': None}),
-            (['-names'], {'help': 'vm name pattern', 'action': 'store', 'type': str, 'default': None}),
-            (['-types'], {'help': 'list of type comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-launch_time'], {'help': 'launch time interval. Ex. 2021-01-30T:2021-01-31T', 'action': 'store',
-                                'type': str, 'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-states'], {'help': 'list of instance state comma separated', 'action': 'store', 'type': str,
-                           'default': None}),
-            (['-sg'], {'help': 'list of security group id comma separated. Ex. pending, running, error',
-                       'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-            (['-services'], {'help': 'print instance service enabling. Ex. backup, monitoring', 'action': 'store_true'}),
-        ])
+        help="get virtual machine",
+        description="get virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ids"],
+                    {
+                        "help": "list of vm id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "vm name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-names"],
+                    {
+                        "help": "vm name pattern",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-types"],
+                    {
+                        "help": "list of type comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-launch_time"],
+                    {
+                        "help": "launch time interval. Ex. 2021-01-30T:2021-01-31T",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-states"],
+                    {
+                        "help": "list of instance state comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sg"],
+                    {
+                        "help": "list of security group id comma separated. Ex. pending, running, error",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+                (
+                    ["-services"],
+                    {
+                        "help": "print instance service enabling. Ex. backup, monitoring",
+                        "action": "store_true",
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
         services = self.app.pargs.services
-        params = ['accounts', 'ids', 'types', 'tags', 'sg', 'name', 'names', 'launch_time', 'states']
+        params = [
+            "accounts",
+            "ids",
+            "types",
+            "tags",
+            "sg",
+            "name",
+            "names",
+            "launch_time",
+            "states",
+        ]
         mappings = {
-            'accounts': self.get_account_ids,
-            'tags': lambda x: x.split(','),
-            'types': lambda x: x.split(','),
-            'ids': lambda x: x.split(','),
-            'name': lambda x: x.split(','),
-            'names': lambda x: '%' + x + '%',
-            'sg': lambda x: x.split(','),
-            'launch_time': lambda x: x.split(','),
-            'states': lambda x: x.split(','),
+            "accounts": self.get_account_ids,
+            "tags": lambda x: x.split(","),
+            "types": lambda x: x.split(","),
+            "ids": lambda x: x.split(","),
+            "name": lambda x: x.split(","),
+            "names": lambda x: "%" + x + "%",
+            "sg": lambda x: x.split(","),
+            "launch_time": lambda x: x.split(","),
+            "states": lambda x: x.split(","),
         }
         aliases = {
-            'accounts': 'owner-id.N',
-            'ids': 'instance-id.N',
-            'types': 'instance-type.N',
-            'name': 'name.N',
-            'names': 'name-pattern',
-            'tags': 'tag-key.N',
-            'sg': 'instance.group-id.N',
-            'launch_time': 'launch-time.N',
-            'states': 'instance-state-name.N',
-            'size': 'MaxResults',
-            'page': 'NextToken'
+            "accounts": "owner-id.N",
+            "ids": "instance-id.N",
+            "types": "instance-type.N",
+            "name": "name.N",
+            "names": "name-pattern",
+            "tags": "tag-key.N",
+            "sg": "instance.group-id.N",
+            "launch_time": "launch-time.N",
+            "states": "instance-state-name.N",
+            "size": "MaxResults",
+            "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '%s/computeservices/instance/describeinstances' % self.baseuri
+        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeInstancesResponse')
+        res = res.get("DescribeInstancesResponse")
         page = self.app.pargs.page
-        res = res.get('reservationSet')[0]
+        res = res.get("reservationSet")[0]
         resp = {
-            'count': len(res.get('instancesSet')),
-            'page': page,
-            'total': res.get('nvl-instanceTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'instances': res.get('instancesSet')
+            "count": len(res.get("instancesSet")),
+            "page": page,
+            "total": res.get("nvl-instanceTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "instances": res.get("instancesSet"),
         }
 
-        headers = ['id', 'name', 'account', 'type', 'state', 'availabilityZone', 'privateIp', 'image', 'subnet', 'sg',
-                   'hypervisor', 'launchTime']
-        fields = ['instanceId', 'nvl-name', 'nvl-ownerAlias', 'instanceType', 'instanceState.name',
-                  'placement.availabilityZone', 'privateIpAddress', 'nvl-imageName', 'nvl-subnetName',
-                  'groupSet.0.groupId', 'hypervisor', 'launchTime']
+        headers = [
+            "id",
+            "name",
+            "account",
+            "type",
+            "state",
+            "availabilityZone",
+            "privateIp",
+            "image",
+            "subnet",
+            "sg",
+            "hypervisor",
+            "launchTime",
+        ]
+        fields = [
+            "instanceId",
+            "nvl-name",
+            "nvl-ownerAlias",
+            "instanceType",
+            "instanceState.name",
+            "placement.availabilityZone",
+            "privateIpAddress",
+            "nvl-imageName",
+            "nvl-subnetName",
+            "groupSet.0.groupId",
+            "hypervisor",
+            "launchTime",
+        ]
         if services is True:
-            headers = ['id', 'name', 'account', 'state', 'availabilityZone', 'privateIp', 'backup', 'monitoring',
-                       'logging']
-            fields = ['instanceId', 'nvl-name', 'nvl-ownerAlias', 'instanceState.name', 'placement.availabilityZone',
-                      'privateIpAddress', 'nvl-BackupEnabled', 'nvl-MonitoringEnabled', 'nvl-LoggingEnabled']
+            headers = [
+                "id",
+                "name",
+                "account",
+                "state",
+                "availabilityZone",
+                "privateIp",
+                "backup",
+                "monitoring",
+                "logging",
+                "target_groups",
+            ]
+            fields = [
+                "instanceId",
+                "nvl-name",
+                "nvl-ownerAlias",
+                "instanceState.name",
+                "placement.availabilityZone",
+                "privateIpAddress",
+                "nvl-BackupEnabled",
+                "nvl-MonitoringEnabled",
+                "nvl-LoggingEnabled",
+                "nvl-targetGroups",
+            ]
 
-        transform = {'instanceState.name': self.color_error}
-        self.app.render(resp, key='instances', headers=headers, fields=fields, transform=transform, maxsize=40)
+        transform = {"instanceState.name": self.color_error}
+        self.app.render(
+            resp,
+            key="instances",
+            headers=headers,
+            fields=fields,
+            transform=transform,
+            maxsize=40,
+        )
 
     @ex(
-        help='get virtual machine',
-        description='get virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-        ])
+        help="get virtual machine",
+        description="get virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def get(self):
         vm_id = self.app.pargs.vm
         if self.is_uuid(vm_id):
-            data = {'instance-id.N': [vm_id]}
+            data = {"instance-id.N": [vm_id]}
         elif self.is_name(vm_id):
-            data = {'name.N': [vm_id]}
+            data = {"name.N": [vm_id]}
 
-        uri = '%s/computeservices/instance/describeinstances' % self.baseuri
+        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeInstancesResponse.reservationSet.0.instancesSet', default={})
+        res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet", default={})
         if len(res) > 0:
             res = res[0]
             if self.is_output_text():
                 network = {}
-                block_devices = res.pop('blockDeviceMapping', [])
-                instance_type = res.pop('nvl-InstanceTypeExt', {})
-                image = {'id':  res.pop('imageId', None), 'name': res.pop('nvl-imageName', None)}
-                network['ip_address'] = res.pop('privateIpAddress', None)
-                network['subnet'] = '%s - %s' % (res.pop('subnetId', None),
-                                                 res.pop('nvl-subnetName', None))
-                network['vpc'] = '%s - %s' % (res.pop('vpcId', None), res.pop('nvl-vpcName', None))
-                network['dns_name'] = res.pop('dnsName', None)
-                network['private_dns_name'] = res.pop('privateDnsName', None)
-                sgs = res.pop('groupSet', [])
+                block_devices = res.pop("blockDeviceMapping", [])
+                instance_type = res.pop("nvl-InstanceTypeExt", {})
+                image = {
+                    "id": res.pop("imageId", None),
+                    "name": res.pop("nvl-imageName", None),
+                }
+                network["ip_address"] = res.pop("privateIpAddress", None)
+                network["subnet"] = "%s - %s" % (
+                    res.pop("subnetId", None),
+                    res.pop("nvl-subnetName", None),
+                )
+                network["vpc"] = "%s - %s" % (
+                    res.pop("vpcId", None),
+                    res.pop("nvl-vpcName", None),
+                )
+                network["dns_name"] = res.pop("dnsName", None)
+                network["private_dns_name"] = res.pop("privateDnsName", None)
+                sgs = res.pop("groupSet", [])
                 self.app.render(res, details=True, maxsize=100)
-                self.c('\ninstance type', 'underline')
-                headers = ['vcpus', 'bandwidth', 'memory', 'disk_iops', 'disk']
+                self.c("\ninstance type", "underline")
+                headers = ["vcpus", "bandwidth", "memory", "disk_iops", "disk"]
                 self.app.render(instance_type, headers=headers)
-                self.c('\nimage', 'underline')
+                self.c("\nimage", "underline")
                 self.app.render(image, details=True)
-                self.c('\nnetwork', 'underline')
+                self.c("\nnetwork", "underline")
                 self.app.render(network, details=True)
                 print()
-                self.app.render(sgs, headers=['groupId', 'groupName'])
-                self.c('\nblock device', 'underline')
-                headers = ['deviceName', 'ebs.status', 'ebs.volumeSize', 'ebs.deleteOnTermination',
-                           'ebs.volumeId', 'ebs.attachTime']
+                self.app.render(sgs, headers=["groupId", "groupName"])
+                self.c("\nblock device", "underline")
+                headers = [
+                    "deviceName",
+                    "ebs.status",
+                    "ebs.volumeSize",
+                    "ebs.deleteOnTermination",
+                    "ebs.volumeId",
+                    "ebs.attachTime",
+                ]
                 self.app.render(block_devices, headers=headers)
             else:
                 self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception('virtual machine %s was not found' % vm_id)
+            raise Exception("virtual machine %s was not found" % vm_id)
 
     @ex(
-        help='get virtual machine console',
-        description='get virtual machine console',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-        ])
+        help="get virtual machine console",
+        description="get virtual machine console",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def console_get(self):
         vm_id = self.app.pargs.vm
-        data = {'InstanceId': vm_id}
-        uri = '/v2.0/nws/computeservices/instance/getconsole'
+        data = {"InstanceId": vm_id}
+        uri = "/v2.0/nws/computeservices/instance/getconsole"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'GetConsoleResponse.console', default={})
+        res = dict_get(res, "GetConsoleResponse.console", default={})
         self.app.render(res, details=True, maxsize=100)
 
     @ex(
-        help='create a virtual machine',
-        description='create a virtual machine',
-        arguments=ARGS([
-            (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-            (['type'], {'help': 'virtual machine type', 'action': 'store', 'type': str}),
-            (['subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str}),
-            (['image'], {'help': 'virtual machine image id', 'action': 'store', 'type': str}),
-            (['sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str}),
-            (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
-            (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-                        'default': None}),
-            (['-main-disk'], {'help': 'optional main disk size configuration. Use <size> to set e default volume type.'
-                                      '- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle'
-                                      '- Use <volume_id>:<volume_type> to set a volume to clone',
-                              'action': 'store', 'type': str, 'default': None}),
-            (['-other-disk'], {'help': 'list of additional disk sizes comma separated. Use <size> to set e default '
-                                       'volume type.Use <size>:<volume_type> to set a non default volume type. '
-                                       'Ex. 5,10 or 5:vol.oracle,10', 'action': 'store', 'type': str, 'default': None}),
-            (['-hypervisor'], {'help': 'virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]',
-                               'action': 'store', 'type': str, 'default': 'openstack'}),
-            (['-host-group'], {'help': 'virtual machine host group. Ex. oracle', 'action': 'store', 'type': str,
-                               'default': None}),
-            (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-                                      '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-                              'default': True}),
-            (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="create a virtual machine",
+        description="create a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["name"],
+                    {"help": "virtual machine name", "action": "store", "type": str},
+                ),
+                (
+                    ["account"],
+                    {"help": "parent account id", "action": "store", "type": str},
+                ),
+                (
+                    ["type"],
+                    {"help": "virtual machine type", "action": "store", "type": str},
+                ),
+                (
+                    ["subnet"],
+                    {
+                        "help": "virtual machine subnet id",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["image"],
+                    {
+                        "help": "virtual machine image id",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["sg"],
+                    {
+                        "help": "virtual machine security group id",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-sshkey"],
+                    {
+                        "help": "virtual machine ssh key name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-pwd"],
+                    {
+                        "help": "virtual machine admin/root password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-main-disk"],
+                    {
+                        "help": "optional main disk size configuration. Use <size> to set e default volume type."
+                        "- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle"
+                        "- Use <volume_id>:<volume_type> to set a volume to clone",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-other-disk"],
+                    {
+                        "help": "list of additional disk sizes comma separated. Use <size> to set e default "
+                        "volume type.Use <size>:<volume_type> to set a non default volume type. "
+                        "Ex. 5,10 or 5:vol.oracle,10",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-hypervisor"],
+                    {
+                        "help": "virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]",
+                        "action": "store",
+                        "type": str,
+                        "default": "openstack",
+                    },
+                ),
+                (
+                    ["-host-group"],
+                    {
+                        "help": "virtual machine host group. Ex. oracle",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-multi-avz"],
+                    {
+                        "help": "if set to False create vm to work only in the selected availability zone "
+                        "[default=True]. Use when subnet cidr is public",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+                (
+                    ["-meta"],
+                    {
+                        "help": "virtual machine custom metadata",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-skip-main-vol-size-check"],
+                    {
+                        "help": "Use to skip check that main volume size is not smaller than the main volume of the template.",
+                        "action": "store_true",
+                        "dest": "skip_main_vol_size_check",
+                    },
+                ),
+            ]
+        ),
     )
     def add(self):
         name = self.app.pargs.name
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         itype = self.get_service_definition(self.app.pargs.type)
         subnet = self.get_service_instance(self.app.pargs.subnet, account_id=account)
         image = self.get_service_instance(self.app.pargs.image, account_id=account)
@@ -710,112 +1331,194 @@ class VmServiceController(BusinessControllerChild):
         host_group = self.app.pargs.host_group
         multi_avz = self.app.pargs.multi_avz
         meta = self.app.pargs.meta
+        check_main_vol_size = not self.app.pargs.skip_main_vol_size_check
 
         if pwd is None:
             pwd = random_password(10)
 
         data = {
-            'Name': name,
-            'owner-id': account,
-            'AdditionalInfo': '',
-            'SubnetId': subnet,
-            'InstanceType': itype,
-            'AdminPassword': pwd,
-            'ImageId': image,
-            'SecurityGroupId.N': [sg],
-            'Nvl_MultiAvz': multi_avz
+            "Name": name,
+            "owner-id": account,
+            "AdditionalInfo": "",
+            "SubnetId": subnet,
+            "InstanceType": itype,
+            "AdminPassword": pwd,
+            "ImageId": image,
+            "SecurityGroupId.N": [sg],
+            "Nvl_MultiAvz": multi_avz,
+            "CheckMainVolSize": check_main_vol_size,
         }
 
         # set disks
-        blocks = [{'Ebs': {}}]
+        blocks = [{"Ebs": {}}]
         if boot_disk is not None:
-            boot_disk = boot_disk.split(':')
+            boot_disk = boot_disk.split(":")
             # get obj by uuid
-            if match('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', boot_disk[0]):
-                ebs = {'Nvl_VolumeId': boot_disk[0]}
+            if match(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+                boot_disk[0],
+            ):
+                ebs = {"Nvl_VolumeId": boot_disk[0]}
             # get obj by id
-            elif match('^\d+$', boot_disk[0]):
-                ebs = {'VolumeSize': int(boot_disk[0])}
+            elif match("^\d+$", boot_disk[0]):
+                ebs = {"VolumeSize": int(boot_disk[0])}
             if len(boot_disk) == 2:
-                ebs['VolumeType'] = boot_disk[1]
-            blocks[0] = {'Ebs': ebs}
+                ebs["VolumeType"] = boot_disk[1]
+            blocks[0] = {"Ebs": ebs}
         if disks is not None:
-            for disk in disks.split(','):
-                disk = disk.split(':')
+            for disk in disks.split(","):
+                disk = disk.split(":")
                 # get obj by uuid
-                if match('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', disk[0]):
-                    ebs = {'Nvl_VolumeId': disk[0]}
+                if match(
+                    "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+                    disk[0],
+                ):
+                    ebs = {"Nvl_VolumeId": disk[0]}
                 # get obj by id
-                elif match('^\d+$', disk[0]):
-                    ebs = {'VolumeSize': int(disk[0])}
+                elif match("^\d+$", disk[0]):
+                    ebs = {"VolumeSize": int(disk[0])}
                 if len(disk) == 2:
-                    ebs['VolumeType'] = disk[1]
-                blocks.append({'Ebs': ebs})
-        data['BlockDeviceMapping.N'] = blocks
+                    ebs["VolumeType"] = disk[1]
+                blocks.append({"Ebs": ebs})
+        data["BlockDeviceMapping.N"] = blocks
 
         # set sshkey
         if sshkey is not None:
-            data['KeyName'] = sshkey
+            data["KeyName"] = sshkey
 
         # set hypervisor
         if hypervisor is not None:
-            if hypervisor not in ['openstack', 'vsphere']:
-                raise Exception('Supported hypervisor are openstack and vsphere')
-            data['Nvl_Hypervisor'] = hypervisor
+            if hypervisor not in ["openstack", "vsphere"]:
+                raise Exception("Supported hypervisor are openstack and vsphere")
+            data["Nvl_Hypervisor"] = hypervisor
 
         # set host_group
         if host_group is not None:
-            if hypervisor == 'vsphere' and host_group not in ['oracle']:
-                raise Exception('Supported vsphere host group are "oracle"')
-            if hypervisor == 'openstack' and host_group not in ['bck', 'nobck']:
+            if hypervisor == "vsphere" and host_group not in VmServiceController.host_groups:
+                raise Exception("Supported vsphere host group are {}".format(VmServiceController.host_groups))
+            if hypervisor == "openstack" and host_group not in ["bck", "nobck"]:
                 raise Exception('Supported openstack host group are "bck" and "nobck"')
-            data['Nvl_HostGroup'] = host_group
+            data["Nvl_HostGroup"] = host_group
 
         # set meta
         if meta is not None:
-            data['Nvl_Metadata'] = {}
-            kvs = meta.split(',')
+            data["Nvl_Metadata"] = {}
+            kvs = meta.split(",")
             for kv in kvs:
-                k, v = kv.split(':')
-                data['Nvl_Metadata'][k] = v
+                k, v = kv.split(":")
+                data["Nvl_Metadata"][k] = v
 
-        uri = '%s/computeservices/instance/runinstances' % self.baseuri
-        res = self.cmp_post(uri, data={'instance': data}, timeout=600)
-        uuid = dict_get(res, 'RunInstanceResponse.instancesSet.0.instanceId')
+        uri = "%s/computeservices/instance/runinstances" % self.baseuri
+        res = self.cmp_post(uri, data={"instance": data}, timeout=600)
+        uuid = dict_get(res, "RunInstanceResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'add virtual machine: %s' % uuid})
+        self.app.render({"msg": "add virtual machine: %s" % uuid})
 
     def _get_instance(self, vm_id):
         if self.is_uuid(vm_id):
-            data = {'instance-id.N': [vm_id]}
+            data = {"instance-id.N": [vm_id]}
         elif self.is_name(vm_id):
-            data = {'name.N': [vm_id]}
+            data = {"name.N": [vm_id]}
 
-        uri = '%s/computeservices/instance/describeinstances' % self.baseuri
+        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeInstancesResponse.reservationSet.0.instancesSet', default={})
+        res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet", default={})
         if len(res) != 1:
-            raise Exception('no valid vm found for id %s' % vm_id)
+            raise Exception("no valid vm found for id %s" % vm_id)
         return res[0]
 
     @ex(
-        help='clone a virtual machine',
-        description='clone a virtual machine',
-        arguments=ARGS([
-            (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'id of the virtual machine to clone', 'action': 'store', 'type': str}),
-            (['-account'], {'help': 'parent account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-type'], {'help': 'virtual machine type', 'action': 'store', 'type': str, 'default': None}),
-            (['-subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str, 'default': None}),
-            (['-sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str, 'default': None}),
-            (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
-            (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-                        'default': None}),
-            (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-                                      '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-                              'default': True}),
-            (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="clone a virtual machine",
+        description="clone a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["name"],
+                    {"help": "virtual machine name", "action": "store", "type": str},
+                ),
+                (
+                    ["id"],
+                    {
+                        "help": "id of the virtual machine to clone",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-account"],
+                    {
+                        "help": "parent account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-type"],
+                    {
+                        "help": "virtual machine type",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-subnet"],
+                    {
+                        "help": "virtual machine subnet id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sg"],
+                    {
+                        "help": "virtual machine security group id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sshkey"],
+                    {
+                        "help": "virtual machine ssh key name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-pwd"],
+                    {
+                        "help": "virtual machine admin/root password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-multi-avz"],
+                    {
+                        "help": "if set to False create vm to work only in the selected availability zone "
+                        "[default=True]. Use when subnet cidr is public",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+                (
+                    ["-meta"],
+                    {
+                        "help": "virtual machine custom metadata",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def clone(self):
         name = self.app.pargs.name
@@ -832,93 +1535,136 @@ class VmServiceController(BusinessControllerChild):
         # get original vm
         vm = self._get_instance(vm_id)
 
-        image_name = dict_get(vm, 'nvl-imageName')
-        hypervisor = dict_get(vm, 'hypervisor')
+        image_name = dict_get(vm, "nvl-imageName")
+        hypervisor = dict_get(vm, "hypervisor")
         if account is None:
-            account = dict_get(vm, 'nvl-ownerId')
+            account = dict_get(vm, "nvl-ownerId")
         else:
-            account = self.get_account(self.app.pargs.account).get('uuid')
+            account = self.get_account(self.app.pargs.account).get("uuid")
 
         image = self.get_service_instance(image_name, account_id=account)
         if itype is None:
-            itype = dict_get(vm, 'instanceType')
+            itype = dict_get(vm, "instanceType")
         itype = self.get_service_definition(itype)
         if subnet is None:
-            subnet = dict_get(vm, 'subnetId')
+            subnet = dict_get(vm, "subnetId")
         else:
             subnet = self.get_service_instance(subnet, account_id=account)
         if sg is None:
-            sg = dict_get(vm, 'groupSet.0.groupId')
+            sg = dict_get(vm, "groupSet.0.groupId")
         else:
             sg = self.get_service_instance(sg, account_id=account)
         if sshkey is None:
-            sshkey = dict_get(vm, 'keyName')
+            sshkey = dict_get(vm, "keyName")
 
         if pwd is None:
             pwd = random_password(10)
 
         # set disks
         blocks = []
-        for disk in vm.get('blockDeviceMapping', []):
+        for disk in vm.get("blockDeviceMapping", []):
             block = {
-                'Nvl_VolumeId': dict_get(disk, 'ebs.volumeId'),
-                'VolumeSize': dict_get(disk, 'ebs.volumeSize'),
+                "Nvl_VolumeId": dict_get(disk, "ebs.volumeId"),
+                "VolumeSize": dict_get(disk, "ebs.volumeSize"),
             }
-            blocks.append({'Ebs': block})
+            blocks.append({"Ebs": block})
 
         data = {
-            'Name': name,
-            'owner-id': account,
-            'AdditionalInfo': '',
-            'SubnetId': subnet,
-            'InstanceType': itype,
-            'AdminPassword': pwd,
-            'ImageId': image,
-            'SecurityGroupId.N': [sg],
-            'Nvl_MultiAvz': multi_avz,
-            'Nvl_Hypervisor': hypervisor,
-            'BlockDeviceMapping.N': blocks,
-            'KeyName': sshkey
+            "Name": name,
+            "owner-id": account,
+            "AdditionalInfo": "",
+            "SubnetId": subnet,
+            "InstanceType": itype,
+            "AdminPassword": pwd,
+            "ImageId": image,
+            "SecurityGroupId.N": [sg],
+            "Nvl_MultiAvz": multi_avz,
+            "Nvl_Hypervisor": hypervisor,
+            "BlockDeviceMapping.N": blocks,
+            "KeyName": sshkey,
         }
 
         # set meta
         if meta is not None:
-            data['Nvl_Metadata'] = {}
-            kvs = meta.split(',')
+            data["Nvl_Metadata"] = {}
+            kvs = meta.split(",")
             for kv in kvs:
-                k, v = kv.split(':')
-                data['Nvl_Metadata'][k] = v
+                k, v = kv.split(":")
+                data["Nvl_Metadata"][k] = v
 
-        uri = '%s/computeservices/instance/runinstances' % self.baseuri
-        res = self.cmp_post(uri, data={'instance': data}, timeout=600)
-        uuid = dict_get(res, 'RunInstanceResponse.instancesSet.0.instanceId')
+        uri = "%s/computeservices/instance/runinstances" % self.baseuri
+        res = self.cmp_post(uri, data={"instance": data}, timeout=600)
+        uuid = dict_get(res, "RunInstanceResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'add virtual machine: %s' % uuid})
+        self.app.render({"msg": "add virtual machine: %s" % uuid})
 
     @ex(
-        help='import a virtual machine',
-        description='import a virtual machine',
-        arguments=ARGS([
-            (['container'], {'help': 'container id where import virtual machine', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
-            (['vm'], {'help': 'physical id of the virtual machine to import', 'action': 'store', 'type': str}),
-            (['image'], {'help': 'provider image id', 'action': 'store', 'type': str}),
-            (['pwd'], {'help': 'virtual machine password', 'action': 'store', 'type': str}),
-            (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str, 'default': None}),
-
-
-            # (['-type'], {'help': 'virtual machine type', 'action': 'store', 'type': str, 'default': None}),
-            # (['-subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str, 'default': None}),
-            # (['-sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str, 'default': None}),
-            #
-            # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-            #             'default': None}),
-            # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-            #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-            #                   'default': True}),
-            # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="import a virtual machine",
+        description="import a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["container"],
+                    {
+                        "help": "container id where import virtual machine",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["name"],
+                    {"help": "virtual machine name", "action": "store", "type": str},
+                ),
+                (
+                    ["vm"],
+                    {
+                        "help": "physical id of the virtual machine to import",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["image"],
+                    {"help": "provider image id", "action": "store", "type": str},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "virtual machine password",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-sshkey"],
+                    {
+                        "help": "virtual machine ssh key name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["account"],
+                    {
+                        "help": "parent account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                # (['-type'], {'help': 'virtual machine type', 'action': 'store', 'type': str, 'default': None}),
+                # (['-subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str, 'default': None}),
+                # (['-sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str, 'default': None}),
+                #
+                # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
+                #             'default': None}),
+                # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
+                #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
+                #                   'default': True}),
+                # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
+            ]
+        ),
     )
     def load(self):
         container_id = self.app.pargs.container
@@ -927,58 +1673,67 @@ class VmServiceController(BusinessControllerChild):
         image_id = self.app.pargs.image
         pwd = self.app.pargs.pwd
         sshkey = self.app.pargs.sshkey
-        account_id = self.get_account(self.app.pargs.account).get('uuid')
+        account_id = self.get_account(self.app.pargs.account).get("uuid")
 
         # register server as resource
         # - get container type
-        container = self.api.resource.container.get(container_id).get('resourcecontainer')
-        ctype = dict_get(container, '__meta__.definition')
+        container = self.api.resource.container.get(container_id).get("resourcecontainer")
+        ctype = dict_get(container, "__meta__.definition")
 
         # - synchronize container
         resclasses = {
-            'Openstack': 'Openstack.Domain.Project.Server',
-            'Vsphere': 'Vsphere.DataCenter.Folder.Server'
+            "Openstack": "Openstack.Domain.Project.Server",
+            "Vsphere": "Vsphere.DataCenter.Folder.Server",
         }
         resclass = resclasses.get(ctype, None)
         if resclass is not None:
-            print('importing physical entity %s as resource...' % resclass)
-            self.api.resource.container.synchronize(container_id, resclass, new=True, died=False, changed=False,
-                                                    ext_id=ext_id)
-            print('imported physical entity %s as resource' % resclass)
+            print("importing physical entity %s as resource..." % resclass)
+            self.api.resource.container.synchronize(
+                container_id,
+                resclass,
+                new=True,
+                died=False,
+                changed=False,
+                ext_id=ext_id,
+            )
+            print("imported physical entity %s as resource" % resclass)
 
-        resclasses = {
-            'Openstack': 'Openstack.Domain.Project.Volume',
-            'Vsphere': None
-        }
+        resclasses = {"Openstack": "Openstack.Domain.Project.Volume", "Vsphere": None}
         resclass = resclasses.get(ctype, None)
         if resclass is not None:
-            print('importing physical entity %s as resource...' % resclass)
+            print("importing physical entity %s as resource..." % resclass)
             self.api.resource.container.synchronize(container_id, resclass, new=True, died=False, changed=False)
-            print('imported physical entity %s as resource' % resclass)
+            print("imported physical entity %s as resource" % resclass)
 
         # import physical resource ad provider resource
         # - get resource by ext_id
-        physical_resource = self.api.resource.entity.list(ext_id=ext_id).get('resources')[0]['uuid']
+        physical_resource = self.api.resource.entity.list(ext_id=ext_id).get("resources")[0]["uuid"]
 
         # - patch resource
-        print('patch resource %s' % physical_resource)
+        print("patch resource %s" % physical_resource)
         self.api.resource.entity.patch(physical_resource)
 
         # - import physical resource as provider resource
-        res_name = '%s-%s' % (name, id_gen())
-        print('load resource instance res_name: %s' % res_name)
-        self.api.resource.provider.instance.load('ResourceProvider01', res_name, physical_resource, pwd, image_id,
-                                                 hostname=name)
+        res_name = "%s-%s" % (name, id_gen())
+        print("load resource instance res_name: %s" % res_name)
+        self.api.resource.provider.instance.load(
+            "ResourceProvider01",
+            res_name,
+            physical_resource,
+            pwd,
+            image_id,
+            hostname=name,
+        )
         resource = res_name
 
         # res_name = 'adsspwd-47ef1b776f'
 
         # - get resource
         res = self.api.resource.provider.instance.get(res_name)
-        flavor = dict_get(res, 'flavor.name')
-        resource_uuid = res['uuid']
+        flavor = dict_get(res, "flavor.name")
+        resource_uuid = res["uuid"]
 
-        #print('import physical resource %s as provider resource %s' % (physical_resource, resource))
+        # print('import physical resource %s as provider resource %s' % (physical_resource, resource))
 
         # import provider resource as compute instance
         # - get compute service
@@ -987,22 +1742,55 @@ class VmServiceController(BusinessControllerChild):
         # cs = res.get('serviceinsts')[0]['uuid']
 
         # - import service instance
-        print('load service instance res_name: %s' % res_name)
-        res = self.api.business.service.instance.load(name, account_id, 'ComputeInstance', 'ComputeService',
-                                                      resource_uuid, service_definition_id=flavor)
-        print('import provider resource as compute instance %s' % res)
+        print("load service instance res_name: %s" % res_name)
+        res = self.api.business.service.instance.load(
+            name,
+            account_id,
+            "ComputeInstance",
+            "ComputeService",
+            resource_uuid,
+            service_definition_id=flavor,
+        )
+        print("import provider resource as compute instance %s" % res)
 
     @ex(
-        help='update a virtual machine',
-        description='update a virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-type'], {'help': 'virtual machine type', 'action': 'store', 'type': str, 'default': None}),
-            (['-sg_add'], {'help': 'virtual machine security group id to add', 'action': 'store', 'type': str,
-                           'default': None}),
-            (['-sg_del'], {'help': 'virtual machine security group id to remove', 'action': 'store', 'type': str,
-                           'default': None}),
-        ])
+        help="update a virtual machine",
+        description="update a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-type"],
+                    {
+                        "help": "virtual machine type",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sg_add"],
+                    {
+                        "help": "virtual machine security group id to add",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sg_del"],
+                    {
+                        "help": "virtual machine security group id to remove",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def update(self):
         uuid = self.app.pargs.vm
@@ -1010,497 +1798,909 @@ class VmServiceController(BusinessControllerChild):
         sg_add = self.app.pargs.sg_add
         sg_del = self.app.pargs.sg_del
         sg = None
-        data = {
-            'InstanceId': uuid,
-            'InstanceType': vmtype
-        }
+        data = {"InstanceId": uuid, "InstanceType": vmtype}
         if sg_add is not None:
-            sg = '%s:ADD' % sg_add
-            data['GroupId.N'] = [sg]
+            sg = "%s:ADD" % sg_add
+            data["GroupId.N"] = [sg]
         elif sg_del is not None:
-            sg = '%s:DEL' % sg_del
-            data['GroupId.N'] = [sg]
-        data = {'instance': data}
-        uri = '%s/computeservices/instance/modifyinstanceattribute' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600).get('ModifyInstanceAttributeResponse')
+            sg = "%s:DEL" % sg_del
+            data["GroupId.N"] = [sg]
+        data = {"instance": data}
+        uri = "%s/computeservices/instance/modifyinstanceattribute" % self.baseuri
+        self.cmp_put(uri, data=data, timeout=600).get("ModifyInstanceAttributeResponse")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'update virtual machine: %s' % uuid})
+        self.app.render({"msg": "update virtual machine: %s" % uuid})
 
     @ex(
-        help='refresh virtual machine state',
-        description='refresh virtual machine state',
-        arguments=ARGS([
-            (['id'], {'help': 'virtual machine id, uuid or name', 'action': 'store', 'type': str}),
-        ])
+        help="refresh virtual machine state",
+        description="refresh virtual machine state",
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "virtual machine id, uuid or name",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def refresh_state(self):
         oid = self.app.pargs.id
         res = self.api.business.cpaas.instance.get(oid)
-        resource_uuid = res.get('nvl-resourceId')
+        resource_uuid = res.get("nvl-resourceId")
         res = self.api.resource.provider.instance.del_cache(resource_uuid)
-        print('state refreshed for virtual machine %s' % oid)
+        print("state refreshed for virtual machine %s" % oid)
 
     @ex(
-        help='delete a virtual machine',
-        description='delete a virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-        ])
+        help="delete a virtual machine",
+        description="delete a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def delete(self):
         vm_id = self.app.pargs.vm
         if self.is_uuid(vm_id):
-            data = {'instance-id.N': [vm_id]}
+            data = {"instance-id.N": [vm_id]}
         elif self.is_name(vm_id):
-            data = {'name.N': [vm_id]}
-        uri = '%s/computeservices/instance/describeinstances' % self.baseuri
+            data = {"name.N": [vm_id]}
+        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeInstancesResponse.reservationSet.0.instancesSet')
+        res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet")
         if len(res) == 0:
-            raise Exception('virtual machine %s was not found' % vm_id)
-        uuid = res[0].get('instanceId')
+            raise Exception("virtual machine %s was not found" % vm_id)
+        uuid = res[0].get("instanceId")
 
-        data = {'InstanceId.N': [uuid]}
-        uri = '%s/computeservices/instance/terminateinstances' % self.baseuri
-        self.cmp_delete(uri, data=data, timeout=600, output=False, entity='instance %s' % vm_id)
-        self.wait_for_service(uuid, accepted_state='DELETED')
+        data = {"InstanceId.N": [uuid]}
+        uri = "%s/computeservices/instance/terminateinstances" % self.baseuri
+        entity = "instance %s" % vm_id
+        self.cmp_delete(uri, data=data, timeout=600, entity=entity, output=False)
+        state = self.wait_for_service(uuid, accepted_state="DELETED")
+        if state == "DELETED":
+            print("%s deleted" % entity)
 
     @ex(
-        help='start a virtual machine',
-        description='start a virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-schedule'], {'help': 'schedule definition. Pass as json file using crontab or timedelta syntax. '
-                                     'Ex. {\"type\": \"timedelta\", \"minutes\": 1}',
-                             'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="start a virtual machine",
+        description="start a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-schedule"],
+                    {
+                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def start(self):
         vm_id = self.app.pargs.vm
         schedule = self.app.pargs.schedule
-        data = {'InstanceId.N': [vm_id]}
+        data = {"InstanceId.N": [vm_id]}
         if schedule is not None:
             schedule = load_config(schedule)
-            data['Schedule'] = schedule
-        uri = '%s/computeservices/instance/startinstances' % self.baseuri
+            data["Schedule"] = schedule
+        uri = "%s/computeservices/instance/startinstances" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'start virtual machine %s' % vm_id})
+        self.app.render({"msg": "start virtual machine %s" % vm_id})
 
     @ex(
-        help='stop a virtual machine',
-        description='stop a virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-schedule'], {'help': 'schedule definition. Pass as json file using crontab or timedelta syntax. '
-                                     'Ex. {\"type\": \"timedelta\", \"minutes\": 1}',
-                             'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="stop a virtual machine",
+        description="stop a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-schedule"],
+                    {
+                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def stop(self):
         vm_id = self.app.pargs.vm
         schedule = self.app.pargs.schedule
-        data = {'InstanceId.N': [vm_id]}
+        data = {"InstanceId.N": [vm_id]}
         if schedule is not None:
             schedule = load_config(schedule)
-            data['Schedule'] = schedule
-        uri = '%s/computeservices/instance/stopinstances' % self.baseuri
+            data["Schedule"] = schedule
+        uri = "%s/computeservices/instance/stopinstances" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'stop virtual machine %s' % vm_id})
+        self.app.render({"msg": "stop virtual machine %s" % vm_id})
 
     @ex(
-        help='reboot a virtual machine',
-        description='reboot a virtual machine',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-schedule'], {'help': 'schedule definition. Pass as json file using crontab or timedelta syntax. '
-                                     'Ex. {\"type\": \"timedelta\", \"minutes\": 1}',
-                             'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="reboot a virtual machine",
+        description="reboot a virtual machine",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-schedule"],
+                    {
+                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def reboot(self):
         vm_id = self.app.pargs.vm
         schedule = self.app.pargs.schedule
-        data = {'InstanceId.N': [vm_id]}
+        data = {"InstanceId.N": [vm_id]}
         if schedule is not None:
             schedule = load_config(schedule)
-            data['Schedule'] = schedule
-        uri = '%s/computeservices/instance/rebootinstances' % self.baseuri
+            data["Schedule"] = schedule
+        uri = "%s/computeservices/instance/rebootinstances" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'reboot virtual machine %s' % vm_id})
+        self.app.render({"msg": "reboot virtual machine %s" % vm_id})
 
     @ex(
-        help='enable virtual machine monitoring',
-        description='enable virtual machine monitoring',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-templates'], {'help': 'templates list', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="enable virtual machine monitoring",
+        description="enable virtual machine monitoring",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-templates"],
+                    {
+                        "help": "templates list",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["--continues"],
+                    {
+                        "help": "continue use command",
+                        "action": "store_true",
+                        "dest": "continues",
+                    },
+                ),
+            ]
+        ),
     )
     def enable_monitoring(self):
         vm_id = self.app.pargs.vm
         templates = self.app.pargs.templates
-        data = {'InstanceId.N': [vm_id], 'Nvl_Templates': templates}
-        uri = '%s/computeservices/instance/monitorinstances' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600)
-        self.wait_for_service(vm_id)
-        self.app.render({'msg': 'enable virtual machine %s monitoring' % vm_id})
+        if getattr(self.app.pargs, "continues", False) is False:
+            self.app.render(
+                {
+                    "msg": 'deprecated command - use "beehive bu maas monitor-instances add" (to continue use this command specify --continues argument) '
+                }
+            )
+        else:
+            data = {"InstanceId.N": [vm_id], "Nvl_Templates": templates}
+            uri = "%s/computeservices/instance/monitorinstances" % self.baseuri
+            self.cmp_put(uri, data=data, timeout=600)
+            self.wait_for_service(vm_id)
+            self.app.render({"msg": "enable virtual machine %s monitoring" % vm_id})
 
     @ex(
-        help='disable virtual machine monitoring',
-        description='disable virtual machine monitoring',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-        ])
+        help="disable virtual machine monitoring",
+        description="disable virtual machine monitoring",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["--continues"],
+                    {
+                        "help": "continue use command",
+                        "action": "store_true",
+                        "dest": "continues",
+                    },
+                ),
+            ]
+        ),
     )
     def disable_monitoring(self):
         vm_id = self.app.pargs.vm
-        data = {'InstanceId.N': [vm_id]}
-        uri = '%s/computeservices/instance/unmonitorinstances' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600)
-        self.wait_for_service(vm_id)
-        self.app.render({'msg': 'disable virtual machine %s monitoring' % vm_id})
+        if getattr(self.app.pargs, "continues", False) is False:
+            self.app.render(
+                {
+                    "msg": 'deprecated command - use "beehive bu maas monitor-instances delete" (to continue use this command specify --continues argument) '
+                }
+            )
+        else:
+            data = {"InstanceId.N": [vm_id]}
+            uri = "%s/computeservices/instance/unmonitorinstances" % self.baseuri
+            self.cmp_put(uri, data=data, timeout=600)
+            self.wait_for_service(vm_id)
+            self.app.render({"msg": "disable virtual machine %s monitoring" % vm_id})
 
     @ex(
-        help='enable virtual machine logging',
-        description='enable virtual machine logging',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-files'], {'help': 'files list', 'action': 'store', 'type': str, 'default': None}),
-            (['-pipeline'], {'help': 'log collector pipeline port', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="enable virtual machine logging",
+        description="enable virtual machine logging",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-files"],
+                    {
+                        "help": "files list",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-pipeline"],
+                    {
+                        "help": "log collector pipeline port",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["--continues"],
+                    {
+                        "help": "continue use command",
+                        "action": "store_true",
+                        "dest": "continues",
+                    },
+                ),
+            ]
+        ),
     )
     def enable_logging(self):
         vm_id = self.app.pargs.vm
         files = self.app.pargs.files
         pipeline = self.app.pargs.pipeline
-        data = {'InstanceId.N': [vm_id], 'Files': files, 'Pipeline': pipeline}
-        uri = '%s/computeservices/instance/forwardloginstances' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600)
-        self.wait_for_service(vm_id)
-        self.app.render({'msg': 'enable virtual machine %s logging' % vm_id})
+        if getattr(self.app.pargs, "continues", False) is False:
+            self.app.render(
+                {
+                    "msg": 'deprecated command - use "beehive bu logaas instances add" (to continue use this command specify --continues argument) '
+                }
+            )
+        else:
+            data = {"InstanceId.N": [vm_id], "Files": files, "Pipeline": pipeline}
+            uri = "%s/computeservices/instance/forwardloginstances" % self.baseuri
+            self.cmp_put(uri, data=data, timeout=600)
+            self.wait_for_service(vm_id)
+            self.app.render({"msg": "enable virtual machine %s logging" % vm_id})
 
     @ex(
-        help='list virtual machine snapshots',
-        description='list virtual machine snapshots',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-        ])
+        help="list virtual machine snapshots",
+        description="list virtual machine snapshots",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def snapshot_get(self):
         vm_id = self.app.pargs.vm
-        data = {'InstanceId.N': [vm_id]}
-        uri = '%s/computeservices/instance/describeinstancesnapshots' % self.baseuri
+        data = {"InstanceId.N": [vm_id]}
+        uri = "%s/computeservices/instance/describeinstancesnapshots" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
-        res = res.get('DescribeInstanceSnapshotsResponse')
-        res = res.get('instancesSet')
+        res = res.get("DescribeInstanceSnapshotsResponse")
+        res = res.get("instancesSet")
         resp = []
         for item in res:
-            for snapshot in item['snapshots']:
-                snapshot['id'] = item['instanceId']
+            for snapshot in item["snapshots"]:
+                snapshot["id"] = item["instanceId"]
                 resp.append(snapshot)
-        headers = ['id', 'name', 'status', 'creation_date']
-        fields = ['snapshotId', 'snapshotName', 'snapshotStatus', 'createTime']
+        headers = ["id", "name", "status", "creation_date"]
+        fields = ["snapshotId", "snapshotName", "snapshotStatus", "createTime"]
         self.app.render(resp, headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='add virtual machine snapshot',
-        description='add virtual machine snapshot',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['snapshot'], {'help': 'snapshot name', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add virtual machine snapshot",
+        description="add virtual machine snapshot",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["snapshot"],
+                    {
+                        "help": "snapshot name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def snapshot_add(self):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
-        data = {'InstanceId.N': [vm_id], 'SnapshotName': snapshot}
-        uri = '%s/computeservices/instance/createinstancesnapshots' % self.baseuri
+        data = {"InstanceId.N": [vm_id], "SnapshotName": snapshot}
+        uri = "%s/computeservices/instance/createinstancesnapshots" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'add virtual machine %s snapshot %s' % (vm_id, snapshot)})
+        self.app.render({"msg": "add snapshot %s of virtual machine %s" % (snapshot, vm_id)})
 
     @ex(
-        help='add virtual machine snapshot',
-        description='add virtual machine snapshot',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['snapshot'], {'help': 'snapshot id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add virtual machine snapshot",
+        description="add virtual machine snapshot",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["snapshot"],
+                    {
+                        "help": "snapshot id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def snapshot_del(self):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
-        data = {'InstanceId.N': [vm_id], 'SnapshotId': snapshot}
-        uri = '%s/computeservices/instance/deleteinstancesnapshots' % self.baseuri
+        data = {"InstanceId.N": [vm_id], "SnapshotId": snapshot}
+        uri = "%s/computeservices/instance/deleteinstancesnapshots" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'delete virtual machine %s snapshot %s' % (vm_id, snapshot)})
+        self.app.render({"msg": "delete snapshot %s of virtual machine %s" % (snapshot, vm_id)})
 
     @ex(
-        help='revert virtual machine snapshot',
-        description='revert virtual machine snapshot',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['snapshot'], {'help': 'snapshot id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="revert virtual machine snapshot",
+        description="revert virtual machine snapshot",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["snapshot"],
+                    {
+                        "help": "snapshot id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def snapshot_revert(self):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
-        data = {'InstanceId.N': [vm_id], 'SnapshotId': snapshot}
-        uri = '%s/computeservices/instance/revertinstancesnapshots' % self.baseuri
+        data = {"InstanceId.N": [vm_id], "SnapshotId": snapshot}
+        uri = "%s/computeservices/instance/revertinstancesnapshots" % self.baseuri
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({'msg': 'revert virtual machine %s to snapshot %s' % (vm_id, snapshot)})
+        self.app.render({"msg": "revert virtual machine %s to snapshot %s" % (vm_id, snapshot)})
 
     def __user_action(self, uuid, action, **user_params):
-        params = {'Nvl_Action': action}
+        params = {"Nvl_Action": action}
         params.update(user_params)
-        data = {
-            'InstanceId': uuid,
-            'Nvl_User': params
-        }
-        data = {'instance': data}
-        uri = '%s/computeservices/instance/modifyinstanceattribute' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600).get('ModifyInstanceAttributeResponse')
+        data = {"InstanceId": uuid, "Nvl_User": params}
+        data = {"instance": data}
+        uri = "%s/computeservices/instance/modifyinstanceattribute" % self.baseuri
+        self.cmp_put(uri, data=data, timeout=600).get("ModifyInstanceAttributeResponse")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'update virtual machine: %s' % uuid})
+        self.app.render({"msg": "update virtual machine: %s" % uuid})
 
     @ex(
-        help='add virtual machine user',
-        description='add virtual machine user',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'user name', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'user password', 'action': 'store', 'type': str, 'default': None}),
-            (['key'], {'help': 'ssh key id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add virtual machine user",
+        description="add virtual machine user",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "user name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "user password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["key"],
+                    {
+                        "help": "ssh key id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def user_add(self):
         uuid = self.app.pargs.vm
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
         key = self.app.pargs.key
-        self.__user_action(uuid, 'add', Nvl_Name=name, Nvl_Password=pwd, Nvl_SshKey=key)
+        self.__user_action(uuid, "add", Nvl_Name=name, Nvl_Password=pwd, Nvl_SshKey=key)
 
     @ex(
-        help='delete virtual machine user',
-        description='delete virtual machine user',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'user name', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete virtual machine user",
+        description="delete virtual machine user",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "user name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def user_del(self):
         uuid = self.app.pargs.vm
         name = self.app.pargs.name
-        self.__user_action(uuid, 'delete', Nvl_Name=name)
+        self.__user_action(uuid, "delete", Nvl_Name=name)
 
     @ex(
-        help='set virtual machine user password',
-        description='set virtual machine user password',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'user name', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'user password', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="set virtual machine user password",
+        description="set virtual machine user password",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "user name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "user password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def user_password_set(self):
         uuid = self.app.pargs.vm
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
-        self.__user_action(uuid, 'set-password', Nvl_Name=name, Nvl_Password=pwd)
+        self.__user_action(uuid, "set-password", Nvl_Name=name, Nvl_Password=pwd)
 
     @ex(
-        help='get virtual machine types',
-        description='get virtual machine types',
-        arguments=ARGS([
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="get virtual machine types",
+        description="get virtual machine types",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {
+                        "help": "parent account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def types(self):
-        params = ['account']
+        params = ["account"]
         mappings = {
-            'account': lambda x: self.get_account(x)['uuid'],
+            "account": lambda x: self.get_account(x)["uuid"],
         }
-        aliases = {
-            'account': 'owner-id',
-            'size': 'MaxResults',
-            'page': 'NextToken'
-        }
+        aliases = {"account": "owner-id", "size": "MaxResults", "page": "NextToken"}
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '/v2.0/nws/computeservices/instance/describeinstancetypes'
+        uri = "/v2.0/nws/computeservices/instance/describeinstancetypes"
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeInstanceTypesResponse')
+        res = res.get("DescribeInstanceTypesResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('instanceTypesSet')),
-            'page': page,
-            'total': res.get('instanceTypesTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'types': res.get('instanceTypesSet')
+            "count": len(res.get("instanceTypesSet")),
+            "page": page,
+            "total": res.get("instanceTypesTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "types": res.get("instanceTypesSet"),
         }
-        headers = ['id', 'instance_type', 'desc', 'vcpus', 'disk', 'ram']
-        fields = ['uuid', 'name', 'description', 'features.vcpus', 'features.disk', 'features.ram']
-        self.app.render(resp, key='types', headers=headers, fields=fields)
+        headers = ["id", "instance_type", "desc", "vcpus", "disk", "ram"]
+        fields = [
+            "uuid",
+            "name",
+            "description",
+            "features.vcpus",
+            "features.disk",
+            "features.ram",
+        ]
+        self.app.render(resp, key="types", headers=headers, fields=fields)
 
     @ex(
-        help='get backup job restore points',
-        description='get backup job restore points',
-        arguments=ARGS([
-            (['account'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['-vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str, 'default': None}),
-            (['-job'], {'help': 'job id', 'action': 'store', 'type': str, 'default': None}),
-            (['-restore_point'], {'help': 'restore point id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get backup job restore points",
+        description="get backup job restore points",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["-vm"],
+                    {
+                        "help": "virtual machine id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-job"],
+                    {"help": "job id", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-restore_point"],
+                    {
+                        "help": "restore point id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def backup_restore_point_get(self):
-        params = ['account', 'vm', 'job', 'restore_point']
+        params = ["account", "vm", "job", "restore_point"]
         mappings = {
-            'account': lambda x: self.get_account(x)['uuid'],
+            "account": lambda x: self.get_account(x)["uuid"],
         }
         aliases = {
-            'account': 'owner-id',
-            'vm': 'InstanceId',
-            'job': 'JobId',
-            'restore_point': 'RestorePointId'
+            "account": "owner-id",
+            "vm": "InstanceId",
+            "job": "JobId",
+            "restore_point": "RestorePointId",
+            "size": "MaxItems",
+            "page": "Marker",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '/v1.0/nws/computeservices/instancebackup/describebackuprestorepoints'
+        uri = "/v1.0/nws/computeservices/instancebackup/describebackuprestorepoints"
         res = self.cmp_get(uri, data=data, timeout=600)
         if self.is_output_text():
-            restore_points = dict_get(res, 'DescribeBackupRestorePointsResponse.restorePointSet')
+            restore_points = dict_get(res, "DescribeBackupRestorePointsResponse.restorePointSet")
+            restorePointTotal = dict_get(res, "DescribeBackupRestorePointsResponse.restorePointTotal")
+
             if self.app.pargs.restore_point is not None:
                 if len(restore_points) > 0:
                     res = restore_points[0]
-                    metadata = res.pop('metadata', [])
-                    instances = res.pop('instanceSet', [])
+                    metadata = res.pop("metadata", [])
+                    instances = res.pop("instanceSet", [])
                     self.app.render(res, details=True)
 
-                    self.c('\ninstanceSet', 'underline')
-                    self.app.render(instances, fields=['uuid', 'name'], headers=['id', 'name'])
+                    self.c("\ninstanceSet", "underline")
+                    self.app.render(instances, fields=["uuid", "name"], headers=["id", "name"])
             else:
-                self.app.render(restore_points, headers=['id', 'name', 'desc', 'type', 'status', 'created'])
+                # self.app.render(
+                #     restore_points,
+                #     headers=["id", "name", "desc", "type", "status", "created"],
+                # )
+                resp = {
+                    "count": len(restore_points),
+                    "page": 0,
+                    "total": restorePointTotal,
+                    "sort": {"field": "creationDate", "order": "desc"},
+                    "restore_points": restore_points,
+                }
+
+                headers = ["id", "name", "desc", "type", "status", "created"]
+                fields = ["id", "name", "desc", "type", "status", "created"]
+                transform = {}
+                self.app.render(
+                    resp,
+                    key="restore_points",
+                    headers=headers,
+                    fields=fields,
+                    maxsize=100,
+                    transform=transform,
+                )
+
         else:
             self.app.render(res, details=True)
 
     @ex(
-        help='add backup job restore point',
-        description='add backup job restore point',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str, 'default': None}),
-            (['name'], {'help': 'restore point name', 'action': 'store', 'type': str, 'default': None}),
-            (['-desc'], {'help': 'restore point description', 'action': 'store', 'type': str, 'default': None}),
-            (['-full'], {'help': 'backup type. If true make a full backup otherwise make an incremental backup',
-                         'action': 'store', 'type': str, 'default': 'false'}),
-        ])
+        help="add backup job restore point",
+        description="add backup job restore point",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (
+                    ["job"],
+                    {"help": "job id", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "restore point name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {
+                        "help": "restore point description",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-full"],
+                    {
+                        "help": "backup type. If true make a full backup otherwise make an incremental backup",
+                        "action": "store",
+                        "type": str,
+                        "default": "false",
+                    },
+                ),
+            ]
+        ),
     )
     def backup_restore_point_add(self):
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         job_id = self.app.pargs.job
         name = self.app.pargs.name
         desc = self.app.pargs.desc
         full = str2bool(self.app.pargs.full)
 
         data = {
-            'owner-id': account,
-            'JobId': job_id,
-            'Name': name,
-            'Desc': desc if desc is not None else name,
-            'BackupFull': full
+            "owner-id": account,
+            "JobId": job_id,
+            "Name": name,
+            "Desc": desc if desc is not None else name,
+            "BackupFull": full,
         }
 
-        uri = '/v1.0/nws/computeservices/instancebackup/createbackuprestorepoints'
+        uri = "/v1.0/nws/computeservices/instancebackup/createbackuprestorepoints"
         res = self.cmp_post(uri, data=data, timeout=600)
         # uuid = dict_get(res, 'CreateBackupRestorePoints.instanceBackupSet.0.instanceId')
         # self.wait_for_service(uuid)
-        self.app.render({'msg': 'create new backup job %s restore point' % job_id})
+        self.app.render({"msg": "create new backup job %s restore point" % job_id})
 
     @ex(
-        help='delete backup job restore point',
-        description='delete backup job restore point',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str, 'default': None}),
-            (['restore_point'], {'help': 'restore point id', 'action': 'store', 'type': str}),
-        ])
+        help="delete backup job restore point",
+        description="delete backup job restore point",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (
+                    ["job"],
+                    {"help": "job id", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["restore_point"],
+                    {"help": "restore point id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def backup_restore_point_del(self):
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         job_id = self.app.pargs.job
         restore_point_id = self.app.pargs.restore_point
 
         data = {
-            'owner-id': account,
-            'JobId': job_id,
-            'RestorePointId': restore_point_id
+            "owner-id": account,
+            "JobId": job_id,
+            "RestorePointId": restore_point_id,
         }
 
-        uri = '/v1.0/nws/computeservices/instancebackup/deletebackuprestorepoints'
-        res = self.cmp_delete(uri, data=data, timeout=600,
-                              entity='remove backup job %s restore point %s' % (job_id, restore_point_id))
+        uri = "/v1.0/nws/computeservices/instancebackup/deletebackuprestorepoints"
+        res = self.cmp_delete(
+            uri,
+            data=data,
+            timeout=600,
+            entity="remove backup job %s restore point %s" % (job_id, restore_point_id),
+        )
         # uuid = dict_get(res, vm_id)
         # self.wait_for_service(uuid)
 
     @ex(
-        help='get virtual machine backup restores',
-        description='get virtual machine backup restores',
-        arguments=ARGS([
-            (['vm'], {'help': 'virtual machine id', 'action': 'store', 'type': str}),
-            (['restore_point'], {'help': 'restore point id', 'action': 'store', 'type': str}),
-        ])
+        help="get virtual machine backup restores",
+        description="get virtual machine backup restores",
+        arguments=ARGS(
+            [
+                (
+                    ["vm"],
+                    {"help": "virtual machine id", "action": "store", "type": str},
+                ),
+                (
+                    ["restore_point"],
+                    {"help": "restore point id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def backup_restore_get(self):
         vm_id = self.app.pargs.vm
         restore_point_id = self.app.pargs.restore_point
-        data = {'InstanceId.N': [vm_id], 'RestorePoint': restore_point_id}
-        uri = '/v1.0/nws/computeservices/instancebackup/describebackuprestores'
+        data = {"InstanceId.N": [vm_id], "RestorePoint": restore_point_id}
+        uri = "/v1.0/nws/computeservices/instancebackup/describebackuprestores"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
-        res = dict_get(res, 'DescribeBackupRestoresResponse.restoreSet')
+        res = dict_get(res, "DescribeBackupRestoresResponse.restoreSet")
         if len(res) > 0:
-            res = res[0]['restores']
-            headers = ['id', 'name', 'desc', 'time_taken', 'size', 'uploaded_size', 'status', 'progress_percent',
-                       'created']
+            res = res[0]["restores"]
+            headers = [
+                "id",
+                "name",
+                "desc",
+                "time_taken",
+                "size",
+                "uploaded_size",
+                "status",
+                "progress_percent",
+                "created",
+            ]
             self.app.render(res, headers=headers)
 
     @ex(
-        help='restore a virtual machine from backup',
-        description='restore a virtual machine from backup',
-        arguments=ARGS([
-            (['name'], {'help': 'restored virtual machine name', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'id of the virtual machine to clone', 'action': 'store', 'type': str}),
-            (['restore_point'], {'help': 'id of restore point', 'action': 'store', 'type': str}),
-            # (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
-            # (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-            # (['type'], {'help': 'virtual machine type', 'action': 'store', 'type': str}),
-            # (['subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str}),
-            # (['image'], {'help': 'virtual machine image id', 'action': 'store', 'type': str}),
-            # (['sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str}),
-            # (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
-            # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-            #             'default': None}),
-            # (['-main-disk'], {'help': 'optional main disk size configuration. Use <size> to set e default volume type.'
-            #                           '- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle'
-            #                           '- Use <volume_id>:<volume_type> to set a volume to clone',
-            #                   'action': 'store', 'type': str, 'default': None}),
-            # (['-other-disk'], {'help': 'list of additional disk sizes comma separated. Use <size> to set e default '
-            #                            'volume type.Use <size>:<volume_type> to set a non default volume type. '
-            #                            'Ex. 5,10 or 5:vol.oracle,10', 'action': 'store', 'type': str, 'default': None}),
-            # (['-hypervisor'], {'help': 'virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]',
-            #                    'action': 'store', 'type': str, 'default': 'openstack'}),
-            # (['-host-group'], {'help': 'virtual machine host group. Ex. oracle', 'action': 'store', 'type': str,
-            #                    'default': None}),
-            # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-            #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-            #                   'default': True}),
-            # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="restore a virtual machine from backup",
+        description="restore a virtual machine from backup",
+        arguments=ARGS(
+            [
+                (
+                    ["name"],
+                    {
+                        "help": "restored virtual machine name",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["id"],
+                    {
+                        "help": "id of the virtual machine to clone",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["restore_point"],
+                    {"help": "id of restore point", "action": "store", "type": str},
+                ),
+                # (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
+                # (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
+                # (['type'], {'help': 'virtual machine type', 'action': 'store', 'type': str}),
+                # (['subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str}),
+                # (['image'], {'help': 'virtual machine image id', 'action': 'store', 'type': str}),
+                # (['sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str}),
+                # (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
+                # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
+                #             'default': None}),
+                # (['-main-disk'], {'help': 'optional main disk size configuration. Use <size> to set e default volume type.'
+                #                           '- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle'
+                #                           '- Use <volume_id>:<volume_type> to set a volume to clone',
+                #                   'action': 'store', 'type': str, 'default': None}),
+                # (['-other-disk'], {'help': 'list of additional disk sizes comma separated. Use <size> to set e default '
+                #                            'volume type.Use <size>:<volume_type> to set a non default volume type. '
+                #                            'Ex. 5,10 or 5:vol.oracle,10', 'action': 'store', 'type': str, 'default': None}),
+                # (['-hypervisor'], {'help': 'virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]',
+                #                    'action': 'store', 'type': str, 'default': 'openstack'}),
+                # (['-host-group'], {'help': 'virtual machine host group. Ex. oracle', 'action': 'store', 'type': str,
+                #                    'default': None}),
+                # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
+                #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
+                #                   'default': True}),
+                # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
+            ]
+        ),
     )
     def backup_restore_add(self):
         name = self.app.pargs.name
@@ -1589,275 +2789,439 @@ class VmServiceController(BusinessControllerChild):
         #         data['Nvl_Metadata'][k] = v
 
         data = {
-            'InstanceId': vm_id,
-            'RestorePointId': restore_point_id,
-            'InstanceName': name,
+            "InstanceId": vm_id,
+            "RestorePointId": restore_point_id,
+            "InstanceName": name,
         }
 
-        uri = '/v1.0/nws/computeservices/instancebackup/createbackuprestores'
-        res = self.cmp_post(uri, data={'instance': data}, timeout=600)
-        uuid = dict_get(res, 'CreateBackupRestoreResponse.instancesSet.0.instanceId')
+        uri = "/v1.0/nws/computeservices/instancebackup/createbackuprestores"
+        res = self.cmp_post(uri, data={"instance": data}, timeout=600)
+        uuid = dict_get(res, "CreateBackupRestoreResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'restore virtual machine from backup: %s' % uuid})
+        self.app.render({"msg": "restore virtual machine from backup: %s" % uuid})
 
     @ex(
-        help='get account virtual machine backup jobs',
-        description='get account virtual machine backup jobs',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-        ])
+        help="get account virtual machine backup jobs",
+        description="get account virtual machine backup jobs",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (
+                    ["-hypervisor"],
+                    {
+                        "help": "virtual machine hypervisor. Can be: openstack or vsphere",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def backup_job_list(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
-        data = {'owner-id.N': [account_id]}
-        uri = '/v1.0/nws/computeservices/instancebackup/describebackupjobs'
+        account_id = self.get_account(account).get("uuid")
+        data = {
+            "owner-id.N": [account_id],
+        }
+
+        hypervisor = self.app.pargs.hypervisor
+        # if hypervisor is None:
+        #     hypervisor = "all"
+
+        if hypervisor is not None:
+            data.update({"hypervisor": hypervisor})
+
+        uri = "/v1.0/nws/computeservices/instancebackup/describebackupjobs"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
-        res = dict_get(res, 'DescribeBackupJobsResponse.jobSet')
-        headers = ['id', 'name', 'account', 'hypervisor', 'availabilityZone', 'state', 'enabled', 'instances']
-        fields = ['jobId', 'name', 'owner_id', 'hypervisor', 'availabilityZone', 'jobState', 'enabled', 'instanceNum']
+        res = dict_get(res, "DescribeBackupJobsResponse.jobSet")
+        headers = [
+            "id",
+            "name",
+            "account",
+            "hypervisor",
+            "availabilityZone",
+            "state",
+            "enabled",
+            "instances",
+        ]
+        fields = [
+            "jobId",
+            "name",
+            "owner_id",
+            "hypervisor",
+            "availabilityZone",
+            "jobState",
+            "enabled",
+            "instanceNum",
+        ]
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='get account virtual machine backup job',
-        description='get account virtual machine backup job',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str}),
-        ])
+        help="get account virtual machine backup job",
+        description="get account virtual machine backup job",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["job"], {"help": "job id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def backup_job_get(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         job_id = self.app.pargs.job
-        data = {'owner-id.N': [account_id], 'JobId': job_id}
-        uri = '/v1.0/nws/computeservices/instancebackup/describebackupjobs'
+        data = {"owner-id.N": [account_id], "JobId": job_id}
+        uri = "/v1.0/nws/computeservices/instancebackup/describebackupjobs"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
-        res = dict_get(res, 'DescribeBackupJobsResponse.jobSet.0')
-        instances = res.pop('instanceSet', [])
+        res = dict_get(res, "DescribeBackupJobsResponse.jobSet.0")
+        instances = res.pop("instanceSet", [])
         self.app.render(res, details=True)
-        self.c('\ninstances', 'underline')
-        self.app.render(instances, headers=['uuid', 'name'])
+        self.c("\ninstances", "underline")
+        self.app.render(instances, headers=["uuid", "name"])
 
     @ex(
-        help='add account virtual machine backup job',
-        description='add account virtual machine backup job',
-        arguments=ARGS([
-            (['name'], {'help': 'job name', 'action': 'store', 'type': str}),
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['zone'], {'help': 'job availability zone', 'action': 'store', 'type': str}),
-            (['instance'], {'help': 'comma separated list of instance id to add', 'action': 'store', 'type': str}),
-            (['-hypervisor'], {'help': 'job hypervisor [openstack]', 'action': 'store', 'type': str,
-                               'default': 'openstack'}),
-            (['-policy'], {'help': 'job hypervisor [bk-job-policy-7-7-retention]', 'action': 'store', 'type': str,
-                           'default': 'bk-job-policy-7-7-retention'}),
-            (['-desc'], {'help': 'job description', 'action': 'store', 'type': str}),
-        ])
+        help="add account virtual machine backup job",
+        description="add account virtual machine backup job",
+        arguments=ARGS(
+            [
+                (["name"], {"help": "job name", "action": "store", "type": str}),
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (
+                    ["zone"],
+                    {"help": "job availability zone", "action": "store", "type": str},
+                ),
+                (
+                    ["instance"],
+                    {
+                        "help": "comma separated list of instance id to add",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-hypervisor"],
+                    {
+                        "help": "job hypervisor [openstack]",
+                        "action": "store",
+                        "type": str,
+                        "default": "openstack",
+                    },
+                ),
+                (
+                    ["-policy"],
+                    {
+                        "help": "job hypervisor [bk-job-policy-7-7-retention]",
+                        "action": "store",
+                        "type": str,
+                        "default": "bk-job-policy-7-7-retention",
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {"help": "job description", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def backup_job_add(self):
         name = self.app.pargs.name
         desc = self.app.pargs.desc
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         zone = self.app.pargs.zone
         instance = self.app.pargs.instance
         policy = self.app.pargs.policy
         hypervisor = self.app.pargs.hypervisor
 
         data = {
-            'owner-id': account_id,
-            'InstanceId.N': instance.split(','),
-            'Name': name,
-            'Desc': desc,
-            'AvailabilityZone': zone,
-            'Policy': policy,
-            'Hypervisor': hypervisor
+            "owner-id": account_id,
+            "InstanceId.N": instance.split(","),
+            "Name": name,
+            "Desc": desc,
+            "AvailabilityZone": zone,
+            "Policy": policy,
+            "Hypervisor": hypervisor,
         }
-        uri = '/v1.0/nws/computeservices/instancebackup/createbackupjob'
+        uri = "/v1.0/nws/computeservices/instancebackup/createbackupjob"
         res = self.cmp_post(uri, data=data, timeout=600)
-        res = dict_get(res, 'CreateBackupJob.jobsSet.0.jobId')
-        self.app.render({'msg': 'add backup job %s' % res}, details=True)
+        res = dict_get(res, "CreateBackupJob.jobsSet.0.jobId")
+        self.app.render({"msg": "add backup job %s" % res}, details=True)
 
     @ex(
-        help='update account virtual machine backup job',
-        description='update account virtual machine backup job',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str}),
-            (['-name'], {'help': 'job name', 'action': 'store', 'type': str, 'default': None}),
-            (['-enabled'], {'help': 'enable or disable job', 'action': 'store', 'type': str, 'default': None}),
-            (['-policy'], {'help': 'job policy ', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="update account virtual machine backup job",
+        description="update account virtual machine backup job",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["job"], {"help": "job id", "action": "store", "type": str}),
+                (
+                    ["-name"],
+                    {
+                        "help": "job name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-enabled"],
+                    {
+                        "help": "enable or disable job",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-policy"],
+                    {
+                        "help": "job policy ",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def backup_job_update(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         job_id = self.app.pargs.job
-        data = {
-            'owner-id': account_id,
-            'JobId': job_id
-        }
-        data = self.add_field_from_pargs_to_data('name', data, 'Name', reject_value=None, format=None)
-        data = self.add_field_from_pargs_to_data('enabled', data, 'Enabled', reject_value=None, format=None)
-        data = self.add_field_from_pargs_to_data('policy', data, 'Policy', reject_value=None, format=str2bool)
-        uri = '/v1.0/nws/computeservices/instancebackup/modifybackupjob'
+        data = {"owner-id": account_id, "JobId": job_id}
+        data = self.add_field_from_pargs_to_data("name", data, "Name", reject_value=None, format=None)
+        data = self.add_field_from_pargs_to_data("enabled", data, "Enabled", reject_value=None, format=None)
+        data = self.add_field_from_pargs_to_data("policy", data, "Policy", reject_value=None, format=str2bool)
+        uri = "/v1.0/nws/computeservices/instancebackup/modifybackupjob"
         res = self.cmp_put(uri, data=data, timeout=600)
-        res = dict_get(res, 'ModifyBackupJob.jobsSet.0.jobId')
-        self.app.render({'msg': 'update backup job %s' % res}, details=True)
+        res = dict_get(res, "ModifyBackupJob.jobsSet.0.jobId")
+        self.app.render({"msg": "update backup job %s" % res}, details=True)
 
     @ex(
-        help='delete account virtual machine backup job',
-        description='delete account virtual machine backup job',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str}),
-        ])
+        help="delete account virtual machine backup job",
+        description="delete account virtual machine backup job",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["job"], {"help": "job id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def backup_job_del(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         job_id = self.app.pargs.job
-        data = {
-            'owner-id': account_id,
-            'JobId': job_id
-        }
-        uri = '/v1.0/nws/computeservices/instancebackup/deletebackupjob'
-        res = self.cmp_delete(uri, data=data, timeout=600, entity='delete backup job %s' % job_id)
+        data = {"owner-id": account_id, "JobId": job_id}
+        uri = "/v1.0/nws/computeservices/instancebackup/deletebackupjob"
+        res = self.cmp_delete(uri, data=data, timeout=600, entity="delete backup job %s" % job_id)
 
     @ex(
-        help='add virtual machine to backup job',
-        description='add virtual machine to backup job',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str}),
-            (['instance'], {'help': 'instance id to add', 'action': 'store', 'type': str}),
-        ])
+        help="add virtual machine to backup job",
+        description="add virtual machine to backup job",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["job"], {"help": "job id", "action": "store", "type": str}),
+                (
+                    ["instance"],
+                    {"help": "instance id to add", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def backup_job_instance_add(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         job_id = self.app.pargs.job
         instance = self.app.pargs.instance
         data = {
-            'owner-id': account_id,
-            'InstanceId': instance,
-            'JobId': job_id,
+            "owner-id": account_id,
+            "InstanceId": instance,
+            "JobId": job_id,
         }
-        uri = '/v1.0/nws/computeservices/instancebackup/addbackupjobinstance'
+        uri = "/v1.0/nws/computeservices/instancebackup/addbackupjobinstance"
         res = self.cmp_post(uri, data=data, timeout=600)
-        res = dict_get(res, 'AddBackupJobInstance.jobsSet.0.jobId')
-        self.app.render({'msg': 'add virtual machine %s to backup job %s' % (instance, job_id)}, details=True)
+        res = dict_get(res, "AddBackupJobInstance.jobsSet.0.jobId")
+        self.app.render(
+            {"msg": "add virtual machine %s to backup job %s" % (instance, job_id)},
+            details=True,
+        )
 
     @ex(
-        help='delete virtual machine from backup job',
-        description='delete virtual machine from backup job',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['job'], {'help': 'job id', 'action': 'store', 'type': str}),
-            (['instance'], {'help': 'instance id to add', 'action': 'store', 'type': str}),
-        ])
+        help="delete virtual machine from backup job",
+        description="delete virtual machine from backup job",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["job"], {"help": "job id", "action": "store", "type": str}),
+                (
+                    ["instance"],
+                    {"help": "instance id to add", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def backup_job_instance_del(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
+        account_id = self.get_account(account).get("uuid")
         job_id = self.app.pargs.job
         instance = self.app.pargs.instance
         data = {
-            'owner-id': account_id,
-            'InstanceId': instance,
-            'JobId': job_id,
+            "owner-id": account_id,
+            "InstanceId": instance,
+            "JobId": job_id,
         }
-        uri = '/v1.0/nws/computeservices/instancebackup/delbackupjobinstance'
-        res = self.cmp_delete(uri, data=data, timeout=600,
-                              entity='virtual machine %s from backup job %s' % (instance, job_id))
-        res = dict_get(res, 'DelBackupJobInstance.jobsSet.0.jobId')
+        uri = "/v1.0/nws/computeservices/instancebackup/delbackupjobinstance"
+        res = self.cmp_delete(
+            uri,
+            data=data,
+            timeout=600,
+            entity="virtual machine %s from backup job %s" % (instance, job_id),
+        )
+        res = dict_get(res, "DelBackupJobInstance.jobsSet.0.jobId")
 
     @ex(
-        help='get account virtual machine backup job policies',
-        description='get account virtual machine backup policies',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-        ])
+        help="get account virtual machine backup job policies",
+        description="get account virtual machine backup policies",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def backup_job_policies(self):
         account = self.app.pargs.account
-        account_id = self.get_account(account).get('uuid')
-        data = {'owner-id': account_id}
-        uri = '/v1.0/nws/computeservices/instancebackup/describebackupjobpolicies'
+        account_id = self.get_account(account).get("uuid")
+        data = {"owner-id": account_id}
+        uri = "/v1.0/nws/computeservices/instancebackup/describebackupjobpolicies"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
-        res = dict_get(res, 'DescribeBackupJobPoliciesResponse.jobPoliciesSet')
-        headers = ['id', 'uuid', 'name', 'fullbackup_interval', 'restore_points', 'start_time_window', 'interval',
-                   'timezone']
-        fields = ['id', 'uuid', 'name', 'fullbackup_interval', 'restore_points', 'start_time_window', 'interval',
-                  'timezone']
+        res = dict_get(res, "DescribeBackupJobPoliciesResponse.jobPoliciesSet")
+        headers = [
+            "id",
+            "uuid",
+            "name",
+            "fullbackup_interval",
+            "restore_points",
+            "start_time_window",
+            "interval",
+            "timezone",
+        ]
+        fields = [
+            "id",
+            "uuid",
+            "name",
+            "fullbackup_interval",
+            "restore_points",
+            "start_time_window",
+            "interval",
+            "timezone",
+        ]
         self.app.render(res, headers=headers, fields=fields)
 
 
 class KeyPairServiceController(BusinessControllerChild):
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'keypairs'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "keypairs"
         description = "key pair management"
         help = "key pair management"
 
     @ex(
-        help='get key pairs',
-        description='get key pairs',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-name'], {'help': 'list of keypair name comma separated', 'action': 'store', 'type': str,
-                         'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="get key pairs",
+        description="get key pairs",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "list of keypair name comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
-        params = ['accounts', 'ids', 'tags', 'sg']
-        mappings = {
-            'accounts': self.get_account_ids,
-            'names': lambda x: x.split(',')
-        }
+        params = ["accounts", "ids", "tags", "sg"]
+        mappings = {"accounts": self.get_account_ids, "names": lambda x: x.split(",")}
         aliases = {
-            'accounts': 'owner-id.N',
-            'names': 'key-name.N',
-            'size': 'Nvl-MaxResults',
-            'page': 'Nvl-NextToken'
+            "accounts": "owner-id.N",
+            "names": "key-name.N",
+            "size": "Nvl-MaxResults",
+            "page": "Nvl-NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '%s/computeservices/keypair/describekeypairs' % self.baseuri
+        uri = "%s/computeservices/keypair/describekeypairs" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeKeyPairsResponse')
+        res = res.get("DescribeKeyPairsResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('keySet')),
-            'page': page,
-            'total': res.get('nvl-keyTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'instances': res.get('keySet')
+            "count": len(res.get("keySet")),
+            "page": page,
+            "total": res.get("nvl-keyTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "instances": res.get("keySet"),
         }
 
-        headers = ['id', 'name', 'account', 'keyFingerprint']
-        fields = ['nvl-keyId', 'keyName', 'nvl-ownerAlias', 'keyFingerprint']
-        self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=40)
+        headers = ["id", "name", "account", "keyFingerprint"]
+        fields = ["nvl-keyId", "keyName", "nvl-ownerAlias", "keyFingerprint"]
+        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='get key pair',
-        description='get key pair',
-        arguments=ARGS([
-            (['name'], {'help': 'keypair name', 'action': 'store', 'type': str}),
-        ])
+        help="get key pair",
+        description="get key pair",
+        arguments=ARGS(
+            [
+                (["name"], {"help": "keypair name", "action": "store", "type": str}),
+            ]
+        ),
     )
     def get(self):
-        data = {'key-name.N': self.app.pargs.name}
-        uri = '%s/computeservices/keypair/describekeypairs' % self.baseuri
+        data = {"key-name.N": self.app.pargs.name}
+        uri = "%s/computeservices/keypair/describekeypairs" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeKeyPairsResponse.keySet.0', default={})
+        res = dict_get(res, "DescribeKeyPairsResponse.keySet.0", default={})
         self.app.render(res, details=True, maxsize=100)
 
-    
     # @ex(
     #     help='export key pair',
     #     description='export key pair',
@@ -1872,80 +3236,92 @@ class KeyPairServiceController(BusinessControllerChild):
     #     res = dict_get(res, 'ExportKeyPairsResponse.instance', default={})
     #     self.app.render(res, details=True, maxsize=100)
 
-
     @ex(
-        help='delete a key pair',
-        description='delete a key pair',
-        arguments=ARGS([
-            (['name'], {'help': 'keypair name', 'action': 'store', 'type': str}),
-        ])
+        help="delete a key pair",
+        description="delete a key pair",
+        arguments=ARGS(
+            [
+                (["name"], {"help": "keypair name", "action": "store", "type": str}),
+            ]
+        ),
     )
     def delete(self):
         name = self.app.pargs.name
-        data = {'KeyName': name}
-        uri = '%s/computeservices/keypair/deletekeypair' % self.baseuri
-        res = self.cmp_delete(uri, data=data, timeout=600, entity='keypair %s' % name)
+        data = {"KeyName": name}
+        uri = "%s/computeservices/keypair/deletekeypair" % self.baseuri
+        res = self.cmp_delete(uri, data=data, timeout=600, entity="keypair %s" % name)
 
     @ex(
-        help='add new RSA key pair',
-        description='add new RSA key pair',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'key pair name', 'action': 'store', 'type': str}),
-            (['-type'], {'help': 'key type', 'action': 'store', 'type': str}),
-        ])
+        help="add new RSA key pair",
+        description="add new RSA key pair",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["name"], {"help": "key pair name", "action": "store", "type": str}),
+                (["-type"], {"help": "key type", "action": "store", "type": str}),
+            ]
+        ),
     )
     def add(self):
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         name = self.app.pargs.name
         key_type = self.app.pargs.type
         data = {
-            'owner-id': account,
-            'KeyName': name,
-            'Nvl-KeyPairType': key_type,
+            "owner-id": account,
+            "KeyName": name,
+            "Nvl-KeyPairType": key_type,
         }
-        uri = '%s/computeservices/keypair/createkeypair' % self.baseuri
-        res = self.cmp_post(uri, data={'keypair': data})
-        res = res.get('CreateKeyPairResponse')
-        headers = ['name', 'fingerprint SHA1', 'material PEM']
-        fields = ['keyName', 'keyFingerprint', 'keyMaterial']
+        uri = "%s/computeservices/keypair/createkeypair" % self.baseuri
+        res = self.cmp_post(uri, data={"keypair": data})
+        res = res.get("CreateKeyPairResponse")
+        headers = ["name", "fingerprint SHA1", "material PEM"]
+        fields = ["keyName", "keyFingerprint", "keyMaterial"]
         self.app.render(res, key=None, headers=headers, fields=fields)
 
-        res = {'msg': 'Add key pair %s' % name}
+        res = {"msg": "Add key pair %s" % name}
         self.app.render(res)
 
     @ex(
-        help='import public RSA key',
-        description='import public RSA key',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'key pair name', 'action': 'store', 'type': str}),
-            (['publickey'], {'help': 'file containing public key base64 encoded', 'action': 'store', 'type': str}),
-            (['-type'], {'help': 'key type', 'action': 'store', 'type': str}),
-        ])
+        help="import public RSA key",
+        description="import public RSA key",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["name"], {"help": "key pair name", "action": "store", "type": str}),
+                (
+                    ["publickey"],
+                    {
+                        "help": "file containing public key base64 encoded",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (["-type"], {"help": "key type", "action": "store", "type": str}),
+            ]
+        ),
     )
     def import_public_key(self):
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         name = self.app.pargs.name
         file_name = self.app.pargs.publickey
         key_type = self.app.pargs.type
         file = load_config(file_name)
 
         data = {
-            'owner-id': account,
-            'KeyName': name,
-            'PublicKeyMaterial': file,
-            'Nvl-KeyPairType': key_type
+            "owner-id": account,
+            "KeyName": name,
+            "PublicKeyMaterial": file,
+            "Nvl-KeyPairType": key_type,
         }
-        uri = '%s/computeservices/keypair/importkeypair' % self.baseuri
-        res = self.cmp_post(uri, data={'keypair': data})
-        res = res.get('ImportKeyPairResponse')
+        uri = "%s/computeservices/keypair/importkeypair" % self.baseuri
+        res = self.cmp_post(uri, data={"keypair": data})
+        res = res.get("ImportKeyPairResponse")
 
-        headers = ['name', 'fingerprint MD5']
-        fields = ['keyName', 'keyFingerprint']
+        headers = ["name", "fingerprint MD5"]
+        fields = ["keyName", "keyFingerprint"]
         self.app.render(res, key=None, headers=headers, fields=fields)
 
-        res = {'msg': 'Import key pair %s' % name}
+        res = {"msg": "Import key pair %s" % name}
         self.app.render(res)
 
 
@@ -2413,296 +3789,484 @@ class KeyPairServiceController(BusinessControllerChild):
 
 class TagServiceController(BusinessControllerChild):
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'compute_tags'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "compute_tags"
         description = "tags service management"
         help = "tags service management"
 
     @ex(
-        help='list resource by tags',
-        description='list resource by tags',
-        arguments=ARGS([
-            (['-account'], {'help': 'account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-services'], {'help': 'comma separated list of service instance id', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-tags'], {'help': 'comma separated list of tag key', 'action': 'store', 'type': str, 'default': None}),
-            (['-types'], {'help': 'comma separated list of service instance types', 'action': 'store', 'type': str,
-                          'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="list resource by tags",
+        description="list resource by tags",
+        arguments=ARGS(
+            [
+                (
+                    ["-account"],
+                    {
+                        "help": "account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-services"],
+                    {
+                        "help": "comma separated list of service instance id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "comma separated list of tag key",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-types"],
+                    {
+                        "help": "comma separated list of service instance types",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
-        params = ['account', 'services', 'tags', 'types']
+        params = ["account", "services", "tags", "types"]
         mappings = {
-            'account': lambda x: x,
-            'services': lambda x: x.split(','),
-            'tags': lambda x: x.split(','),
-            'types': lambda x: x.split(',')
+            "account": lambda x: x,
+            "services": lambda x: x.split(","),
+            "tags": lambda x: x.split(","),
+            "types": lambda x: x.split(","),
         }
         aliases = {
-            'account': 'owner-id.N',
-            'services': 'resource-id.N',
-            'types': 'resource-type.N',
-            'tags': 'key.N',
-            'size': 'MaxResults',
-            'page': 'NextToken'
+            "account": "owner-id.N",
+            "services": "resource-id.N",
+            "types": "resource-type.N",
+            "tags": "key.N",
+            "size": "MaxResults",
+            "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = '%s/computeservices/tag/describetags' % self.baseuri
+        uri = "%s/computeservices/tag/describetags" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeTagsResponse')
+        res = res.get("DescribeTagsResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('tagSet')),
-            'page': page,
-            'total': res.get('nvl-tagTotal', 0),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'instances': res.get('tagSet')
+            "count": len(res.get("tagSet")),
+            "page": page,
+            "total": res.get("nvl-tagTotal", 0),
+            "sort": {"field": "id", "order": "asc"},
+            "instances": res.get("tagSet"),
         }
-        headers = ['service-instance', 'type', 'tag']
-        fields = ['resourceId', 'resourceType', 'key']
-        self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=40)
+        headers = ["service-instance", "type", "tag"]
+        fields = ["resourceId", "resourceType", "key"]
+        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='add tag to service instance',
-        description='add tag to service instance',
-        arguments=ARGS([
-            (['account'], {'help': 'account id', 'action': 'store', 'type': str}),
-            (['service'], {'help': 'service instance id', 'action': 'store', 'type': str}),
-            (['tag'], {'help': 'tag key', 'action': 'store', 'type': str}),
-        ])
+        help="add tag to service instance",
+        description="add tag to service instance",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (
+                    ["service"],
+                    {"help": "service instance id", "action": "store", "type": str},
+                ),
+                (["tag"], {"help": "tag key", "action": "store", "type": str}),
+            ]
+        ),
     )
     def add(self):
         account = self.app.pargs.account
-        account = self.get_account(account).get('uuid')
+        account = self.get_account(account).get("uuid")
         service = self.app.pargs.service
         tag = self.app.pargs.tag
         data = {
-            'owner-id': account,
-            'ResourceId.N': [service],
-            'Tag.N': [{'Key': tag}],
+            "owner-id": account,
+            "ResourceId.N": [service],
+            "Tag.N": [{"Key": tag}],
         }
-        uri = '%s/computeservices/tag/createtags' % self.baseuri
-        res = self.cmp_post(uri, data={'tags': data}, timeout=600)
-        dict_get(res, 'CreateTagsResponse.return')
-        res = {'msg': 'add tag %s to %s' % (tag, service)}
+        uri = "%s/computeservices/tag/createtags" % self.baseuri
+        res = self.cmp_post(uri, data={"tags": data}, timeout=600)
+        dict_get(res, "CreateTagsResponse.return")
+        res = {"msg": "add tag %s to %s" % (tag, service)}
         self.app.render(res)
 
     @ex(
-        help='delete tag from service instance',
-        description='delete tag from service instance',
-        arguments=ARGS([
-            (['service'], {'help': 'service instance id', 'action': 'store', 'type': str}),
-            (['tag'], {'help': 'tag key', 'action': 'store', 'type': str}),
-        ])
+        help="delete tag from service instance",
+        description="delete tag from service instance",
+        arguments=ARGS(
+            [
+                (
+                    ["service"],
+                    {"help": "service instance id", "action": "store", "type": str},
+                ),
+                (["tag"], {"help": "tag key", "action": "store", "type": str}),
+            ]
+        ),
     )
     def delete(self):
         service = self.app.pargs.service
         tag = self.app.pargs.tag
         data = {
-            'ResourceId.N': [service],
-            'Tag.N': [{'Key': tag}],
+            "ResourceId.N": [service],
+            "Tag.N": [{"Key": tag}],
         }
-        uri = '%s/computeservices/tag/deletetags' % self.baseuri
-        self.cmp_delete(uri, data={'tags': data}, timeout=600, entity='service %s tag %s' % (service, tag))
+        uri = "%s/computeservices/tag/deletetags" % self.baseuri
+        self.cmp_delete(
+            uri,
+            data={"tags": data},
+            timeout=600,
+            entity="service %s tag %s" % (service, tag),
+        )
 
 
 class CustomizationServiceController(BusinessControllerChild):
     class Meta:
-        stacked_on = 'cpaas'
-        stacked_type = 'nested'
-        label = 'customizations'
+        stacked_on = "cpaas"
+        stacked_type = "nested"
+        label = "customizations"
         description = "customization service management"
         help = "customization service management"
 
     @ex(
-        help='get customizations types',
-        description='get customizations types',
-        arguments=ARGS([
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str, 'default': None}),
-            (['-id'], {'help': 'customization type id', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="get customizations types",
+        description="get customizations types",
+        arguments=ARGS(
+            [
+                (
+                    ["account"],
+                    {
+                        "help": "parent account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-id"],
+                    {
+                        "help": "customization type id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def types(self):
         oid = self.app.pargs.id
         if oid is not None:
-            account = self.get_account(self.app.pargs.account)['uuid']
-            data = urlencode({'CustomizationType': oid, 'owner-id': account}, doseq=True)
-            uri = '%s/computeservices/customization/describecustomizationtypes' % self.baseuri
+            account = self.get_account(self.app.pargs.account)["uuid"]
+            data = urlencode({"CustomizationType": oid, "owner-id": account}, doseq=True)
+            uri = "%s/computeservices/customization/describecustomizationtypes" % self.baseuri
             res = self.cmp_get(uri, data=data)
-            res = dict_get(res, 'DescribeCustomizationTypesResponse.customizationTypesSet.0')
-            params = res.pop('args')
+            res = dict_get(res, "DescribeCustomizationTypesResponse.customizationTypesSet.0")
+            params = res.pop("args")
             self.app.render(res, details=True)
-            self.c('\nparams', 'underline')
-            self.app.render(params, headers=['name', 'desc', 'required', 'type', 'default', 'allowed'])
+            self.c("\nparams", "underline")
+            self.app.render(
+                params,
+                headers=["name", "desc", "required", "type", "default", "allowed"],
+            )
         else:
-            params = ['account']
+            params = ["account"]
             mappings = {
-                'account': lambda x: self.get_account(x)['uuid'],
+                "account": lambda x: self.get_account(x)["uuid"],
             }
-            aliases = {
-                'account': 'owner-id',
-                'size': 'MaxResults',
-                'page': 'NextToken'
-            }
+            aliases = {"account": "owner-id", "size": "MaxResults", "page": "NextToken"}
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-            uri = '%s/computeservices/customization/describecustomizationtypes' % self.baseuri
+            uri = "%s/computeservices/customization/describecustomizationtypes" % self.baseuri
             res = self.cmp_get(uri, data=data)
-            res = res.get('DescribeCustomizationTypesResponse')
+            res = res.get("DescribeCustomizationTypesResponse")
             page = self.app.pargs.page
             resp = {
-                'count': len(res.get('customizationTypesSet')),
-                'page': page,
-                'total': res.get('customizationTypesTotal'),
-                'sort': {'field': 'id', 'order': 'asc'},
-                'types': res.get('customizationTypesSet')
+                "count": len(res.get("customizationTypesSet")),
+                "page": page,
+                "total": res.get("customizationTypesTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "types": res.get("customizationTypesSet"),
             }
-            headers = ['id', 'customization_type', 'desc']
-            fields = ['uuid', 'name', 'description']
-            self.app.render(resp, key='types', headers=headers, fields=fields)
+            headers = ["id", "customization_type", "desc"]
+            fields = ["uuid", "name", "description"]
+            self.app.render(resp, key="types", headers=headers, fields=fields)
 
     @ex(
-        help='list customizations',
-        description='list customizations',
-        arguments=ARGS([
-            (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-                             'default': None}),
-            (['-customizations'], {'help': 'list of customization id comma separated', 'action': 'store', 'type': str,
-                                   'default': None}),
-            (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-            (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-            (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-        ])
+        help="list customizations",
+        description="list customizations",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-customizations"],
+                    {
+                        "help": "list of customization id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def list(self):
-        params = ['accounts', 'customizations']
+        params = ["accounts", "customizations"]
         mappings = {
-            'accounts': self.get_account_ids,
-            'tags': lambda x: x.split(','),
-            'customizations': lambda x: x.split(',')
+            "accounts": self.get_account_ids,
+            "tags": lambda x: x.split(","),
+            "customizations": lambda x: x.split(","),
         }
         aliases = {
-            'accounts': 'owner-id.N',
-            'customizations': 'customization-id.N',
-            'tags': 'tag-key.N',
-            'size': 'MaxResults',
-            'page': 'NextToken'
+            "accounts": "owner-id.N",
+            "customizations": "customization-id.N",
+            "tags": "tag-key.N",
+            "size": "MaxResults",
+            "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = '%s/computeservices/customization/describecustomizations' % self.baseuri
+        uri = "%s/computeservices/customization/describecustomizations" % self.baseuri
         res = self.cmp_get(uri, data=data)
-        res = res.get('DescribeCustomizationsResponse')
+        res = res.get("DescribeCustomizationsResponse")
         page = self.app.pargs.page
         resp = {
-            'count': len(res.get('customizationsSet')),
-            'page': page,
-            'total': res.get('customizationTotal'),
-            'sort': {'field': 'id', 'order': 'asc'},
-            'customizations': res.get('customizationsSet')
+            "count": len(res.get("customizationsSet")),
+            "page": page,
+            "total": res.get("customizationTotal"),
+            "sort": {"field": "id", "order": "asc"},
+            "customizations": res.get("customizationsSet"),
         }
 
-        headers = ['id', 'name', 'state', 'type', 'account', 'creation']
-        fields = ['customizationId', 'customizationName', 'customizationState.name', 'customizationType', 'ownerAlias',
-                  'launchTime']
-        self.app.render(resp, key='customizations', headers=headers, fields=fields, maxsize=40)
+        headers = ["id", "name", "state", "type", "account", "creation"]
+        fields = [
+            "customizationId",
+            "customizationName",
+            "customizationState.name",
+            "customizationType",
+            "ownerAlias",
+            "launchTime",
+        ]
+        self.app.render(resp, key="customizations", headers=headers, fields=fields, maxsize=40)
 
     @ex(
-        help='get customization',
-        description='get customization',
-        arguments=ARGS([
-            (['customization'], {'help': 'customization id', 'action': 'store', 'type': str}),
-        ])
+        help="get customization",
+        description="get customization",
+        arguments=ARGS(
+            [
+                (
+                    ["customization"],
+                    {"help": "customization id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def get(self):
         customization_id = self.app.pargs.customization
         if self.is_uuid(customization_id):
-            data = {'customization-id.N': [customization_id]}
+            data = {"customization-id.N": [customization_id]}
         elif self.is_name(customization_id):
-            data = {'customization-name.N': [customization_id]}
+            data = {"customization-name.N": [customization_id]}
 
-        uri = '%s/computeservices/customization/describecustomizations' % self.baseuri
+        uri = "%s/computeservices/customization/describecustomizations" % self.baseuri
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-        res = dict_get(res, 'DescribeCustomizationsResponse.customizationsSet', default={})
+        res = dict_get(res, "DescribeCustomizationsResponse.customizationsSet", default={})
         if len(res) > 0:
             res = res[0]
-            if self.is_output_text():
-                self.app.render(res, details=True, maxsize=100)
-            else:
-                self.app.render(res, details=True, maxsize=100)
+            # if self.is_output_text():
+            #     self.app.render(res, details=True, maxsize=100)
+            # else:
+            self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception('customization %s was not found' % customization_id)
+            raise Exception("customization %s was not found" % customization_id)
 
     @ex(
-        help='create a customization',
-        description='create a customization',
-        arguments=ARGS([
-            (['name'], {'help': 'customization name', 'action': 'store', 'type': str}),
-            (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-            (['type'], {'help': 'customization type', 'action': 'store', 'type': str}),
-            (['instances'], {'help': 'comma separated list of compute instance id', 'action': 'store', 'type': str}),
-            (['args'], {'help': 'customization params. Use syntax arg1:val1,arg2:val2', 'action': 'store', 'type': str}),
-        ])
+        help="create a customization",
+        description="create a customization",
+        arguments=ARGS(
+            [
+                (
+                    ["name"],
+                    {"help": "customization name", "action": "store", "type": str},
+                ),
+                (
+                    ["account"],
+                    {"help": "parent account id", "action": "store", "type": str},
+                ),
+                (
+                    ["type"],
+                    {"help": "customization type", "action": "store", "type": str},
+                ),
+                (
+                    ["instances"],
+                    {
+                        "help": "comma separated list of compute instance id",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["args"],
+                    {
+                        "help": "customization params. Use syntax arg1:val1,arg2:val2",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def add(self):
         name = self.app.pargs.name
-        account = self.get_account(self.app.pargs.account).get('uuid')
+        account = self.get_account(self.app.pargs.account).get("uuid")
         itype = self.get_service_definition(self.app.pargs.type)
-        instances = self.app.pargs.instances.split(',')
-        args = self.app.pargs.args.split(',')
+        instances = self.app.pargs.instances.split(",")
+        args = self.app.pargs.args.split(",")
 
         params = []
         for arg in args:
-            arg = arg.split(':')
-            params.append({'Name': arg[0], 'Value': arg[1]})
+            arg = arg.split(":")
+            params.append({"Name": arg[0], "Value": arg[1]})
 
         data = {
-            'Name': name,
-            'owner-id': account,
-            'CustomizationType': itype,
-            'Instances': instances,
-            'Args': params,
+            "Name": name,
+            "owner-id": account,
+            "CustomizationType": itype,
+            "Instances": instances,
+            "Args": params,
         }
-        uri = '%s/computeservices/customization/runcustomizations' % self.baseuri
-        res = self.cmp_post(uri, data={'customization': data}, timeout=600)
-        uuid = dict_get(res, 'RunCustomizationResponse.customizationId')
+        uri = "%s/computeservices/customization/runcustomizations" % self.baseuri
+        res = self.cmp_post(uri, data={"customization": data}, timeout=600)
+        uuid = dict_get(res, "RunCustomizationResponse.customizationId")
         self.wait_for_service(uuid)
-        self.app.render({'msg': 'add customization: %s' % uuid})
+        self.app.render({"msg": "add customization: %s" % uuid})
 
     @ex(
-        help='delete a customization',
-        description='delete a customization',
-        arguments=ARGS([
-            (['customization'], {'help': 'customization id', 'action': 'store', 'type': str}),
-        ])
+        help="delete a customization",
+        description="delete a customization",
+        arguments=ARGS(
+            [
+                (
+                    ["customization"],
+                    {"help": "customization id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def delete(self):
         customization_id = self.app.pargs.customization
         if self.is_name(customization_id):
-            raise Exception('only customization id is supported')
-        data = {'CustomizationId': customization_id}
-        uri = '%s/computeservices/customization/terminatecustomizations' % self.baseuri
-        self.cmp_delete(uri, data=data, timeout=600, output=False, entity='customization %s' % customization_id)
-        self.wait_for_service(customization_id, accepted_state='DELETED')
-        self.app.render({'msg': 'delete customization: %s' % customization_id})
+            raise Exception("only customization id is supported")
+        data = {"CustomizationId": customization_id}
+        uri = "%s/computeservices/customization/terminatecustomizations" % self.baseuri
+        self.cmp_delete(
+            uri,
+            data=data,
+            timeout=600,
+            output=False,
+            entity="customization %s" % customization_id,
+        )
+        self.wait_for_service(customization_id, accepted_state="DELETED")
+        self.app.render({"msg": "delete customization: %s" % customization_id})
 
     @ex(
-        help='update a customization',
-        description='update a customization',
-        arguments=ARGS([
-            (['customization'], {'help': 'customization id', 'action': 'store', 'type': str}),
-        ])
+        help="update a customization",
+        description="update a customization",
+        arguments=ARGS(
+            [
+                (
+                    ["customization"],
+                    {"help": "customization id", "action": "store", "type": str},
+                ),
+            ]
+        ),
     )
     def update(self):
         customization_id = self.app.pargs.customization
         if self.is_name(customization_id):
-            raise Exception('only customization id is supported')
-        data = {'CustomizationId': customization_id}
-        uri = '%s/computeservices/customization/updatecustomizations' % self.baseuri
-        self.cmp_put(uri, data=data, timeout=600).get('UpdateCustomizationResponse')
+            raise Exception("only customization id is supported")
+        data = {"CustomizationId": customization_id}
+        uri = "%s/computeservices/customization/updatecustomizations" % self.baseuri
+        self.cmp_put(uri, data=data, timeout=600).get("UpdateCustomizationResponse")
         self.wait_for_service(customization_id)
-        self.app.render({'msg': 'update customization: %s' % customization_id})
+        self.app.render({"msg": "update customization: %s" % customization_id})
