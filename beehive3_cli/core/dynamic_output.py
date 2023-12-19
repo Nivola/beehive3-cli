@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from cement.core.output import OutputHandler
 from beehive3_cli.core.util import ColoredText
@@ -10,9 +10,9 @@ class DynamicOutputHandler(OutputHandler):
     c = ColoredText()
 
     class Meta:
-        label = 'dynamic_output_handler'
+        label = "dynamic_output_handler"
 
-        default_template = '{:10} {:10}'
+        default_template = "{:10} {:10}"
 
     # def __set_template(self, template):
     #     """set line template
@@ -55,9 +55,9 @@ class DynamicOutputHandler(OutputHandler):
         :param headers: list of headers to print with tabular format [optional]
         :param data: single raw data to print
         """
-        self.template = kwargs.get('template', self._meta.default_template)
-        headers = kwargs.get('headers', None)
-        format = kwargs.get('format', lambda x: x)
+        self.template = kwargs.get("template", self._meta.default_template)
+        headers = kwargs.get("headers", None)
+        format = kwargs.get("format", lambda x: x)
 
         if headers is not None:
             self.__print_headers(headers)

@@ -1,26 +1,39 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from sys import stdout
 from datetime import datetime
 from time import sleep
 import sh
 from cement.ext.ext_argparse import ex
-from beecell.types.type_string import truncate, str2bool, bool2str
+from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_list import merge_list
 from beecell.types.type_date import format_date
 from beecell.types.type_dict import dict_get
 from beedrones.vsphere.client import VsphereManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, StringAction
-from beehive3_cli.core.util import load_environment_config, load_config
+from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar
 
 
 def VSPHERE_ARGS(*list_args):
     orchestrator_args = [
-        (['-O', '--orchestrator'], {'action': 'store', 'dest': 'orchestrator',
-                                    'help': 'vsphere platform reference label'}),
-        (['-P', '--project'], {'action': 'store', 'dest': 'project', 'help': 'vsphere current project name'}),
+        (
+            ["-O", "--orchestrator"],
+            {
+                "action": "store",
+                "dest": "orchestrator",
+                "help": "vsphere platform reference label",
+            },
+        ),
+        (
+            ["-P", "--project"],
+            {
+                "action": "store",
+                "dest": "project",
+                "help": "vsphere current project name",
+            },
+        ),
     ]
     res = merge_list(BASE_ARGS, orchestrator_args, *list_args)
     return res
@@ -28,94 +41,185 @@ def VSPHERE_ARGS(*list_args):
 
 class VspherePlatformController(BaseController):
     class Meta:
-        label = 'vsphere'
-        stacked_on = 'platform'
-        stacked_type = 'nested'
+        label = "vsphere"
+        stacked_on = "platform"
+        stacked_type = "nested"
         description = "vsphere platform"
         help = "vsphere platform"
 
-        server_headers = ['id', 'parent', 'name', 'os', 'state', 'ipv4_address', 'hostname', 'cpu', 'ram', 'template']
-        host_headers = ['id', 'name', 'parent', 'overallStatus', 'biosVersion', 'numCpuThreads', 'memorySize', 'model',
-                        'bootTime', 'connectionState', 'server']
-        respool_headers = ['id', 'name', 'parent']
-        cluster_headers = ['id', 'name', 'parent', 'overallStatus', 'host', 'totalMemory',
-                           'numCpuThreads']
-        dc_headers = ['id', 'name', 'parent', 'overallStatus']
-        datastore_headers = ['id', 'name', 'overallStatus', 'accessible', 'size', 'freespace', 'maintenanceMode',
-                             'type']
-        folder_headers = ['id', 'parent', 'type', 'name', 'desc', 'overallStatus']
-        vapp_headers = ['id', 'parent', 'name', 'overallStatus']
-        dvs_headers = ['id', 'parent', 'name', 'overallStatus']
-        dvpg_headers = ['id', 'parent', 'name', 'overallStatus']
-        securitygroup_headers = ['id', 'name', 'rules']
-        lg_headers = ['objectId', 'name', 'tenant', 'vdnId']
-        lg_fields = ['objectId', 'description', 'tenantId', 'vdnId']
-        ippool_headers = ['objectId', 'name', 'dnsSuffix', 'gateway', 'ipRange      startAddress      endAddress',
-                          'totalAddressCount', 'usedAddressCount']
-        ippool_fields = ['objectId', 'name', 'dnsSuffix', 'gateway', 'ipRanges', 'totalAddressCount',
-                         'usedAddressCount']
-        ipset_headers = ['objectId', 'name', 'value']
-        edge_headers = ['id', 'name', 'type', 'status', 'state', 'datacenter']
-        edge_fields = ['objectId', 'name', 'edgeType', 'edgeStatus', 'state', 'datacenterName']
-        edge_headers1 = ['id', 'name', 'type', 'status', 'state', 'datacenter', 'primaryAddress', 'secondaryAddresses']
-        edge_fields1 = ['objectId', 'name', 'edgeType', 'edgeStatus', 'state', 'datacenterName',
-                        'vnic.addressGroups.addressGroup.primaryAddress',
-                        'vnic.addressGroups.addressGroup.secondaryAddresses.ipAddress']
-        dlr_headers = ['objectId', 'name', 'value']
+        server_headers = [
+            "id",
+            "parent",
+            "name",
+            "os",
+            "state",
+            "ipv4_address",
+            "hostname",
+            "cpu",
+            "ram",
+            "template",
+        ]
+        host_headers = [
+            "id",
+            "name",
+            "parent",
+            "overallStatus",
+            "biosVersion",
+            "numCpuThreads",
+            "memorySize",
+            "model",
+            "bootTime",
+            "connectionState",
+            "server",
+        ]
+        respool_headers = ["id", "name", "parent"]
+        cluster_headers = [
+            "id",
+            "name",
+            "parent",
+            "overallStatus",
+            "host",
+            "totalMemory",
+            "numCpuThreads",
+        ]
+        dc_headers = ["id", "name", "parent", "overallStatus"]
+        datastore_headers = [
+            "id",
+            "name",
+            "overallStatus",
+            "accessible",
+            "size",
+            "freespace",
+            "maintenanceMode",
+            "type",
+        ]
+        folder_headers = ["id", "parent", "type", "name", "desc", "overallStatus"]
+        vapp_headers = ["id", "parent", "name", "overallStatus"]
+        dvs_headers = ["id", "parent", "name", "overallStatus"]
+        dvpg_headers = ["id", "parent", "name", "overallStatus"]
+        securitygroup_headers = ["id", "name", "rules"]
+        lg_headers = ["objectId", "name", "tenant", "vdnId"]
+        lg_fields = ["objectId", "description", "tenantId", "vdnId"]
+        ippool_headers = [
+            "objectId",
+            "name",
+            "dnsSuffix",
+            "gateway",
+            "ipRange      startAddress      endAddress",
+            "totalAddressCount",
+            "usedAddressCount",
+        ]
+        ippool_fields = [
+            "objectId",
+            "name",
+            "dnsSuffix",
+            "gateway",
+            "ipRanges",
+            "totalAddressCount",
+            "usedAddressCount",
+        ]
+        ipset_headers = ["objectId", "name", "value"]
+        edge_headers = ["id", "name", "type", "status", "state", "datacenter"]
+        edge_fields = [
+            "objectId",
+            "name",
+            "edgeType",
+            "edgeStatus",
+            "state",
+            "datacenterName",
+        ]
+        edge_headers1 = [
+            "id",
+            "name",
+            "type",
+            "status",
+            "state",
+            "datacenter",
+            "primaryAddress",
+            "secondaryAddresses",
+        ]
+        edge_fields1 = [
+            "objectId",
+            "name",
+            "edgeType",
+            "edgeStatus",
+            "state",
+            "datacenterName",
+            "vnic.addressGroups.addressGroup.primaryAddress",
+            "vnic.addressGroups.addressGroup.secondaryAddresses.ipAddress",
+        ]
+        dlr_headers = ["objectId", "name", "value"]
 
     def pre_command_run(self):
         super(VspherePlatformController, self).pre_command_run()
 
         self.config = load_environment_config(self.app)
 
-        orchestrators = self.config.get('orchestrators', {}).get('vsphere', {})
-        label = getattr(self.app.pargs, 'orchestrator', None)
+        orchestrators = self.config.get("orchestrators", {}).get("vsphere", {})
+        label = getattr(self.app.pargs, "orchestrator", None)
 
         if label is None:
             keys = list(orchestrators.keys())
             if len(keys) > 0:
                 label = keys[0]
             else:
-                raise Exception('No vsphere default platform is available for this environment. Select '
-                                'another environment')
+                raise Exception(
+                    "No vsphere default platform is available for this environment. Select " "another environment"
+                )
 
         if label not in orchestrators:
-            raise Exception('Valid label are: %s' % ', '.join(orchestrators.keys()))
+            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
         conf = orchestrators.get(label)
 
-        conf.get('vcenter')['pwd'] = str(conf.get('vcenter')['pwd'])
-        conf.get('nsx')['pwd'] = str(conf.get('nsx')['pwd'])
-        self.client = VsphereManager(conf.get('vcenter'), conf.get('nsx'), key=self.key)
+        conf.get("vcenter")["pwd"] = str(conf.get("vcenter")["pwd"])
+        conf.get("nsx")["pwd"] = str(conf.get("nsx")["pwd"])
+
+        if self.app.config.get("log.clilog", "verbose_log"):
+            host_vcenter = conf.get("vcenter", None)
+            if host_vcenter:
+                host_vcenter = host_vcenter.get("host", None)
+            host_nsx = conf.get("nsx", None)
+            if host_nsx:
+                host_nsx = host_nsx.get("host", None)
+            transform = {"msg": lambda x: self.color_string(x, "YELLOW")}
+            self.app.render(
+                {"msg": "Using vsphere orchestrator: %s (vcenter: %s - nsx: %s)" % (label, host_vcenter, host_nsx)},
+                transform=transform,
+            )
+            self.app.log.debug(
+                "Using vsphere orchestrator: %s (vcenter: %s - nsx: %s)" % (label, host_vcenter, host_nsx)
+            )
+
+        self.client = VsphereManager(conf.get("vcenter"), conf.get("nsx"), key=self.key)
 
     def wait_task(self, task):
+        bar = rotating_bar()
+
         def trace():
-            stdout.write('.')
+            # stdout.write(".")
+            stdout.write(next(bar))
             stdout.flush()
 
         self.client.wait_task(task, delta=1, trace=trace)
 
-    @ex(
-        help='ping vsphere',
-        description='ping vsphere',
-        arguments=VSPHERE_ARGS()
-    )
+    @ex(help="ping vsphere", description="ping vsphere", arguments=VSPHERE_ARGS())
     def ping(self):
         res = self.client.ping()
-        self.app.render({'ping': res}, headers=['ping'])
+        self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help='get vsphere version',
-        description='get vsphere version',
-        arguments=VSPHERE_ARGS()
+        help="get vsphere version",
+        description="get vsphere version",
+        arguments=VSPHERE_ARGS(),
     )
     def version(self):
         res = self.client.version()
-        self.app.render({'version': res}, headers=['version'])
+        self.app.render({"version": res}, headers=["version"])
 
     @ex(
-        help='get vsphere nsx manager info',
-        description='get vsphere nsx manager info',
-        arguments=VSPHERE_ARGS()
+        help="get vsphere nsx manager info",
+        description="get vsphere nsx manager info",
+        arguments=VSPHERE_ARGS(),
     )
     def nsx_manager_info(self):
         res = self.client.system.nsx.summary_info()
@@ -123,68 +227,123 @@ class VspherePlatformController(BaseController):
         res2 = self.client.system.nsx.components_summary()
         res.update(res1)
         components = []
-        entries = dict_get(res2, 'componentsByGroup.entry', default=[])
+        entries = dict_get(res2, "componentsByGroup.entry", default=[])
         for item in entries:
-            comps = dict_get(item, 'components.component', default=[])
+            comps = dict_get(item, "components.component", default=[])
             if isinstance(comps, dict):
                 comps = [comps]
             for item2 in comps:
                 components.append(item2)
 
         self.app.render(res, details=True)
-        self.c('\ncomponents', 'underline')
-        self.app.render(components, headers=['componentId', 'componentGroup', 'name', 'description', 'status',
-                                             'enabled'])
+        self.c("\ncomponents", "underline")
+        self.app.render(
+            components,
+            headers=[
+                "componentId",
+                "componentGroup",
+                "name",
+                "description",
+                "status",
+                "enabled",
+            ],
+        )
 
     @ex(
-        help='reboot vsphere nsx manager',
-        description='reboot vsphere nsx manager',
-        arguments=VSPHERE_ARGS()
+        help="reboot vsphere nsx manager",
+        description="reboot vsphere nsx manager",
+        arguments=VSPHERE_ARGS(),
     )
     def nsx_manager_reboot(self):
         res = self.client.system.nsx.reboot_appliance()
         self.app.render(res, details=True)
 
     @ex(
-        help='get vsphere nsx manager events',
-        description='get vsphere nsx manager events',
-        arguments=VSPHERE_ARGS()
+        help="get vsphere nsx manager events",
+        description="get vsphere nsx manager events",
+        arguments=VSPHERE_ARGS(),
     )
     def nsx_manager_event_get(self):
         res = self.client.system.nsx.get_system_events()
-        sort = dict_get(res, 'pagingInfo.sortOrderAscending')
-        if sort == 'false':
-            sort = 'DESC'
+        sort = dict_get(res, "pagingInfo.sortOrderAscending")
+        if sort == "false":
+            sort = "DESC"
         else:
-            sort = 'ASC'
-        res['page'] = round(int(dict_get(res, 'pagingInfo.startIndex'))/int(dict_get(res, 'pagingInfo.pageSize')), 0)
-        res['count'] = dict_get(res, 'pagingInfo.pageSize')
-        res['total'] = dict_get(res, 'pagingInfo.totalCount')
-        res['sort'] = {'field': dict_get(res, 'pagingInfo.sortBy'), 'order': sort}
-        self.app.render(res, key='systemEvent', headers=['eventId', 'timestamp', 'severity', 'eventSource', 'eventCode',
-                                                         'module', 'message'])
+            sort = "ASC"
+        res["page"] = round(
+            int(dict_get(res, "pagingInfo.startIndex")) / int(dict_get(res, "pagingInfo.pageSize")),
+            0,
+        )
+        res["count"] = dict_get(res, "pagingInfo.pageSize")
+        res["total"] = dict_get(res, "pagingInfo.totalCount")
+        res["sort"] = {"field": dict_get(res, "pagingInfo.sortBy"), "order": sort}
+        self.app.render(
+            res,
+            key="systemEvent",
+            headers=[
+                "eventId",
+                "timestamp",
+                "severity",
+                "eventSource",
+                "eventCode",
+                "module",
+                "message",
+            ],
+        )
 
     @ex(
-        help='get vsphere nsx manager controllers',
-        description='get vsphere nsx manager controllers',
-        arguments=VSPHERE_ARGS()
+        help="get vsphere nsx manager controllers",
+        description="get vsphere nsx manager controllers",
+        arguments=VSPHERE_ARGS(),
     )
     def nsx_controller_get(self):
         res = self.client.system.nsx.list_controllers()
-        self.app.render(res, fields=['id', 'name', 'status', 'ipAddress', 'version', 'virtualMachineInfo.name',
-                                     'hostInfo.name', 'clusterInfo.name', 'datastoreInfo.name'],
-                        headers=['id', 'name', 'status', 'ipAddress', 'version', 'vm',
-                                 'host', 'cluster', 'datastore'], maxsize=200)
+        self.app.render(
+            res,
+            fields=[
+                "id",
+                "name",
+                "status",
+                "ipAddress",
+                "version",
+                "virtualMachineInfo.name",
+                "hostInfo.name",
+                "clusterInfo.name",
+                "datastoreInfo.name",
+            ],
+            headers=[
+                "id",
+                "name",
+                "status",
+                "ipAddress",
+                "version",
+                "vm",
+                "host",
+                "cluster",
+                "datastore",
+            ],
+            maxsize=200,
+        )
 
     @ex(
-        help='get datacenters',
-        description='get datacenters',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'cluster id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get datacenters",
+        description="get datacenters",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "cluster id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def datacenter_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.datacenter.get(oid)
 
@@ -201,24 +360,42 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dc_headers)
 
     @ex(
-        help='get datacenter sessions',
-        description='get datacenter sessions',
-        arguments=VSPHERE_ARGS()
+        help="get datacenter sessions",
+        description="get datacenter sessions",
+        arguments=VSPHERE_ARGS(),
     )
     def datacenter_sessions(self):
         res = self.client.datacenter.sessions()
-        headers = ['key', 'user_name', 'login_time', 'last_active_time', 'locale', 'ip_address', 'user_agent']
+        headers = [
+            "key",
+            "user_name",
+            "login_time",
+            "last_active_time",
+            "locale",
+            "ip_address",
+            "user_agent",
+        ]
         self.app.render(res, headers=headers)
 
     @ex(
-        help='get clusters',
-        description='get clusters',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'cluster id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get clusters",
+        description="get clusters",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "cluster id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def cluster_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.cluster.get(oid)
 
@@ -239,11 +416,11 @@ class VspherePlatformController(BaseController):
                     hosts.append(self.client.cluster.host.info(s))
 
                 self.app.render(self.client.cluster.detail(res), details=True)
-                self.c('\nhosts', 'underline')
+                self.c("\nhosts", "underline")
                 self.app.render(hosts, headers=self._meta.host_headers)
-                self.c('\nresource pools', 'underline')
+                self.c("\nresource pools", "underline")
                 self.app.render(respools, headers=self._meta.respool_headers)
-                self.c('\nservers', 'underline')
+                self.c("\nservers", "underline")
                 self.app.render(servers, headers=self._meta.server_headers)
             else:
                 self.app.render(res, details=True)
@@ -256,14 +433,24 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.cluster_headers)
 
     @ex(
-        help='get hosts',
-        description='get hosts',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'host id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get hosts",
+        description="get hosts",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "host id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def host_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.cluster.host.get(oid)
             data = self.client.cluster.host.detail(res)
@@ -275,7 +462,7 @@ class VspherePlatformController(BaseController):
                     servers.append(self.client.server.info(s))
 
                 self.app.render(data, details=True)
-                self.c('\nservers', 'underline')
+                self.c("\nservers", "underline")
                 self.app.render(servers, headers=self._meta.server_headers)
             else:
                 self.app.render(res, details=True)
@@ -288,14 +475,24 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.host_headers)
 
     @ex(
-        help='get resource pools',
-        description='get resource pools',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'resource pool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get resource pools",
+        description="get resource pools",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "resource pool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def respool_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.cluster.resource_pool.get(oid)
 
@@ -312,27 +509,47 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.respool_headers)
 
     @ex(
-        help='delete resource pool',
-        description='delete resource pool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'resource pool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete resource pool",
+        description="delete resource pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "resource pool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def respool_del(self):
         oid = self.app.pargs.id
         respool = self.client.cluster.resource_pool.get(oid)
         res = self.client.cluster.resource_pool.remove(respool)
-        self.app.render({'msg': 'delete resource pool %s' % oid})
+        self.app.render({"msg": "delete resource pool %s" % oid})
 
     @ex(
-        help='get datastores',
-        description='get datastores',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'datastore id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get datastores",
+        description="get datastores",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "datastore id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def datastore_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.datastore.get(oid)
             data = self.client.datastore.detail(res)
@@ -357,14 +574,24 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.datastore_headers)
 
     @ex(
-        help='get folders',
-        description='get folders',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'folder id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get folders",
+        description="get folders",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "folder id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def folder_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.folder.get(oid)
             data = self.client.folder.detail(res)
@@ -376,7 +603,7 @@ class VspherePlatformController(BaseController):
                     servers.append(self.client.server.info(s))
 
                 self.app.render(data, details=True)
-                self.c('\nservers', 'underline')
+                self.c("\nservers", "underline")
                 self.app.render(servers, headers=self._meta.server_headers)
             else:
                 self.app.render(res, details=True)
@@ -389,15 +616,42 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.folder_headers)
 
     @ex(
-        help='add vsphere folder',
-        description='add vsphere folder',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'folder name', 'action': 'store', 'type': str}),
-            (['desc'], {'help': 'folder description', 'action': 'store', 'action': StringAction, 'type': str,
-                        'nargs': '+', 'default': None}),
-            (['-datacenter'], {'help': 'parent datacenter morid', 'action': 'store', 'type': str, 'default': None}),
-            (['-folder'], {'help': 'parent folder morid', 'action': 'store', 'type': str , 'default': None}),
-        ])
+        help="add vsphere folder",
+        description="add vsphere folder",
+        arguments=VSPHERE_ARGS(
+            [
+                (["name"], {"help": "folder name", "action": "store", "type": str}),
+                (
+                    ["desc"],
+                    {
+                        "help": "folder description",
+                        "action": "store",
+                        "action": StringAction,
+                        "type": str,
+                        "nargs": "+",
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-datacenter"],
+                    {
+                        "help": "parent datacenter morid",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-folder"],
+                    {
+                        "help": "parent folder morid",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def folder_add(self):
         name = self.app.pargs.name
@@ -409,19 +663,62 @@ class VspherePlatformController(BaseController):
         if datacenter is not None:
             datacenter = self.client.datacenter.get(datacenter)
         msg = self.client.folder.create(name, desc=desc, folder=folder, datacenter=datacenter, vm=True)
-        self.app.render({'msg': 'add folder %s' % name})
+        self.app.render({"msg": "add folder %s" % name})
 
     @ex(
-        help='update vsphere folder',
-        description='update vsphere folder',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'folder id', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'folder name', 'action': 'store', 'type': str, 'default': None}),
-            (['-desc'], {'help': 'folder description', 'action': 'store', 'action': StringAction, 'type': str,
-                         'nargs': '+', 'default': None}),
-            (['-datacenter'], {'help': 'parent datacenter morid', 'action': 'store', 'type': str, 'default': None}),
-            (['-folder'], {'help': 'parent folder morid', 'action': 'store', 'type': str , 'default': None}),
-        ])
+        help="update vsphere folder",
+        description="update vsphere folder",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "folder id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "folder name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {
+                        "help": "folder description",
+                        "action": "store",
+                        "action": StringAction,
+                        "type": str,
+                        "nargs": "+",
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-datacenter"],
+                    {
+                        "help": "parent datacenter morid",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-folder"],
+                    {
+                        "help": "parent folder morid",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def folder_update(self):
         oid = self.app.pargs.id
@@ -429,37 +726,105 @@ class VspherePlatformController(BaseController):
         desc = self.app.pargs.desc
         folder = self.client.folder.get(oid)
         res = self.client.folder.update(folder, name, desc)
-        self.app.render({'msg': 'update folder %s' % oid})
+        self.app.render({"msg": "update folder %s" % oid})
 
     @ex(
-        help='delete vsphere folder',
-        description='delete vsphere folder',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'folder id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere folder",
+        description="delete vsphere folder",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "folder id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def folder_del(self):
         oid = self.app.pargs.id
         obj = self.client.folder.get(oid)
         task = self.client.folder.remove(obj)
         self.wait_task(task)
-        self.app.render({'msg': 'Delete folder %s' % oid})
+        self.app.render({"msg": "Delete folder %s" % oid})
 
     @ex(
-        help='get servers',
-        description='get servers',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'server name', 'action': 'store', 'type': str, 'default': None}),
-            (['-names'], {'help': 'filter by name like', 'action': 'store', 'type': str, 'default': None}),
-            (['-template'], {'help': 'true list only template', 'action': 'store', 'type': str, 'default': None}),
-            (['-ipaddress'], {'help': 'server ipaddress', 'action': 'store', 'type': str, 'default': None}),
-            (['-dnsname'], {'help': 'server dnsname', 'action': 'store', 'type': str, 'default': None}),
-            (['-cluster'], {'help': 'cluster id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get servers",
+        description="get servers",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "server name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-names"],
+                    {
+                        "help": "filter by name like",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-template"],
+                    {
+                        "help": "true list only template",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ipaddress"],
+                    {
+                        "help": "server ipaddress",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dnsname"],
+                    {
+                        "help": "server dnsname",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-cluster"],
+                    {
+                        "help": "cluster id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         cluster = self.app.pargs.cluster
         if oid is not None:
             res = self.client.server.get(oid)
@@ -469,91 +834,182 @@ class VspherePlatformController(BaseController):
                 if res is None:
                     self.app.render(data, details=True)
                 else:
-                    volumes = data.pop('volumes', [])
-                    networks = data.pop('networks', [])
+                    volumes = data.pop("volumes", [])
+                    networks = data.pop("networks", [])
                     config_data = self.client.server.hardware.get_config_data(res)
-                    file_layout = config_data.pop('file_layout', {})
-                    config_data.pop('network', {})
-                    config_data.pop('storage', {})
-                    files = file_layout.pop('files', [])
-                    video = config_data.pop('video', {})
-                    other = config_data.pop('other', {})
-                    controllers = other.pop('controllers', {})
-                    input_devices = other.pop('input_devices', {})
-                    pci = other.pop('pci', {})
+                    file_layout = config_data.pop("file_layout", {})
+                    config_data.pop("network", {})
+                    config_data.pop("storage", {})
+                    files = file_layout.pop("files", [])
+                    video = config_data.pop("video", {})
+                    other = config_data.pop("other", {})
+                    controllers = other.pop("controllers", {})
+                    input_devices = other.pop("input_devices", {})
+                    pci = other.pop("pci", {})
                     sg = self.client.server.security_groups(res)
 
                     self.app.render(data, details=True)
-                    self.c('\nconfiguration', 'underline')
+                    self.c("\nconfiguration", "underline")
                     self.app.render(config_data, details=True)
-                    self.c('\nfile_layout - base', 'underline')
+                    self.c("\nfile_layout - base", "underline")
                     self.app.render(file_layout, details=True)
-                    self.c('\nfile_layout - files', 'underline')
-                    self.app.render(files, headers=['key', 'name', 'type', 'size', 'uniqueSize', 'accessible'],
-                                    maxsize=200)
-                    self.c('\ndevice - video', 'underline')
+                    self.c("\nfile_layout - files", "underline")
+                    self.app.render(
+                        files,
+                        headers=[
+                            "key",
+                            "name",
+                            "type",
+                            "size",
+                            "uniqueSize",
+                            "accessible",
+                        ],
+                        maxsize=200,
+                    )
+                    self.c("\ndevice - video", "underline")
                     self.app.render(video, details=True)
-                    self.c('\ndevice - controllers', 'underline')
-                    self.app.render(controllers, headers=['name', 'type', 'key'])
-                    self.c('\ndevice - input devices', 'underline')
-                    self.app.render(input_devices, headers=['name', 'type', 'key'])
-                    self.c('\ndevice - pci', 'underline')
-                    self.app.render(pci, headers=['name', 'type', 'key'])
-                    self.c('\nnetworks', 'underline')
-                    self.app.render(networks, headers=['name', 'mac_addr', 'dns', 'fixed_ipv4s', 'net_id',
-                                                       'port_state'])
-                    self.c('\nsecurity groups', 'underline')
-                    self.app.render(sg, headers=['objectId', 'name'])
-                    self.c('\nvolumes', 'underline')
-                    self.app.render(volumes, maxsize=200,
-                                    headers=['id', 'name', 'storage', 'size', 'unit_number', 'thin', 'mode'])
+                    self.c("\ndevice - controllers", "underline")
+                    self.app.render(controllers, headers=["name", "type", "key"])
+                    self.c("\ndevice - input devices", "underline")
+                    self.app.render(input_devices, headers=["name", "type", "key"])
+                    self.c("\ndevice - pci", "underline")
+                    self.app.render(pci, headers=["name", "type", "key"])
+                    self.c("\nnetworks", "underline")
+                    self.app.render(
+                        networks,
+                        headers=[
+                            "name",
+                            "mac_addr",
+                            "dns",
+                            "fixed_ipv4s",
+                            "net_id",
+                            "port_state",
+                        ],
+                    )
+                    self.c("\nsecurity groups", "underline")
+                    self.app.render(sg, headers=["objectId", "name"])
+                    self.c("\nvolumes", "underline")
+                    self.app.render(
+                        volumes,
+                        maxsize=200,
+                        headers=[
+                            "id",
+                            "name",
+                            "storage",
+                            "size",
+                            "unit_number",
+                            "thin",
+                            "mode",
+                            "disk_object_id",
+                        ],
+                    )
             else:
                 self.app.render(data, details=True)
         else:
-            name = self.app.pargs.name
-            names = self.app.pargs.names
-            template = self.app.pargs.template
-            ipaddress = self.app.pargs.ipaddress
-            dnsname = self.app.pargs.dnsname
-
-            # get folders
-            folders = self.client.folder.list()
-            folder_idx = {}
-            for f in folders:
-                oid = f['obj']._moId
-                custom_values = f.get('customValue')
-                if len(custom_values) > 0:
-                    folder_idx[oid] = custom_values[0].value
-                else:
-                    folder_idx[oid] = f['name']
-
             if cluster is not None:
                 objs = self.client.cluster.get_servers(cluster)
             else:
-                objs = self.client.server.list(name=name, names=names, template=template, ipaddress=ipaddress,
-                                               dnsname=dnsname)
+                name = self.app.pargs.name
+                names = self.app.pargs.names
+                template = self.app.pargs.template
+                ipaddress = self.app.pargs.ipaddress
+                dnsname = self.app.pargs.dnsname
+
+                project = self.app.pargs.project
+                if project:
+                    # e.g. ComputeService-4567...
+                    folders = self.client.folder.get_folders_by_name(project)
+                    if len(folders) == 0:
+                        raise Exception("No projects found matching: %s" % project)
+
+                    objs = []
+                    for f in folders:
+                        servers = self.client.folder.get_servers(f["obj"]._moId)
+                        if servers and len(servers) > 0:
+                            objs.extend(servers)
+                else:
+                    # get folders
+                    folders = self.client.folder.list()
+
+                    # get servers
+                    objs = self.client.server.list(
+                        name=name, names=names, template=template, ipaddress=ipaddress, dnsname=dnsname
+                    )
+
+            folder_idx = {}
+            for f in folders:
+                oid = f["obj"]._moId
+                custom_values = f.get("customValue")
+                if len(custom_values) > 0:
+                    folder_idx[oid] = custom_values[0].value
+                else:
+                    folder_idx[oid] = f["name"]
+
             res = []
             for o in objs:
                 if o is not None:
                     info = self.client.server.info(o)
-                    info['parent'] = folder_idx.get(info['parent'], info['parent'])
+                    info["parent"] = folder_idx.get(info["parent"], info["parent"])
                     res.append(info)
-            transform = {'ipv4_address': lambda x: ','.join(x)}
+            transform = {"ipv4_address": lambda x: ",".join(x)}
             self.app.render(res, headers=self._meta.server_headers, transform=transform, maxsize=30)
 
     @ex(
-        help='add vsphere server [todo:]',
-        description='add vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'server name', 'action': 'store', 'type': str}),
-            (['startip'], {'help': 'start ip', 'action': 'store', 'type': str, 'default': None}),
-            (['stopip'], {'help': 'stop ip', 'action': 'store', 'type': str, 'default': None}),
-            (['gw'], {'help': 'gateway', 'action': 'store', 'type': str, 'default': None}),
-            (['dns1'], {'help': 'dns1', 'action': 'store', 'type': str, 'default': None}),
-            (['dns2'], {'help': 'dns2', 'action': 'store', 'type': str, 'default': None}),
-            (['-prefix'], {'help': 'prefix', 'action': 'store', 'type': int, 'default': 24}),
-            (['-dnssuffix'], {'help': 'dns zone', 'action': 'store', 'type': str, 'default': 'domain.local'}),
-        ])
+        help="add vsphere server [todo:]",
+        description="add vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["name"], {"help": "server name", "action": "store", "type": str}),
+                (
+                    ["startip"],
+                    {
+                        "help": "start ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["stopip"],
+                    {
+                        "help": "stop ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["gw"],
+                    {
+                        "help": "gateway",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dns1"],
+                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["dns2"],
+                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-prefix"],
+                    {"help": "prefix", "action": "store", "type": int, "default": 24},
+                ),
+                (
+                    ["-dnssuffix"],
+                    {
+                        "help": "dns zone",
+                        "action": "store",
+                        "type": str,
+                        "default": "domain.local",
+                    },
+                ),
+            ]
+        ),
     )
     def server_add(self):
         name = self.app.pargs.name
@@ -565,62 +1021,113 @@ class VspherePlatformController(BaseController):
         prefix = self.app.pargs.prefix
         dnssuffix = self.app.pargs.dnssuffix
         self.client.server.exists(pool_range=(startip, stopip))
-        msg = self.client.server.create(name, prefix=prefix, gateway=gw, dnssuffix=dnssuffix, dns1=dns1,
-                                                    dns2=dns2, startip=startip, stopip=stopip)
-        self.app.render({'msg': 'add server %s' % name})
+        msg = self.client.server.create(
+            name,
+            prefix=prefix,
+            gateway=gw,
+            dnssuffix=dnssuffix,
+            dns1=dns1,
+            dns2=dns2,
+            startip=startip,
+            stopip=stopip,
+        )
+        self.app.render({"msg": "add server %s" % name})
 
     @ex(
-        help='delete vsphere server',
-        description='delete vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere server",
+        description="delete vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_del(self):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
         try:
-            task = self.client.server.stop(server)
-            self.wait_task(task)
+            self.client.server.stop(server)
+            # self.wait_task(task)
         except:
             pass
         task = self.client.server.remove(server)
         self.wait_task(task)
-        self.app.render({'msg': 'Delete server %s' % oid})
+        self.app.render({"msg": "Delete server %s" % oid})
 
     @ex(
-        help='get vsphere server console',
-        description='get vsphere server console',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vsphere server console",
+        description="get vsphere server console",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_console(self):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
         res = self.client.server.remote_console(server)
-        sh.firefox(res.get('url'))
+        sh.firefox(res.get("url"))
         sleep(30)
 
     @ex(
-        help='get vsphere server devices',
-        description='get vsphere server devices',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vsphere server devices",
+        description="get vsphere server devices",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_device_get(self):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
         res = self.client.server.hardware.get_devices(server)
-        self.app.render(res, headers=['key', 'unitNumber', 'summary', 'label', 'device type', 'backing'])
+        self.app.render(
+            res,
+            headers=["key", "unitNumber", "summary", "label", "device type", "backing"],
+        )
 
     @ex(
-        help='get vsphere server guest info',
-        description='get vsphere server guest info',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vsphere server guest info",
+        description="get vsphere server guest info",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_guest_info(self):
         oid = self.app.pargs.id
@@ -629,52 +1136,141 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help='run vsphere server command using guest tool',
-        description='run vsphere server command using guest tool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['cmd'], {'help': 'command', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'password', 'action': 'store', 'type': str, 'default': None}),
-            (['-params'], {'help': 'command params. Use + as space', 'action': 'store', 'type': str, 'default': ''}),
-        ])
+        help="run vsphere server command using guest tool",
+        description="run vsphere server command using guest tool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["cmd"],
+                    {
+                        "help": "command",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {"help": "user", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-params"],
+                    {
+                        "help": "command params. Use + as space",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+            ]
+        ),
     )
     def server_guest_run_cmd(self):
         oid = self.app.pargs.id
         ps_path = self.app.pargs.cmd
         user = self.app.pargs.user
         pwd = self.app.pargs.pwd
-        params = ' '.join(self.app.pargs.params.split('+'))
+        params = " ".join(self.app.pargs.params.split("+"))
 
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_execute_command(server, user, pwd, path_to_program=ps_path, 
-                                                       program_arguments=params, program=params)
+        res = self.client.server.guest_execute_command(
+            server,
+            user,
+            pwd,
+            path_to_program=ps_path,
+            program_arguments=params,
+            program=params,
+        )
 
     @ex(
-        help='disable vsphere server firewall',
-        description='disable vsphere server firewall',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'server admin password', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="disable vsphere server firewall",
+        description="disable vsphere server firewall",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "server admin password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_disable_firewall(self):
         oid = self.app.pargs.id
         pwd = self.app.pargs.pwd
         server = self.client.server.get_by_morid(oid)
         res = self.client.server.guest_disable_firewall(server, pwd)
-        self.app.render({'msg': 'disable server %s firewall' % oid})
+        self.app.render({"msg": "disable server %s firewall" % oid})
 
     @ex(
-        help='copy ssh key on server',
-        description='copy ssh key on server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'password', 'action': 'store', 'type': str, 'default': None}),
-            (['pubkey'], {'help': 'ssh public key to set. Specify file name where key is stored', 'action': 'store',
-                          'type': str, 'default': ''}),
-        ])
+        help="copy ssh key on server",
+        description="copy ssh key on server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {"help": "user", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pubkey"],
+                    {
+                        "help": "ssh public key to set. Specify file name where key is stored",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+            ]
+        ),
     )
     def server_ssh_copy_id(self):
         oid = self.app.pargs.id
@@ -687,14 +1283,43 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help='change vsphere server password',
-        description='change vsphere server password',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'password', 'action': 'store', 'type': str, 'default': None}),
-            (['newpwd'], {'help': 'new password', 'action': 'store', 'type': str, 'default': ''}),
-        ])
+        help="change vsphere server password",
+        description="change vsphere server password",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {"help": "user", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["newpwd"],
+                    {
+                        "help": "new password",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+            ]
+        ),
     )
     def server_ssh_change_pwd(self):
         oid = self.app.pargs.id
@@ -706,20 +1331,97 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help='setup vsphere server network',
-        description='setup vsphere server network',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'password', 'action': 'store', 'type': str, 'default': None}),
-            (['ipaddr'], {'help': 'ip address', 'action': 'store', 'type': str, 'default': None}),
-            (['-prefix'], {'help': 'ip address', 'action': 'store', 'type': int, 'default': 24}),
-            (['-macaddr'], {'help': 'mac address', 'action': 'store', 'type': str, 'default': None}),
-            (['gw'], {'help': 'network gateway', 'action': 'store', 'type': str, 'default': None}),
-            (['hostname'], {'help': 'hostname', 'action': 'store', 'type': str, 'default': None}),
-            (['dns'], {'help': 'comma separated list of dns', 'action': 'store', 'type': str, 'default': None}),
-            (['dns_search'], {'help': 'dns search', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="setup vsphere server network",
+        description="setup vsphere server network",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {"help": "user", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ipaddr"],
+                    {
+                        "help": "ip address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-prefix"],
+                    {
+                        "help": "ip address",
+                        "action": "store",
+                        "type": int,
+                        "default": 24,
+                    },
+                ),
+                (
+                    ["-macaddr"],
+                    {
+                        "help": "mac address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["gw"],
+                    {
+                        "help": "network gateway",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["hostname"],
+                    {
+                        "help": "hostname",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dns"],
+                    {
+                        "help": "comma separated list of dns",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dns_search"],
+                    {
+                        "help": "dns search",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_network_setup(self):
         oid = self.app.pargs.id
@@ -730,22 +1432,62 @@ class VspherePlatformController(BaseController):
         macaddr = self.app.pargs.macaddr
         gw = self.app.pargs.gw
         hostname = self.app.pargs.hostname
-        dns = ' '.join(self.app.pargs.dns.split(','))
+        dns = " ".join(self.app.pargs.dns.split(","))
         dns_search = self.app.pargs.dns_search
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_setup_network2(server, pwd, ipaddr, macaddr, gw, hostname, dns, dns_search,
-                                                      conn_name='net01', user=user, prefix=prefix)
+        res = self.client.server.guest_setup_network2(
+            server,
+            pwd,
+            ipaddr,
+            macaddr,
+            gw,
+            hostname,
+            dns,
+            dns_search,
+            conn_name="net01",
+            user=user,
+            prefix=prefix,
+        )
         self.app.render(res)
 
     @ex(
-        help='setup vsphere server network',
-        description='setup vsphere server network',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'password', 'action': 'store', 'type': str, 'default': None}),
-            (['ipaddr'], {'help': 'ip address', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="setup vsphere server network",
+        description="setup vsphere server network",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {"help": "user", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ipaddr"],
+                    {
+                        "help": "ip address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_network_destroy_config(self):
         oid = self.app.pargs.id
@@ -757,52 +1499,108 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help='get vsphere server security groups',
-        description='get vsphere security groups',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get vsphere server security groups",
+        description="get vsphere security groups",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def server_sg_get(self):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
         res = self.client.server.security_groups(server)
-        self.app.render(res, headers=['objectId', 'name'])
+        self.app.render(res, headers=["objectId", "name"])
 
     @ex(
-        help='add security to server',
-        description='add security to server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['sgid'], {'help': 'security group id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add security to server",
+        description="add security to server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["sgid"],
+                    {
+                        "help": "security group id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_sg_add(self):
         oid = self.app.pargs.id
         sgid = self.app.pargs.sgid
         res = self.client.server.security_group_add(oid, sgid)
-        self.app.render({'msg': 'add security group %s to server %s' % (sgid, oid)})
+        self.app.render({"msg": "add security group %s to server %s" % (sgid, oid)})
 
     @ex(
-        help='remove security from server',
-        description='remove security from server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['sgid'], {'help': 'security group id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="remove security from server",
+        description="remove security from server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["sgid"],
+                    {
+                        "help": "security group id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_sg_del(self):
         oid = self.app.pargs.id
         sgid = self.app.pargs.sgid
         res = self.client.server.security_group_del(oid, sgid)
-        self.app.render({'msg': 'remove security group %s from server %s' % (sgid, oid)})
+        self.app.render({"msg": "remove security group %s from server %s" % (sgid, oid)})
 
     @ex(
-        help='start vsphere server',
-        description='start vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="start vsphere server",
+        description="start vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def server_start(self):
         oid = self.app.pargs.id
@@ -811,60 +1609,209 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help='stop vsphere server',
-        description='stop vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="stop vsphere server",
+        description="stop vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def server_stop(self):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
-        task = self.client.server.stop(server)
-        self.wait_task(task)
+        self.client.server.stop(server)
+        # self.wait_task(task)
 
     @ex(
-        help='add disk to vsphere server',
-        description='add disk to vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['size'], {'help': 'disk size', 'action': 'store', 'type': str, 'default': None}),
-            (['datastore'], {'help': 'datastore id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get disk of vsphere server",
+        description="get disk of vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def server_disk_get(self):
+        oid = self.app.pargs.id
+        server = self.client.server.get_by_morid(oid)
+        volumes = self.client.server.volumes(server)
+        headers = [
+            "id",
+            "disk_object_id",
+            "mode",
+            "name",
+            "size",
+            "storage",
+            "unit_number",
+            "thin",
+        ]
+        self.app.render(volumes, headers=headers)
+
+    @ex(
+        help="add disk to vsphere server",
+        description="add disk to vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["server_id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["size"],
+                    {
+                        "help": "disk size",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["datastore_id"],
+                    {
+                        "help": "datastore id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_disk_add(self):
-        oid = self.app.pargs.id
+        oid = self.app.pargs.server_id
         size = self.app.pargs.size
-        datastore = self.app.pargs.datastore
+        datastore = self.app.pargs.datastore_id
         server = self.client.server.get_by_morid(oid)
         datastore = self.client.datastore.get(datastore)
-        disk_unit_number = self.client.server.hardware.get_available_hard_disk_unit_number(server)
-        task = self.client.server.hardware.add_hard_disk(server, size, datastore, disk_type='thin',
-                                                         disk_unit_number=disk_unit_number)
+        disk_unit_number = self.client.server.get_available_hard_disk_unit_number(server)
+        task = self.client.server.hardware.add_hard_disk(
+            server, size, datastore, disk_type="thin", disk_unit_number=disk_unit_number
+        )
         self.wait_task(task)
 
     @ex(
-        help='delete disk from vsphere server',
-        description='delete disk from vsphere server',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['unit_number'], {'help': 'disk unit number', 'action': 'store', 'type': int, 'default': None})
-        ])
+        help="delete disk from vsphere server",
+        description="delete disk from vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["server_id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["disk_object_id"],
+                    {
+                        "help": "disk object id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_disk_del(self):
-        oid = self.app.pargs.id
-        disk_number = self.app.pargs.unit_number
+        oid = self.app.pargs.server_id
+        disk_object_id = self.app.pargs.disk_object_id
         server = self.client.server.get_by_morid(oid)
-        task = self.client.server.hardware.delete_hard_disk(server, disk_number)
+        task = self.client.server.hardware.delete_hard_disk(server, disk_object_id)
         self.wait_task(task)
 
     @ex(
-        help='get vsphere server snapshot',
-        description='get vsphere server snapshot',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['-snapshot'], {'help': 'snapshot id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="extend disk of vsphere server",
+        description="delete disk from vsphere server",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["disk_object_id"],
+                    {
+                        "help": "disk object id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["size"],
+                    {
+                        "help": "disk size in Gb",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def server_disk_extend(self):
+        oid = self.app.pargs.id
+        disk_object_id = self.app.pargs.disk_object_id
+        size = self.app.pargs.size
+        server = self.client.server.get_by_morid(oid)
+        task = self.client.server.hardware.extend_hard_disk(server, disk_object_id, size)
+        self.wait_task(task)
+
+    @ex(
+        help="get vsphere server snapshot",
+        description="get vsphere server snapshot",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-snapshot"],
+                    {
+                        "help": "snapshot id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_snapshot_get(self):
         oid = self.app.pargs.id
@@ -872,26 +1819,47 @@ class VspherePlatformController(BaseController):
         if snapshot is not None:
             server = self.client.server.get_by_morid(oid)
             snapshot = self.client.server.snapshot.get(server, snapshot)
-            childs = snapshot.get('childs', [])
-            childs_str = ''.join(map(str, childs))
-            snapshot.update({'childs': childs_str})
+            childs = snapshot.get("childs", [])
+            childs_str = "".join(map(str, childs))
+            snapshot.update({"childs": childs_str})
             self.app.render(snapshot, details=True)
         else:
             server = self.client.server.get_by_morid(oid)
             snapshots = self.client.server.snapshot.list(server)
             for sn in snapshots:
-                childs = sn.get('childs', [])
-                childs_str = ''.join(map(str, childs))
-                sn.update({'childs': childs_str})
-            self.app.render(snapshots, headers=['id', 'name', 'creation_date', 'state', 'quiesced', 'childs'])
+                childs = sn.get("childs", [])
+                childs_str = "".join(map(str, childs))
+                sn.update({"childs": childs_str})
+            self.app.render(
+                snapshots,
+                headers=["id", "name", "creation_date", "state", "quiesced", "childs"],
+            )
 
     @ex(
-        help='create vsphere server snapshot',
-        description='create vsphere server snapshot',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['name'], {'help': 'snapshot name', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="create vsphere server snapshot",
+        description="create vsphere server snapshot",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "snapshot name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_snapshot_add(self):
         oid = self.app.pargs.id
@@ -901,12 +1869,30 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help='delete vsphere server snapshot',
-        description='delete vsphere server snapshot',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['snapshot'], {'help': 'snapshot id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete vsphere server snapshot",
+        description="delete vsphere server snapshot",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["snapshot"],
+                    {
+                        "help": "snapshot id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_snapshot_del(self):
         oid = self.app.pargs.id
@@ -916,12 +1902,30 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help='revert vsphere server to snapshot',
-        description='revert vsphere server to snapshot',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'server id', 'action': 'store', 'type': str, 'default': None}),
-            (['snapshot'], {'help': 'snapshot id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="revert vsphere server to snapshot",
+        description="revert vsphere server to snapshot",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["snapshot"],
+                    {
+                        "help": "snapshot id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def server_snapshot_revert(self):
         oid = self.app.pargs.id
@@ -934,14 +1938,24 @@ class VspherePlatformController(BaseController):
     # vapp
     #
     @ex(
-        help='get vapps',
-        description='get vapps',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'vapp id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vapps",
+        description="get vapps",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "vapp id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def vapp_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.vapp.get(oid)
             data = self.client.vapp.detail(res)
@@ -959,14 +1973,19 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.vapp_headers)
 
     @ex(
-        help='get dvss',
-        description='get dvss',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'dvs id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get dvss",
+        description="get dvss",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {"help": "dvs id", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
     )
     def dvs_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.get_distributed_virtual_switch(oid)
             data = self.client.network.detail_distributed_virtual_switch(res)
@@ -984,14 +2003,24 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dvs_headers)
 
     @ex(
-        help='get dvpgs',
-        description='get dvpgs',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'dvpg id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get dvpgs",
+        description="get dvpgs",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "dvpg id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dvpg_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.get_network(oid)
             data = self.client.network.detail_network(res)
@@ -1003,7 +2032,7 @@ class VspherePlatformController(BaseController):
                     servers.append(self.client.server.info(s))
 
                 self.app.render(data, details=True)
-                self.c('\nservers', 'underline')
+                self.c("\nservers", "underline")
                 self.app.render(servers, headers=self._meta.server_headers)
             else:
                 self.app.render(res, details=True)
@@ -1016,13 +2045,39 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dvpg_headers, maxsize=200)
 
     @ex(
-        help='add vsphere dvpg',
-        description='add vsphere dvpg',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'dvpg name', 'action': 'store', 'type': str, 'default': None}),
-            (['vlan'], {'help': 'dvpg vlan', 'action': 'store', 'type': int, 'default': None}),
-            (['dvs'], {'help': 'dvpg dvs', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add vsphere dvpg",
+        description="add vsphere dvpg",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["name"],
+                    {
+                        "help": "dvpg name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["vlan"],
+                    {
+                        "help": "dvpg vlan",
+                        "action": "store",
+                        "type": int,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dvs"],
+                    {
+                        "help": "dvpg dvs",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dvpg_add(self):
         name = self.app.pargs.name
@@ -1031,14 +2086,24 @@ class VspherePlatformController(BaseController):
         dvs = self.client.network.get_distributed_virtual_switch(dvs_id)
         task = self.client.network.create_distributed_port_group(name, name, vlan, dvs, numports=24)
         self.wait_task(task)
-        self.app.render({'msg': 'create dvpg %s' % name})
+        self.app.render({"msg": "create dvpg %s" % name})
 
     @ex(
-        help='delete vsphere dvpg',
-        description='delete vsphere dvpg',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'dvpg id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere dvpg",
+        description="delete vsphere dvpg",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "dvpg id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dvpg_del(self):
         oid = self.app.pargs.id
@@ -1046,29 +2111,49 @@ class VspherePlatformController(BaseController):
         if obj is not None:
             task = self.client.network.remove_network(obj)
             self.wait_task(task)
-            self.app.render({'msg': 'delete dvpg %s' % oid})
+            self.app.render({"msg": "delete dvpg %s" % oid})
 
     @ex(
-        help='get securitygroups',
-        description='get securitygroups',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'securitygroup id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get securitygroups",
+        description="get securitygroups",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "securitygroup id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def sg_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.nsx.sg.get(oid)
             data = self.client.network.nsx.sg.detail(res)
 
             if self.is_output_text():
-                members = res.pop('member', [])
+                members = res.pop("member", [])
                 self.app.render(res, details=True)
-                self.c('\nmembers', 'underline')
-                self.app.render(members, headers=['objectId', 'name', 'objectTypeName'])
+                self.c("\nmembers", "underline")
+                self.app.render(members, headers=["objectId", "name", "objectTypeName"])
                 rules = self.client.network.nsx.dfw.filter_rules(security_groups=[oid])
-                self.c('\nrules', 'underline')
-                self.app.render(rules, headers=['id', 'name', 'sectionId', 'direction', 'logged', 'packetType'])
+                self.c("\nrules", "underline")
+                self.app.render(
+                    rules,
+                    headers=[
+                        "id",
+                        "name",
+                        "sectionId",
+                        "direction",
+                        "logged",
+                        "packetType",
+                    ],
+                )
             else:
                 self.app.render(res, details=True)
         else:
@@ -1078,74 +2163,131 @@ class VspherePlatformController(BaseController):
             sg_ids = []
             for obj in objs:
                 res.append(self.client.network.nsx.sg.info(obj))
-                sg_ids.append(obj['id'])
+                sg_ids.append(obj["id"])
             rules = self.client.network.nsx.dfw.index_rules(security_groups=sg_ids)
 
             for item in res:
-                item['rules'] = len(rules.get(item['id'], []))
+                item["rules"] = len(rules.get(item["id"], []))
             self.app.render(res, headers=self._meta.securitygroup_headers)
 
             self.entity_class = self.client.network.nsx.sg
 
     @ex(
-        help='delete vsphere securitygroup',
-        description='delete vsphere securitygroup',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'securitygroup id', 'action': 'store', 'type': str, 'default': None}),
-            (['-force'], {'help': 'if true force delete', 'action': 'store', 'type': bool, 'default': False}),
-        ])
+        help="delete vsphere securitygroup",
+        description="delete vsphere securitygroup",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "securitygroup id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-force"],
+                    {
+                        "help": "if true force delete",
+                        "action": "store",
+                        "type": bool,
+                        "default": False,
+                    },
+                ),
+            ]
+        ),
     )
     def sg_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
         self.client.network.nsx.sg.delete(oid, force)
-        self.app.render({'msg': 'Delete securitygroup %s' % oid})
+        self.app.render({"msg": "Delete securitygroup %s" % oid})
 
     @ex(
-        help='delete vsphere securitygroup member',
-        description='delete vsphere securitygroup member',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'securitygroup id', 'action': 'store', 'type': str, 'default': None}),
-            (['member'], {'help': 'member to remove', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere securitygroup member",
+        description="delete vsphere securitygroup member",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "securitygroup id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["member"],
+                    {
+                        "help": "member to remove",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def sg_member_del(self):
         oid = self.app.pargs.id
         member = self.app.pargs.member
         self.client.network.nsx.sg.delete_member(oid, member)
-        self.app.render({'msg': 'Delete security-group %s member %s' % (oid, member)})
+        self.app.render({"msg": "Delete security-group %s member %s" % (oid, member)})
 
     @ex(
-        help='add vsphere securitygroup member',
-        description='add vsphere securitygroup member',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'securitygroup id', 'action': 'store', 'type': str, 'default': None}),
-            (['member'], {'help': 'member to add', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add vsphere securitygroup member",
+        description="add vsphere securitygroup member",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "securitygroup id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["member"],
+                    {
+                        "help": "member to add",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def sg_member_add(self):
         oid = self.app.pargs.id
         member = self.app.pargs.member
         self.client.network.nsx.sg.add_member(oid, member)
-        self.app.render({'msg': 'Add security-group %s member %s' % (oid, member)})
+        self.app.render({"msg": "Add security-group %s member %s" % (oid, member)})
 
     # dfw
     def __print_sections(self, data, stype):
-        sections = data[stype]['section']
+        sections = data[stype]["section"]
         if type(sections) is not list:
             sections = [sections]
         for s in sections:
-            s['timestamp'] = format_date(datetime.fromtimestamp(float(s['timestamp']) / 1000))
-            rules = s.get('rule', [])
+            s["timestamp"] = format_date(datetime.fromtimestamp(float(s["timestamp"]) / 1000))
+            rules = s.get("rule", [])
             if type(rules) is not list:
                 rules = [rules]
-            s['rules'] = len(rules)
-        self.app.render(sections, headers=['id', 'type', 'timestamp', 'generationNumber', 'name', 'rules'])
+            s["rules"] = len(rules)
+        self.app.render(
+            sections,
+            headers=["id", "type", "timestamp", "generationNumber", "name", "rules"],
+        )
 
     def __convert_proto(self, service):
-        proto = service.get('protocol')
-        subproto = service.get('subProtocol')
-        protos = {'6': 'tcp', '18': 'udp'}
+        proto = service.get("protocol")
+        subproto = service.get("subProtocol")
+        protos = {"6": "tcp", "18": "udp"}
         return protos.get(proto, proto)
 
     def __set_rule_value(self, key, subkey, rule):
@@ -1155,43 +2297,53 @@ class VspherePlatformController(BaseController):
                 objs = [objs]
 
             data = []
-            if key == 'services':
+            if key == "services":
                 if len(objs) > 0:
-                    data.append('services:')
+                    data.append("services:")
                     for o in objs:
-                        data.append('  %s:%s' % (self.__convert_proto(o), o.get('destinationPort')))
-            elif key == 'appliedToList':
+                        data.append("  %s:%s" % (self.__convert_proto(o), o.get("destinationPort")))
+            elif key == "appliedToList":
                 if len(objs) > 0:
-                    data.append('appliedTo:')
+                    data.append("appliedTo:")
                     for o in objs:
-                        data.append('  %s:%s' % (o.get('type'), o.get('value')))
-            elif key == 'sources':
+                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
+            elif key == "sources":
                 if len(objs) > 0:
-                    data.append('sources:')
+                    data.append("sources:")
                     for o in objs:
-                        data.append('  %s:%s' % (o.get('type'), o.get('value')))
-            elif key == 'destinations':
+                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
+            elif key == "destinations":
                 if len(objs) > 0:
-                    data.append('destinations:')
+                    data.append("destinations:")
                     for o in objs:
-                        data.append('  %s:%s' % (o.get('type'), o.get('value')))
+                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
 
-            rule[key] = '\n'.join(data)
+            rule[key] = "\n".join(data)
         else:
-            rule[key] = ''
+            rule[key] = ""
         return rule
 
     def __print_rule_datail(self, title, data):
         if type(data) is not list:
             data = [data]
-        self.app.render(data, headers=['type', 'name', 'value'])
+        self.app.render(data, headers=["type", "name", "value"])
 
     @ex(
-        help='get distributed firewall status',
-        description='get distributed firewall status',
-        arguments=VSPHERE_ARGS([
-            (['-section'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get distributed firewall status",
+        description="get distributed firewall status",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-section"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_status(self):
         section = self.app.pargs.section
@@ -1199,90 +2351,160 @@ class VspherePlatformController(BaseController):
             res = self.client.network.nsx.dfw.query_section_status(section)
         else:
             res = self.client.network.nsx.dfw.query_status()
-        if self.format == 'text':
-            clusters = res.pop('clusterList', {}).get('clusterStatus', [])
-            res['startTime'] = format_date(datetime.fromtimestamp(float(res['startTime']) / 1000))
+        if self.format == "text":
+            clusters = res.pop("clusterList", {}).get("clusterStatus", [])
+            res["startTime"] = format_date(datetime.fromtimestamp(float(res["startTime"]) / 1000))
             self.app.render(res, details=True)
             for cluster in clusters:
-                self.c('\n                                                       ', 'underline')
-                hosts = cluster.pop('hostStatusList', {}).get('hostStatus', [])
+                self.c(
+                    "\n                                                       ",
+                    "underline",
+                )
+                hosts = cluster.pop("hostStatusList", {}).get("hostStatus", [])
                 for host in hosts:
-                    host['startTime'] = format_date(datetime.fromtimestamp(float(host['startTime']) / 1000))
-                    host['endTime'] = format_date(datetime.fromtimestamp(float(host['endTime']) / 1000))
-                headers = ['clusterId', 'status', 'hostId', 'hostName', 'generationNumber', 'errorCode',
-                           'startTime', 'endTime']
+                    host["startTime"] = format_date(datetime.fromtimestamp(float(host["startTime"]) / 1000))
+                    host["endTime"] = format_date(datetime.fromtimestamp(float(host["endTime"]) / 1000))
+                headers = [
+                    "clusterId",
+                    "status",
+                    "hostId",
+                    "hostName",
+                    "generationNumber",
+                    "errorCode",
+                    "startTime",
+                    "endTime",
+                ]
                 self.app.render(cluster, details=True)
-                self.c('\nhosts', 'underline')
+                self.c("\nhosts", "underline")
                 self.app.render(hosts, headers=headers)
         else:
             self.app.render(res, details=True)
 
     @ex(
-        help='get distributed firewall sections',
-        description='get distributed firewall sections',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get distributed firewall sections",
+        description="get distributed firewall sections",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_section_get(self):
         section = self.app.pargs.id
         if section is not None:
             res = self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
 
-            rules = res.pop('rule', [])
+            rules = res.pop("rule", [])
             if isinstance(rules, dict):
                 rules = [rules]
-            self.app.render([res], headers=['id', 'type', 'timestamp', 'generationNumber', 'name'])
+            self.app.render([res], headers=["id", "type", "timestamp", "generationNumber", "name"])
 
-            self.c('\nrules', 'underline')
+            self.c("\nrules", "underline")
             for r in rules:
-                r = self.__set_rule_value('services', 'service', r)
-                r = self.__set_rule_value('sources', 'source', r)
-                r = self.__set_rule_value('destinations', 'destination', r)
-                r = self.__set_rule_value('appliedToList', 'appliedTo', r)
-            headers = ['id', 'disabled', 'logged', 'name', 'dir', 'action', 'packet', 'sources',
-                       'destinations', 'services', 'appliedToList']
-            fields = ['id', 'disabled', 'logged', 'name', 'direction', 'action', 'packetType', 'sources',
-                      'destinations', 'services', 'appliedToList']
+                r = self.__set_rule_value("services", "service", r)
+                r = self.__set_rule_value("sources", "source", r)
+                r = self.__set_rule_value("destinations", "destination", r)
+                r = self.__set_rule_value("appliedToList", "appliedTo", r)
+            headers = [
+                "id",
+                "disabled",
+                "logged",
+                "name",
+                "dir",
+                "action",
+                "packet",
+                "sources",
+                "destinations",
+                "services",
+                "appliedToList",
+            ]
+            fields = [
+                "id",
+                "disabled",
+                "logged",
+                "name",
+                "direction",
+                "action",
+                "packetType",
+                "sources",
+                "destinations",
+                "services",
+                "appliedToList",
+            ]
 
-            transform = {'name': lambda x: truncate(x, 30)}
+            transform = {"name": lambda x: truncate(x, 30)}
 
-            self.app.render(rules, table_style='grid', headers=headers, fields=fields, maxsize=50, transform=transform)
+            self.app.render(
+                rules,
+                table_style="grid",
+                headers=headers,
+                fields=fields,
+                maxsize=50,
+                transform=transform,
+            )
         else:
             res = self.client.network.nsx.dfw.get_config()
-            data = [{'key': 'contextId', 'value': res['contextId']},
-                    {'key': 'timestamp', 'value': res['timestamp']},
-                    {'key': 'generationNumber', 'value': res['generationNumber']}]
-            self.app.render(data, headers=['key', 'value'])
-            self.c('\nlayer3Sections', 'underline')
-            self.__print_sections(res, 'layer3Sections')
-            self.c('\nlayer2Sections', 'underline')
-            self.__print_sections(res, 'layer2Sections')
-            self.c('\nlayer3RedirectSections', 'underline')
-            self.__print_sections(res, 'layer3RedirectSections')
+            data = [
+                {"key": "contextId", "value": res["contextId"]},
+                {"key": "timestamp", "value": res["timestamp"]},
+                {"key": "generationNumber", "value": res["generationNumber"]},
+            ]
+            self.app.render(data, headers=["key", "value"])
+            self.c("\nlayer3Sections", "underline")
+            self.__print_sections(res, "layer3Sections")
+            self.c("\nlayer2Sections", "underline")
+            self.__print_sections(res, "layer2Sections")
+            self.c("\nlayer3RedirectSections", "underline")
+            self.__print_sections(res, "layer3RedirectSections")
 
     @ex(
-        help='check distributed firewall sections',
-        description='check distributed firewall sections',
-        arguments=VSPHERE_ARGS()
+        help="check distributed firewall sections",
+        description="check distributed firewall sections",
+        arguments=VSPHERE_ARGS(),
     )
     def dfw_section_check(self):
         res = self.client.network.nsx.dfw.get_config()
-        sections = res['layer3Sections']['section']
+        sections = res["layer3Sections"]["section"]
         if type(sections) is not list:
             sections = [sections]
         for s in sections:
-            if s.get('name') == 'None':
-                print(s.get('id'), s.get('name'))
-                self.client.network.nsx.dfw.delete_section(s.get('id'))
+            if s.get("name") == "None":
+                print(s.get("id"), s.get("name"))
+                self.client.network.nsx.dfw.delete_section(s.get("id"))
 
     @ex(
-        help='get distributed firewall rules',
-        description='get distributed firewall rules',
-        arguments=VSPHERE_ARGS([
-            (['section'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None}),
-            (['rule'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get distributed firewall rules",
+        description="get distributed firewall rules",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rule"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dfw_rule_get(self):
         section = self.app.pargs.section
@@ -1290,63 +2512,160 @@ class VspherePlatformController(BaseController):
 
         res = self.client.network.nsx.dfw.get_rule(section, rule)
         # self.app.render(res, details=True)
-        services = res.pop('services', {}).pop('service', [])
-        sources = res.pop('sources', {}).pop('source', [])
-        destinations = res.pop('destinations', {}).pop('destination', [])
-        appliedToList = res.pop('appliedToList', {}).pop('appliedTo', [])
+        services = res.pop("services", {}).pop("service", [])
+        sources = res.pop("sources", {}).pop("source", [])
+        destinations = res.pop("destinations", {}).pop("destination", [])
+        appliedToList = res.pop("appliedToList", {}).pop("appliedTo", [])
 
-        self.app.render(res, headers=['id', 'disabled', 'logged', 'name', 'direction', 'action', 'packetType'])
+        self.app.render(
+            res,
+            headers=[
+                "id",
+                "disabled",
+                "logged",
+                "name",
+                "direction",
+                "action",
+                "packetType",
+            ],
+        )
 
-        self.__print_rule_datail('sources', sources)
-        self.__print_rule_datail('destinations', destinations)
-        self.__print_rule_datail('appliedTo', appliedToList)
-        self.c('\nservices', 'underline')
+        self.__print_rule_datail("sources", sources)
+        self.__print_rule_datail("destinations", destinations)
+        self.__print_rule_datail("appliedTo", appliedToList)
+        self.c("\nservices", "underline")
         if type(services) is not list:
             services = [services]
-        self.app.render(services, headers=['protocol', 'subProtocol', 'destinationPort', 'protocolName'])
+        self.app.render(
+            services,
+            headers=["protocol", "subProtocol", "destinationPort", "protocolName"],
+        )
 
     @ex(
-        help='add distributed firewall sections',
-        description='add distributed firewall sections',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'section name', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="add distributed firewall sections",
+        description="add distributed firewall sections",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["name"],
+                    {
+                        "help": "section name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_section_add(self):
         name = self.app.pargs.name
         self.client.network.nsx.dfw.query_status()
         self.client.network.nsx.dfw.create_section(name)
-        self.app.render({'msg': 'add section %s' % name})
+        self.app.render({"msg": "add section %s" % name})
 
     @ex(
-        help='delete distributed firewall sections',
-        description='delete distributed firewall sections',
-        arguments=VSPHERE_ARGS([
-            (['section'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete distributed firewall sections",
+        description="delete distributed firewall sections",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_section_del(self):
         section = self.app.pargs.section
         self.client.network.nsx.dfw.query_status()
         res = self.client.network.nsx.dfw.delete_section(section)
-        self.app.render({'msg': 'Delete section %s' % section})
+        self.app.render({"msg": "Delete section %s" % section})
 
     @ex(
-        help='add distributed firewall rule',
-        description='add distributed firewall rule',
-        arguments=VSPHERE_ARGS([
-            (['section'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None}),
-            (['name'], {'help': 'rule name', 'action': 'store', 'type': str, 'default': None}),
-            (['-action'], {'help': 'rule action: allow or deny', 'action': 'store', 'type': str, 'default': 'allow'}),
-            (['-direction'], {'help': 'rule name', 'action': 'store', 'type': str, 'default': 'inout'}),
-            (['-sources'], {'help': 'rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24',
-                            'action': 'store', 'type': str, 'default': None}),
-            (['-dests'], {'help': 'rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24',
-                          'action': 'store', 'type': str, 'default': None}),
-            (['-services'], {'help': 'rule services', 'action': 'store', 'type': str, 'default': None}),
-            (['-appliedto'], {'help': 'rule sources. Ex. DISTRIBUTED_FIREWALL:DISTRIBUTED_FIREWALL',
-                              'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add distributed firewall rule",
+        description="add distributed firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-action"],
+                    {
+                        "help": "rule action: allow or deny",
+                        "action": "store",
+                        "type": str,
+                        "default": "allow",
+                    },
+                ),
+                (
+                    ["-direction"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": "inout",
+                    },
+                ),
+                (
+                    ["-sources"],
+                    {
+                        "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dests"],
+                    {
+                        "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-services"],
+                    {
+                        "help": "rule services",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-appliedto"],
+                    {
+                        "help": "rule sources. Ex. DISTRIBUTED_FIREWALL:DISTRIBUTED_FIREWALL",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dfw_rule_add(self):
         section = self.app.pargs.section
@@ -1360,115 +2679,198 @@ class VspherePlatformController(BaseController):
 
         if sources is not None:
             source_list = []
-            for source in sources.split(','):
-                source_item = source.split(':')
-                source_list.append({'name': None, 'value': source_item[1], 'type': source_item[0]})
+            for source in sources.split(","):
+                source_item = source.split(":")
+                source_list.append({"name": None, "value": source_item[1], "type": source_item[0]})
             sources = source_list
 
         if dests is not None:
             dest_list = []
-            for dest in dests.split(','):
-                dest_item = dest.split(':')
-                dest_list.append({'name': None, 'value': dest_item[1], 'type': dest_item[0]})
+            for dest in dests.split(","):
+                dest_item = dest.split(":")
+                dest_list.append({"name": None, "value": dest_item[1], "type": dest_item[0]})
             dests = dest_list
 
         if appliedtos is not None:
             appliedto_list = []
-            for appliedto in appliedtos.split(','):
-                appliedto_item = appliedto.split(':')
-                appliedto_list.append({'name': appliedto_item[1], 'value': appliedto_item[1],
-                                       'type': appliedto_item[0]})
+            for appliedto in appliedtos.split(","):
+                appliedto_item = appliedto.split(":")
+                appliedto_list.append(
+                    {
+                        "name": appliedto_item[1],
+                        "value": appliedto_item[1],
+                        "type": appliedto_item[0],
+                    }
+                )
             appliedtos = appliedto_list
 
         self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
-        self.client.network.nsx.dfw.create_rule(section, name, action, direction=direction, logged='false',
-                                                sources=sources, destinations=dests, services=services,
-                                                appliedto=appliedtos, precedence='default')
-        self.app.render({'msg': 'add rule %s' % name})
+        self.client.network.nsx.dfw.create_rule(
+            section,
+            name,
+            action,
+            direction=direction,
+            logged="false",
+            sources=sources,
+            destinations=dests,
+            services=services,
+            appliedto=appliedtos,
+            precedence="default",
+        )
+        self.app.render({"msg": "add rule %s" % name})
 
     @ex(
-        help='delete distributed firewall rules',
-        description='delete distributed firewall rules',
-        arguments=VSPHERE_ARGS([
-            (['section'], {'help': 'section id', 'action': 'store', 'type': str, 'default': None}),
-            (['rules'], {'help': 'comma separeated list of rules id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete distributed firewall rules",
+        description="delete distributed firewall rules",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": "section id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rules"],
+                    {
+                        "help": "comma separated list of rules id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dfw_rules_del(self):
         section = self.app.pargs.section
-        rules = self.app.pargs.rules.split(',')
+        rules = self.app.pargs.rules.split(",")
         self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
         for rule in rules:
             self.client.network.nsx.dfw.delete_rule(section, rule)
-        self.app.render({'msg': 'Delete section %s rules %s' % (section, rules)})
+        self.app.render({"msg": "Delete section %s rules %s" % (section, rules)})
 
     @ex(
-        help='get distributed firewall exclusion list',
-        description='get distributed firewall exclusion list',
-        arguments=VSPHERE_ARGS()
+        help="get distributed firewall exclusion list",
+        description="get distributed firewall exclusion list",
+        arguments=VSPHERE_ARGS(),
     )
     def dfw_exclusion_get(self):
         res = self.client.network.nsx.dfw.get_exclusion_list()
-        res = res.get('excludeMember', [])
+        res = res.get("excludeMember", [])
         if not isinstance(res, list):
             res = [res]
         resp = []
         for item in res:
-            resp.append(item['member'])
-        self.app.render(resp, headers=['objectId', 'name', 'scope.name', 'objectTypeName', 'revision'])
+            resp.append(item["member"])
+        self.app.render(
+            resp,
+            headers=["objectId", "name", "scope.name", "objectTypeName", "revision"],
+        )
 
     @ex(
-        help='add member to distributed firewall exclusion list',
-        description='add member to distributed firewall exclusion list',
-        arguments=VSPHERE_ARGS([
-            (['member'], {'help': 'member id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="add member to distributed firewall exclusion list",
+        description="add member to distributed firewall exclusion list",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["member"],
+                    {
+                        "help": "member id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_exclusion_add(self):
         member = self.app.pargs.member
         res = self.client.network.nsx.dfw.add_item_to_exclusion_list(member)
-        self.app.render({'msg': 'add member %s to exclusion list' % member})
+        self.app.render({"msg": "add member %s to exclusion list" % member})
 
     @ex(
-        help='delete member from distributed firewall exclusion list',
-        description='delete member from distributed firewall exclusion list',
-        arguments=VSPHERE_ARGS([
-            (['member'], {'help': 'member id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete member from distributed firewall exclusion list",
+        description="delete member from distributed firewall exclusion list",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["member"],
+                    {
+                        "help": "member id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def dfw_exclusion_del(self):
         member = self.app.pargs.member
         res = self.client.network.nsx.dfw.remove_item_from_exclusion_list(member)
-        self.app.render({'msg': 'delete member %s from exclusion list' % member})
+        self.app.render({"msg": "delete member %s from exclusion list" % member})
 
     @ex(
-        help='get nsx transport zones',
-        description='get nsx transport zones',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'transport zone id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get nsx transport zones",
+        description="get nsx transport zones",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "transport zone id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def transport_zone_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.nsx.lg.get_transport_zone(oid)
 
-            if self.is_output_text():
-                self.app.render(res, details=True)
-            else:
-                self.app.render(res, details=True)
+            # if self.is_output_text():
+            #     self.app.render(res, details=True)
+            # else:
+            self.app.render(res, details=True)
         else:
             params = {}
             res = self.client.network.nsx.lg.list_transport_zones(**params)
             self.app.render(res, headers=self._meta.lg_headers)
 
     @ex(
-        help='get logical switch',
-        description='get logical switch',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'logical switch id', 'action': 'store', 'type': str, 'default': None}),
-            (['-dvpg'], {'help': 'dvpg id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get logical switch",
+        description="get logical switch",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "logical switch id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dvpg"],
+                    {
+                        "help": "dvpg id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def lg_get(self):
         oid = self.app.pargs.id
@@ -1478,12 +2880,12 @@ class VspherePlatformController(BaseController):
             res = self.client.network.nsx.lg.get(oid)
 
             if self.is_output_text():
-                backings = res.pop('vdsContextWithBacking', [])
+                backings = res.pop("vdsContextWithBacking", [])
 
                 self.app.render(res, details=True)
                 for backing in backings:
-                    context = backing.get('switch')
-                    self.c('\nbacking - %s' % context.pop('objectId'), 'underline')
+                    context = backing.get("switch")
+                    self.c("\nbacking - %s" % context.pop("objectId"), "underline")
                     self.app.render(backing, details=True)
             else:
                 self.app.render(res, details=True)
@@ -1491,15 +2893,15 @@ class VspherePlatformController(BaseController):
         elif dvpg is not None:
             res = self.client.network.nsx.lg.get_by_dvpg(dvpg)
             if res is None:
-                raise Exception('no valid logical switch found for dvpg %s' % dvpg)
+                raise Exception("no valid logical switch found for dvpg %s" % dvpg)
 
             if self.is_output_text():
-                backings = res.pop('vdsContextWithBacking', [])
+                backings = res.pop("vdsContextWithBacking", [])
 
                 self.app.render(res, details=True)
                 for backing in backings:
-                    context = backing.get('switch')
-                    self.c('\nbacking - %s' % context.pop('objectId'), 'underline')
+                    context = backing.get("switch")
+                    self.c("\nbacking - %s" % context.pop("objectId"), "underline")
                     self.app.render(backing, details=True)
             else:
                 self.app.render(res, details=True)
@@ -1511,31 +2913,59 @@ class VspherePlatformController(BaseController):
             sg_ids = []
             for obj in objs:
                 res.append(self.client.network.nsx.lg.info(obj))
-                sg_ids.append(obj['objectId'])
+                sg_ids.append(obj["objectId"])
             self.app.render(res, headers=self._meta.lg_headers, fields=self._meta.lg_fields)
 
     @ex(
-        help='delete logical switch',
-        description='delete logical switch',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'logical switch id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete logical switch",
+        description="delete logical switch",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "logical switch id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def lg_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.lg.delete(oid)
-        self.app.render({'msg': 'delete logical switch %s' % oid})
+        self.app.render({"msg": "delete logical switch %s" % oid})
 
     @ex(
-        help='get vsphere ippools',
-        description='get ippools',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-            (['-range'], {'help': 'ippool range', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get vsphere ippools",
+        description="get ippools",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-range"],
+                    {
+                        "help": "ippool range",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.nsx.ippool.get(oid)
             data = self.client.network.nsx.ippool.detail(res)
@@ -1547,32 +2977,84 @@ class VspherePlatformController(BaseController):
         else:
             range = self.app.pargs.range
             if range is not None:
-                range = range.split(',')
+                range = range.split(",")
             objs = self.client.network.nsx.ippool.list(pool_range=range)
             res = []
             transform = None
             for o in objs:
                 res.append(self.client.network.nsx.ippool.info(o))
                 transform = {
-                    'ipRanges': lambda x: '\n'.join(['{:12} {:17} {}'.format(
-                        item['id'], item['startAddress'], item['endAddress']) for item in x.get('ipRangeDto')])
+                    "ipRanges": lambda x: "\n".join(
+                        [
+                            "{:12} {:17} {}".format(item["id"], item["startAddress"], item["endAddress"])
+                            for item in x.get("ipRangeDto")
+                        ]
+                    )
                 }
-            self.app.render(res, headers=self._meta.ippool_headers, fields=self._meta.ippool_fields,
-                            transform=transform, maxsize=100)
+            self.app.render(
+                res,
+                headers=self._meta.ippool_headers,
+                fields=self._meta.ippool_fields,
+                transform=transform,
+                maxsize=100,
+            )
 
     @ex(
-        help='add vsphere ippool',
-        description='add vsphere ippool',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'ippool name', 'action': 'store', 'type': str}),
-            (['startip'], {'help': 'start ip', 'action': 'store', 'type': str, 'default': None}),
-            (['stopip'], {'help': 'stop ip', 'action': 'store', 'type': str, 'default': None}),
-            (['gw'], {'help': 'gateway', 'action': 'store', 'type': str, 'default': None}),
-            (['dns1'], {'help': 'dns1', 'action': 'store', 'type': str, 'default': None}),
-            (['dns2'], {'help': 'dns2', 'action': 'store', 'type': str, 'default': None}),
-            (['-prefix'], {'help': 'prefix', 'action': 'store', 'type': int, 'default': 24}),
-            (['-dnssuffix'], {'help': 'dns zone', 'action': 'store', 'type': str, 'default': 'domain.local'}),
-        ])
+        help="add vsphere ippool",
+        description="add vsphere ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["name"], {"help": "ippool name", "action": "store", "type": str}),
+                (
+                    ["startip"],
+                    {
+                        "help": "start ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["stopip"],
+                    {
+                        "help": "stop ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["gw"],
+                    {
+                        "help": "gateway",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dns1"],
+                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["dns2"],
+                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-prefix"],
+                    {"help": "prefix", "action": "store", "type": int, "default": 24},
+                ),
+                (
+                    ["-dnssuffix"],
+                    {
+                        "help": "dns zone",
+                        "action": "store",
+                        "type": str,
+                        "default": "domain.local",
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_add(self):
         name = self.app.pargs.name
@@ -1584,24 +3066,91 @@ class VspherePlatformController(BaseController):
         prefix = self.app.pargs.prefix
         dnssuffix = self.app.pargs.dnssuffix
         # self.client.network.nsx.ippool.exists(pool_range=(startip, stopip))
-        msg = self.client.network.nsx.ippool.create(name, prefix=prefix, gateway=gw, dnssuffix=dnssuffix, dns1=dns1,
-                                                    dns2=dns2, startip=startip, stopip=stopip)
-        self.app.render({'msg': 'add ippool %s' % name})
+        msg = self.client.network.nsx.ippool.create(
+            name,
+            prefix=prefix,
+            gateway=gw,
+            dnssuffix=dnssuffix,
+            dns1=dns1,
+            dns2=dns2,
+            startip=startip,
+            stopip=stopip,
+        )
+        self.app.render({"msg": "add ippool %s" % name})
 
     @ex(
-        help='update vsphere ippool',
-        description='update vsphere ippool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'ippool name', 'action': 'store', 'type': str, 'default': None}),
-            (['-startip'], {'help': 'start ip', 'action': 'store', 'type': str, 'default': None}),
-            (['-stopip'], {'help': 'stop ip', 'action': 'store', 'type': str, 'default': None}),
-            (['-gw'], {'help': 'gateway', 'action': 'store', 'type': str, 'default': None}),
-            (['-dns1'], {'help': 'dns1', 'action': 'store', 'type': str, 'default': None}),
-            (['-dns2'], {'help': 'dns2', 'action': 'store', 'type': str, 'default': None}),
-            (['-prefix'], {'help': 'prefix', 'action': 'store', 'type': int, 'default': None}),
-            (['-dnssuffix'], {'help': 'dns zone', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="update vsphere ippool",
+        description="update vsphere ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "ippool name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-startip"],
+                    {
+                        "help": "start ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-stopip"],
+                    {
+                        "help": "stop ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-gw"],
+                    {
+                        "help": "gateway",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dns1"],
+                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-dns2"],
+                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-prefix"],
+                    {"help": "prefix", "action": "store", "type": int, "default": None},
+                ),
+                (
+                    ["-dnssuffix"],
+                    {
+                        "help": "dns zone",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_update(self):
         oid = self.app.pargs.id
@@ -1614,45 +3163,100 @@ class VspherePlatformController(BaseController):
         prefix = self.app.pargs.prefix
         dnssuffix = self.app.pargs.dnssuffix
         # self.client.network.nsx.ippool.exists(pool_range=(startip, stopip))
-        msg = self.client.network.nsx.ippool.update(oid, name=name, prefixLength=prefix, gateway=gw,
-                                                    dnsSuffix=dnssuffix, dnsServer1=dns1, dnsServer2=dns2,
-                                                    startAddress=startip, endAddress=stopip)
-        self.app.render({'msg': 'update ippool %s' % oid})
+        msg = self.client.network.nsx.ippool.update(
+            oid,
+            name=name,
+            prefixLength=prefix,
+            gateway=gw,
+            dnsSuffix=dnssuffix,
+            dnsServer1=dns1,
+            dnsServer2=dns2,
+            startAddress=startip,
+            endAddress=stopip,
+        )
+        self.app.render({"msg": "update ippool %s" % oid})
 
     @ex(
-        help='delete vsphere ippool',
-        description='delete vsphere ippool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere ippool",
+        description="delete vsphere ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_del(self):
         oid = self.app.pargs.id
         obj = self.client.network.nsx.ippool.exists(pool_id=oid)
         self.client.network.nsx.ippool.delete(oid)
-        self.app.render({'msg': 'Delete ippool %s' % oid})
+        self.app.render({"msg": "Delete ippool %s" % oid})
 
     @ex(
-        help='get all allocated ippool ips',
-        description='get all allocated ippool ips',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get all allocated ippool ips",
+        description="get all allocated ippool ips",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_ip_usage(self):
         oid = self.app.pargs.id
         self.client.network.nsx.ippool.exists(pool_id=oid)
         res = self.client.network.nsx.ippool.allocations(oid)
-        headers = ['id', 'ipAddress', 'gateway', 'dnsSuffix', 'prefixLength', 'subnetId', 'dnsServer1', 'dnsServer2']
+        headers = [
+            "id",
+            "ipAddress",
+            "gateway",
+            "dnsSuffix",
+            "prefixLength",
+            "subnetId",
+            "dnsServer1",
+            "dnsServer2",
+        ]
         self.app.render(res, headers=headers)
 
     @ex(
-        help='assign ippool ip',
-        description='assign ippool ip',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-            (['-ip'], {'help': 'ippool ip to use', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="assign ippool ip",
+        description="assign ippool ip",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ip"],
+                    {
+                        "help": "ippool ip to use",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_ip_use(self):
         oid = self.app.pargs.id
@@ -1662,12 +3266,30 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help='release ippool ip',
-        description='release ippool ip',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-            (['ip'], {'help': 'ippool ip to use', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="release ippool ip",
+        description="release ippool ip",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ip"],
+                    {
+                        "help": "ippool ip to use",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ippool_ip_release(self):
         oid = self.app.pargs.id
@@ -1677,15 +3299,33 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help='get ipsets',
-        description='get ipsets',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'ipset id', 'action': 'store', 'type': str, 'default': None}),
-            (['-range'], {'help': 'ipset range', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get ipsets",
+        description="get ipsets",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "ipset id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-range"],
+                    {
+                        "help": "ipset range",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ipset_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.nsx.ipset.get(oid)
             data = self.client.network.nsx.ipset.detail(res)
@@ -1697,7 +3337,7 @@ class VspherePlatformController(BaseController):
         else:
             range = self.app.pargs.range
             if range is not None:
-                range = range.split(',')
+                range = range.split(",")
             objs = self.client.network.nsx.ipset.list()
             res = []
             for o in objs:
@@ -1705,89 +3345,164 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.ipset_headers)
 
     @ex(
-        help='add vsphere ipset',
-        description='add vsphere ipset',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'ipset name', 'action': 'store', 'type': str}),
-            (['desc'], {'help': 'ipset description', 'action': 'store', 'action': StringAction, 'type': str,
-                        'nargs': '+', 'default': None}),
-            (['cidr'], {'help': 'list of ip. Ex. 10.112.201.8-10.112.201.14 or cidr', 'action': 'store', 'type': str,
-                        'default': None}),
-        ])
+        help="add vsphere ipset",
+        description="add vsphere ipset",
+        arguments=VSPHERE_ARGS(
+            [
+                (["name"], {"help": "ipset name", "action": "store", "type": str}),
+                (
+                    ["desc"],
+                    {
+                        "help": "ipset description",
+                        "action": "store",
+                        "action": StringAction,
+                        "type": str,
+                        "nargs": "+",
+                        "default": None,
+                    },
+                ),
+                (
+                    ["cidr"],
+                    {
+                        "help": "list of ip. Ex. 10.112.201.8-10.112.201.14 or cidr",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ipset_add(self):
         name = self.app.pargs.name
         desc = self.app.pargs.desc
         cidr = self.app.pargs.cidr
         self.client.network.nsx.ipset.create(name, desc, cidr)
-        self.app.render({'msg': 'add ipset %s' % name})
+        self.app.render({"msg": "add ipset %s" % name})
 
     @ex(
-        help='update vsphere ipset',
-        description='update vsphere ipset',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ipset id', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'ipset name', 'action': 'store', 'type': str}),
-        ])
+        help="update vsphere ipset",
+        description="update vsphere ipset",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ipset id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (["-name"], {"help": "ipset name", "action": "store", "type": str}),
+            ]
+        ),
     )
     def ipset_update(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         self.client.network.nsx.ipset.update(oid, name=name)
-        self.app.render({'msg': 'Update ipset %s' % oid})
+        self.app.render({"msg": "Update ipset %s" % oid})
 
     @ex(
-        help='delete vsphere ipset',
-        description='delete vsphere ipset',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'ipset id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere ipset",
+        description="delete vsphere ipset",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "ipset id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def ipset_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.ipset.delete(oid)
-        self.app.render({'msg': 'Delete ipset %s' % oid})
+        self.app.render({"msg": "Delete ipset %s" % oid})
 
     @ex(
-        help='get vsphere edges',
-        description='get vsphere edges',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get vsphere edges",
+        description="get vsphere edges",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.nsx.edge.get(oid)
             res = self.client.network.nsx.edge.detail(res)
 
             if self.is_output_text():
-                settings = res.pop('cliSettings')
-                autoconfiguration = res.pop('autoConfiguration', {})
-                querydaemon = res.pop('queryDaemon', {})
-                dnsclient = res.pop('dnsClient', {})
-                features = res.pop('features', {})
-                appliances = res.pop('appliances', [])
-                vnics = res.pop('vnics', [])
+                settings = res.pop("cliSettings", {})
+                autoconfiguration = res.pop("autoConfiguration", {})
+                querydaemon = res.pop("queryDaemon", {})
+                dnsclient = res.pop("dnsClient", {})
+                features = res.pop("features", {})
+                appliances = res.pop("appliances", [])
+                vnics = res.pop("vnics", [])
                 self.app.render(res, details=True)
-                self.c('\nautoConfiguration', 'underline')
-                self.app.render(autoconfiguration, headers=['enabled', 'rulePriority'])
-                self.c('\nqueryDaemon', 'underline')
-                self.app.render(querydaemon, headers=['enabled', 'port'])
-                self.c('\ndnsClient', 'underline')
-                self.app.render(dnsclient, headers=['primaryDns', 'secondaryDns', 'domainName'])
-                self.c('\nsettings', 'underline')
+                self.c("\nautoConfiguration", "underline")
+                self.app.render(autoconfiguration, headers=["enabled", "rulePriority"])
+                self.c("\nqueryDaemon", "underline")
+                self.app.render(querydaemon, headers=["enabled", "port"])
+                self.c("\ndnsClient", "underline")
+                self.app.render(dnsclient, headers=["primaryDns", "secondaryDns", "domainName"])
+                self.c("\nsettings", "underline")
                 self.app.render(settings, details=True)
-                self.c('\nfeatures', 'underline')
-                self.app.render(features, headers=['feature', 'enabled', 'version'])
-                self.c('\nappliances', 'underline')
-                headers = ['vmId', 'vmHostname', 'vmName', 'hostName', 'deployed', 'haAdminState']
+                self.c("\nfeatures", "underline")
+                self.app.render(features, headers=["feature", "enabled", "version"])
+                self.c("\nappliances", "underline")
+                headers = [
+                    "vmId",
+                    "vmHostname",
+                    "vmName",
+                    "hostName",
+                    "deployed",
+                    "haAdminState",
+                ]
                 self.app.render(appliances, headers=headers)
-                self.c('\nvnics', 'underline')
-                headers = ['index', 'name', 'label', 'type', 'mtu', 'isConnected', 'portgroupId', 'primaryAddress',
-                           'enableProxyArp', 'enableSendRedirects']
-                fields = ['index', 'name', 'label', 'type', 'mtu', 'isConnected', 'portgroupId',
-                          'addressGroups.addressGroup.primaryAddress', 'enableProxyArp', 'enableSendRedirects']
+                self.c("\nvnics", "underline")
+                headers = [
+                    "index",
+                    "name",
+                    "label",
+                    "type",
+                    "mtu",
+                    "isConnected",
+                    "portgroupId",
+                    "primaryAddress",
+                    "enableProxyArp",
+                    "enableSendRedirects",
+                ]
+                fields = [
+                    "index",
+                    "name",
+                    "label",
+                    "type",
+                    "mtu",
+                    "isConnected",
+                    "portgroupId",
+                    "addressGroups.addressGroup.primaryAddress",
+                    "enableProxyArp",
+                    "enableSendRedirects",
+                ]
                 self.app.render(vnics, headers=headers, fields=fields)
             else:
                 self.app.render(res, details=True)
@@ -1799,49 +3514,87 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.edge_headers, fields=self._meta.edge_fields)
 
     @ex(
-        help='get vsphere edge job',
-        description='get vsphere edge job',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'job id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get vsphere edge job",
+        description="get vsphere edge job",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {"help": "job id", "action": "store", "type": str, "default": None},
+                )
+            ]
+        ),
     )
     def edge_job_get(self):
-        oid = getattr(self.app.pargs, 'id', None)
+        oid = getattr(self.app.pargs, "id", None)
         res = self.client.network.nsx.edge.get_job(oid)
         self.app.render(res, details=True)
 
     def __wait_from_edge_job(self, jobid, edge, operation):
-        self.app.log.debug('wait for edge job: %s' % jobid)
+        self.app.log.debug("wait for edge job: %s" % jobid)
         res = self.client.network.nsx.edge.get_job(jobid)
-        status = res['status']
+        status = res["status"]
         stdout.flush()
         elapsed = 0
-        while status not in ['COMPLETED', 'FAILED', 'ROLLBACK', 'TIMEOUT']:
-            stdout.write('.')
+        bar = rotating_bar()
+        while status not in ["COMPLETED", "FAILED", "ROLLBACK", "TIMEOUT"]:
+            # stdout.write(".")
+            stdout.write(next(bar))
             stdout.flush()
             sleep(5)
             res = self.client.network.nsx.edge.get_job(jobid)
-            status = res['status']
+            status = res["status"]
             elapsed += 5
             if elapsed > 600:
-                status = 'TIMEOUT'
-        print('%s edge %s %s' % (operation, edge, status))
+                status = "TIMEOUT"
+        print("%s edge %s %s" % (operation, edge, status))
 
     @ex(
-        help='add vsphere edge',
-        description='add vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['name'], {'help': 'edge name', 'action': 'store', 'type': str}),
-            (['datacenter'], {'help': 'datacenter mor-id', 'action': 'store', 'type': str}),
-            (['cluster'], {'help': 'cluster mor-id', 'action': 'store', 'type': str}),
-            (['datastore'], {'help': 'datastore mor-id', 'action': 'store', 'type': str}),
-            (['uplink_dvpg'], {'help': 'uplink dvpg mor-id', 'action': 'store', 'type': str}),
-            (['uplink_ipaddress'], {'help': 'uplink address', 'action': 'store', 'type': str}),
-            (['uplink_prefix'], {'help': 'uplink prefix', 'action': 'store', 'type': int, 'default': 24}),
-            (['pwd'], {'help': 'admin user password', 'action': 'store', 'type': str}),
-            (['dns1'], {'help': 'dns name server 1', 'action': 'store', 'type': str}),
-            (['domain'], {'help': 'dns zone', 'action': 'store', 'type': str}),
-        ])
+        help="add vsphere edge",
+        description="add vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (["name"], {"help": "edge name", "action": "store", "type": str}),
+                (
+                    ["datacenter"],
+                    {"help": "datacenter mor-id", "action": "store", "type": str},
+                ),
+                (
+                    ["cluster"],
+                    {"help": "cluster mor-id", "action": "store", "type": str},
+                ),
+                (
+                    ["datastore"],
+                    {"help": "datastore mor-id", "action": "store", "type": str},
+                ),
+                (
+                    ["uplink_dvpg"],
+                    {"help": "uplink dvpg mor-id", "action": "store", "type": str},
+                ),
+                (
+                    ["uplink_ipaddress"],
+                    {"help": "uplink address", "action": "store", "type": str},
+                ),
+                (
+                    ["uplink_prefix"],
+                    {
+                        "help": "uplink prefix",
+                        "action": "store",
+                        "type": int,
+                        "default": 24,
+                    },
+                ),
+                (
+                    ["pwd"],
+                    {"help": "admin user password", "action": "store", "type": str},
+                ),
+                (
+                    ["dns1"],
+                    {"help": "dns name server 1", "action": "store", "type": str},
+                ),
+                (["domain"], {"help": "dns zone", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_add(self):
         name = self.app.pargs.name
@@ -1858,74 +3611,119 @@ class VspherePlatformController(BaseController):
         # get resource pool
         cluster = self.client.cluster.get(cluster_id)
         respools = self.client.cluster.resource_pool.list(cluster._moId)
-        respool = respools[0].get('obj')._moId
+        respool = respools[0].get("obj")._moId
 
         data = {
-            'name': name,
-            'datacenterMoid': datacenter,
-            'tenant': 'prova',
-            'fqdn': name,
-            'applianceSize': 'compact',
-            'appliances': [{
-                'resourcePoolId': respool,
-                'datastoreId': datastore
-            }],
-            'vnics': [
+            "name": name,
+            "datacenterMoid": datacenter,
+            "tenant": "prova",
+            "fqdn": name,
+            "applianceSize": "compact",
+            "appliances": [{"resourcePoolId": respool, "datastoreId": datastore}],
+            "vnics": [
                 {
-                    'type': 'Uplink',
-                    'portgroupId': uplink_dvpg,
-                    'addressGroups': [{
-                        'primaryAddress': uplink_ipaddress,
-                        'subnetPrefixLength': uplink_prefix,
-                    }]
+                    "type": "Uplink",
+                    "portgroupId": uplink_dvpg,
+                    "addressGroups": [
+                        {
+                            "primaryAddress": uplink_ipaddress,
+                            "subnetPrefixLength": uplink_prefix,
+                        }
+                    ],
                 }
             ],
-            'password': pwd,
-            'primaryDns': dns1,
-            'domainName': domain
+            "password": pwd,
+            "primaryDns": dns1,
+            "domainName": domain,
         }
         res = self.client.network.nsx.edge.add(data)
         # self.app.render({'msg': 'create edge %s' % (data['name'], res)})
         job = self.client.network.nsx.edge.get_job(res)
-        edge = job['result'][0]['value']
-        self.__wait_from_edge_job(res, edge, 'create')
+        edge = job["result"][0]["value"]
+        self.__wait_from_edge_job(res, edge, "create")
 
     @ex(
-        help='delete vsphere edge',
-        description='delete vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge",
+        description="delete vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_del(self):
         oid = self.app.pargs.id
         res = self.client.network.nsx.edge.delete(oid)
         job = self.client.network.nsx.edge.get_job(res)
-        edge = job['result']['value']
-        self.__wait_from_edge_job(res, edge, 'delete')
+        edge = job["result"]["value"]
+        self.__wait_from_edge_job(res, edge, "delete")
         # self.app.render({'msg': 'delete edge %s' % oid}, details=True)
 
     @ex(
-        help='set vsphere edge admin password',
-        description='set vsphere edge admin password',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['pwd'], {'help': 'edge admin password', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="set vsphere edge admin password",
+        description="set vsphere edge admin password",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pwd"],
+                    {
+                        "help": "edge admin password",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_set_pwd(self):
         oid = self.app.pargs.id
         pwd = self.app.pargs.pwd
         self.client.network.nsx.edge.reset_password(oid, pwd)
-        self.app.render({'msg': 'set edge %s admin password' % oid}, details=True)
+        self.app.render({"msg": "set edge %s admin password" % oid}, details=True)
 
     @ex(
-        help='get edge appliances',
-        description='get edge appliances',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['-appliance'], {'help': 'appliance id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get edge appliances",
+        description="get edge appliances",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-appliance"],
+                    {
+                        "help": "appliance id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_appliance_get(self):
         oid = self.app.pargs.id
@@ -1937,25 +3735,53 @@ class VspherePlatformController(BaseController):
                 if isinstance(data, dict):
                     data = [data]
                 res = data[int(appliance)]
-                server = self.client.server.get(res['vmId'])
-                sdata = {'server.'+k: v for k, v in self.client.server.info(server).items()}
+                server = self.client.server.get(res["vmId"])
+                sdata = {"server." + k: v for k, v in self.client.server.info(server).items()}
 
                 self.app.render(res, details=True, maxsize=200)
                 self.app.render(sdata, details=True, maxsize=200)
             except:
-                raise Exception('Wrong appliance index')
+                raise Exception("Wrong appliance index")
         else:
             edge = self.client.network.nsx.edge.get(oid)
             res = self.client.network.nsx.edge.appliances(edge)
-            self.app.render(res, headers=['vmId', 'vmHostname', 'vmName', 'hostName', 'deployed', 'haAdminState'])
+            self.app.render(
+                res,
+                headers=[
+                    "vmId",
+                    "vmHostname",
+                    "vmName",
+                    "hostName",
+                    "deployed",
+                    "haAdminState",
+                ],
+            )
 
     @ex(
-        help='get edge vinics',
-        description='get edge vinics',
-        arguments=VSPHERE_ARGS([
-            (['-id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['-vnic'], {'help': 'vnic id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="get edge vinics",
+        description="get edge vinics",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-vnic"],
+                    {
+                        "help": "vnic id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_vnic_get(self):
         oid = self.app.pargs.id
@@ -1967,44 +3793,103 @@ class VspherePlatformController(BaseController):
                     res = self.client.network.nsx.edge.vnics(edge)[int(vnic)]
                     self.app.render(res, details=True, maxsize=200)
                 except:
-                    raise Exception('Wrong vnic index')
+                    raise Exception("Wrong vnic index")
             else:
                 edge = self.client.network.nsx.edge.get(oid)
                 res = self.client.network.nsx.edge.vnics(edge)
-                headers = ['index', 'name', 'type', 'primaryAddress', 'isConnected', 'portgroupName']
-                fields = ['index', 'name', 'type', 'addressGroups.addressGroup.primaryAddress', 'isConnected',
-                          'portgroupName']
+                headers = [
+                    "index",
+                    "name",
+                    "type",
+                    "primaryAddress",
+                    "isConnected",
+                    "portgroupName",
+                ]
+                fields = [
+                    "index",
+                    "name",
+                    "type",
+                    "addressGroups.addressGroup.primaryAddress",
+                    "isConnected",
+                    "portgroupName",
+                ]
                 self.app.render(res, headers=headers, fields=fields)
         else:
             objs = self.client.network.nsx.edge.list()
             res = []
             for o in objs:
-                edge = self.client.network.nsx.edge.get(o['objectId'])
+                edge = self.client.network.nsx.edge.get(o["objectId"])
                 data = self.client.network.nsx.edge.info(o)
                 vnics = self.client.network.nsx.edge.vnics(edge)
-                data['vnic'] = vnics[0]
+                data["vnic"] = vnics[0]
                 res.append(data)
 
             def secondary_addresses(val):
                 if isinstance(val, list):
-                    val = '\n'.join(val)
+                    val = "\n".join(val)
                 return val
 
-            transform = {'vnic.addressGroups.addressGroup.secondaryAddresses.ipAddress': secondary_addresses}
-            self.app.render(res, headers=self._meta.edge_headers1, fields=self._meta.edge_fields1, transform=transform,
-                            maxsize=400)
+            transform = {"vnic.addressGroups.addressGroup.secondaryAddresses.ipAddress": secondary_addresses}
+            self.app.render(
+                res,
+                headers=self._meta.edge_headers1,
+                fields=self._meta.edge_fields1,
+                transform=transform,
+                maxsize=400,
+            )
 
     @ex(
-        help='add edge vnic',
-        description='add edge vnic',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['index'], {'help': 'vnic index', 'action': 'store', 'type': str, 'default': None}),
-            (['-type'], {'help': 'vnic type. Uplink or Internal', 'action': 'store', 'type': str,
-                         'default': 'Internal'}),
-            (['portgroup'], {'help': 'vnic portgroup id', 'action': 'store', 'type': str, 'default': None}),
-            (['ip'], {'help': 'vnic primary ip', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="add edge vnic",
+        description="add edge vnic",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["index"],
+                    {
+                        "help": "vnic index",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-type"],
+                    {
+                        "help": "vnic type. Uplink or Internal",
+                        "action": "store",
+                        "type": str,
+                        "default": "Internal",
+                    },
+                ),
+                (
+                    ["portgroup"],
+                    {
+                        "help": "vnic portgroup id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ip"],
+                    {
+                        "help": "vnic primary ip",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_vnic_add(self):
         oid = self.app.pargs.id
@@ -2013,25 +3898,57 @@ class VspherePlatformController(BaseController):
         portgroup = self.app.pargs.portgroup
         ip = self.app.pargs.ip
         data = {
-            'index': index,
-            'type': vnic_type,
-            'portgroupId': portgroup,
-            'addressGroups': [{
-                'primaryAddress': ip
-            }]
+            "index": index,
+            "type": vnic_type,
+            "portgroupId": portgroup,
+            "addressGroups": [{"primaryAddress": ip}],
         }
         self.client.network.nsx.edge.vnic_add(oid, data)
-        self.app.render({'msg': 'add edge %s vnic %s' % (oid, index)})
+        self.app.render({"msg": "add edge %s vnic %s" % (oid, index)})
 
     @ex(
-        help='update edge vnic',
-        description='update edge vnic',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['vnic'], {'help': 'vnic index', 'action': 'store', 'type': str, 'default': None}),
-            (['-secondary_ip_add'], {'help': 'add sub-interface', 'action': 'store', 'type': str, 'default': None}),
-            (['-secondary_ip_del'], {'help': 'remove sub-interface', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="update edge vnic",
+        description="update edge vnic",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["vnic"],
+                    {
+                        "help": "vnic index",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-secondary_ip_add"],
+                    {
+                        "help": "add sub-interface",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-secondary_ip_del"],
+                    {
+                        "help": "remove sub-interface",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_vnic_update(self):
         oid = self.app.pargs.id
@@ -2039,99 +3956,159 @@ class VspherePlatformController(BaseController):
         secondary_ip_add = self.app.pargs.secondary_ip_add
         secondary_ip_del = self.app.pargs.secondary_ip_del
         if secondary_ip_add is not None and secondary_ip_del is not None:
-            raise Exception('Choose one action between add and delete for secondary ip address')
+            raise Exception("Choose one action between add and delete for secondary ip address")
         if secondary_ip_add is not None:
-            data = {
-                'secondary_ip': secondary_ip_add,
-                'action': 'add'
-            }
+            data = {"secondary_ip": secondary_ip_add, "action": "add"}
         elif secondary_ip_del is not None:
-            data = {
-                'secondary_ip': secondary_ip_del,
-                'action': 'delete'
-            }
+            data = {"secondary_ip": secondary_ip_del, "action": "delete"}
         else:
             data = {}
-        self.client.network.nsx.edge.vnic_update(oid, vnic, **data)
-        self.app.render({'msg': 'update edge %s vnic %s' % (oid, vnic)})
+        res = self.client.network.nsx.edge.vnic_update(oid, vnic, **data)
+        self.app.render({"msg": "update edge %s vnic %s" % (oid, vnic)})
 
     @ex(
-        help='delete edge vnic',
-        description='delete edge vnic',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['vnic'], {'help': 'vnic index', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete edge vnic",
+        description="delete edge vnic",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["vnic"],
+                    {
+                        "help": "vnic index",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_vnic_del(self):
         oid = self.app.pargs.id
         vnic = self.app.pargs.vnic
         self.client.network.nsx.edge.vnic_del(oid, vnic)
-        self.app.render({'msg': 'delete edge %s vnic %s' % (oid, vnic)})
+        self.app.render({"msg": "delete edge %s vnic %s" % (oid, vnic)})
 
     @ex(
-        help='get edge firewall config',
-        description='get edge firewall config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge firewall config",
+        description="get edge firewall config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_fw_config(self):
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.firewall(edge)
-        rules = res.pop('rules')
+        rules = res.pop("rules")
 
         for r in rules:
-            source = r.get('source', {})
+            source = r.get("source", {})
             new_source = []
             for k, v in source.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_source.append('%s:%s' % (k, v1))
+                        new_source.append("%s:%s" % (k, v1))
                 else:
-                    new_source.append('%s:%s' % (k, v))
-            r['source'] = '\n'.join(new_source)
+                    new_source.append("%s:%s" % (k, v))
+            r["source"] = "\n".join(new_source)
 
-            dest = r.get('destination', {})
+            dest = r.get("destination", {})
             new_dest = []
             for k, v in dest.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_dest.append('%s:%s' % (k, v1))
+                        new_dest.append("%s:%s" % (k, v1))
                 else:
-                    new_dest.append('%s:%s' % (k, v))
-            r['destination'] = '\n'.join(new_dest)
+                    new_dest.append("%s:%s" % (k, v))
+            r["destination"] = "\n".join(new_dest)
 
-            application = r.get('application', {})
+            application = r.get("application", {})
             new_application = []
             for k, v in application.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_application.append('%s:%s' % (k, v1))
+                        new_application.append("%s:%s" % (k, v1))
                 if isinstance(v, dict):
-                    new_application.append('%s:' % k)
+                    new_application.append("%s:" % k)
                     for k1, v1 in v.items():
-                        new_application.append('  %s:%s' % (k1, v1))
+                        new_application.append("  %s:%s" % (k1, v1))
                 else:
-                    new_application.append('%s:%s' % (k, v))
-            r['application'] = '\n'.join(new_application)
+                    new_application.append("%s:%s" % (k, v))
+            r["application"] = "\n".join(new_application)
 
         self.app.render(res, details=True, maxsize=200)
-        self.c('\nrules', 'underline')
-        headers = ['id', 'name', 'type', 'action', 'enabled', 'tag', 'loggingEnabled', 'source', 'destination',
-                   'application']
-        fields = ['id', 'name', 'ruleType', 'action', 'enabled', 'ruleTag', 'loggingEnabled', 'source',
-                  'destination', 'application']
-        self.app.render(rules, table_style='grid', headers=headers, fields=fields, maxsize=200)
+        self.c("\nrules", "underline")
+        headers = [
+            "id",
+            "name",
+            "type",
+            "action",
+            "enabled",
+            "tag",
+            "loggingEnabled",
+            "source",
+            "destination",
+            "application",
+        ]
+        fields = [
+            "id",
+            "name",
+            "ruleType",
+            "action",
+            "enabled",
+            "ruleTag",
+            "loggingEnabled",
+            "source",
+            "destination",
+            "application",
+        ]
+        self.app.render(rules, table_style="grid", headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help='get edge firewall rule',
-        description='get edge firewall rule',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['rule'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge firewall rule",
+        description="get edge firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rule"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_fw_rule_get(self):
         oid = self.app.pargs.id
@@ -2141,27 +4118,105 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='add edge firewall rule',
-        description='add edge firewall rule',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['name'], {'help': 'rule name', 'action': 'store', 'type': str, 'default': None}),
-            (['-action'], {'help': 'rule action. Can be: accept, deny', 'action': 'store', 'type': str,
-                           'default': 'accept'}),
-            (['-direction'], {'help': 'rule direction. Can be: in, out', 'action': 'store', 'type': str,
-                              'default': None}),
-            (['-logged'], {'help': 'rule logged', 'action': 'store', 'type': str, 'default': False}),
-            (['-desc'], {'help': 'rule description', 'action': 'store', 'type': str, 'default': None}),
-            (['-enabled'], {'help': 'rule name', 'action': 'store', 'type': str, 'default': True}),
-            (['-source'], {'help': 'rule source. list of comma separated item like: ip:<ipAddress>, '
-                                   'grp:<groupingObjectId>, vnic:<vnicGroupId>', 'action': 'store',
-                           'type': str, 'default': None}),
-            (['-dest'], {'help': 'rule destination. list of comma separated item like: ip:<ipAddress>, '
-                                 'grp:<groupingObjectId>, vnic:<vnicGroupId>', 'action': 'store',
-                         'type': str, 'default': None}),
-            (['-app'], {'help': 'rule application. list of comma separated item like: app:<applicationId>, '
-                                'ser:proto+port+source_port', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add edge firewall rule",
+        description="add edge firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-action"],
+                    {
+                        "help": "rule action. Can be: accept, deny",
+                        "action": "store",
+                        "type": str,
+                        "default": "accept",
+                    },
+                ),
+                (
+                    ["-direction"],
+                    {
+                        "help": "rule direction. Can be: in, out",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-logged"],
+                    {
+                        "help": "rule logged",
+                        "action": "store",
+                        "type": str,
+                        "default": False,
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {
+                        "help": "rule description",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-enabled"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+                (
+                    ["-source"],
+                    {
+                        "help": "rule source. list of comma separated item like: ip:<ipAddress>, "
+                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dest"],
+                    {
+                        "help": "rule destination. list of comma separated item like: ip:<ipAddress>, "
+                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-app"],
+                    {
+                        "help": "rule application. list of comma separated item like: app:<applicationId>, "
+                        "ser:proto+port+source_port",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_fw_rule_add(self):
         oid = self.app.pargs.id
@@ -2177,67 +4232,387 @@ class VspherePlatformController(BaseController):
         if desc is None:
             desc = name
         if source:
-            source = source.split(',')
+            source = source.split(",")
         if dest:
-            dest = dest.split(',')
+            dest = dest.split(",")
         if appl:
-            appl = appl.split(',')
+            appl = appl.split(",")
 
         self.client.network.nsx.edge.get(oid)
-        self.client.network.nsx.edge.firewall_rule_add(oid, name, action, desc=desc, direction=direction, source=source,
-                                                       dest=dest, application=appl, logged=logged, enabled=enabled)
-        self.app.render({'msg': 'create firewall rule %s' % name})
+        self.client.network.nsx.edge.firewall_rule_add(
+            oid,
+            name,
+            action,
+            desc=desc,
+            direction=direction,
+            source=source,
+            dest=dest,
+            application=appl,
+            logged=logged,
+            enabled=enabled,
+        )
+        self.app.render({"msg": "create firewall rule %s" % name})
 
     @ex(
-        help='delete edge firewall rule',
-        description='delete edge firewall rule',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['rule'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="update edge firewall rule",
+        description="update edge firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["edge"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["id"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {
+                        "help": "rule description",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-act"],
+                    {
+                        "help": "rule action",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dir"],
+                    {
+                        "help": "rule direction",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-src_add"],
+                    {
+                        "help": "add rule source",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-src_del"],
+                    {
+                        "help": "remove rule source",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dst_add"],
+                    {
+                        "help": "add rule destination",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dst_del"],
+                    {
+                        "help": "remove rule destination",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-appl"],
+                    {
+                        "help": "rule application",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-logged"],
+                    {
+                        "help": "enable rule log",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-enabled"],
+                    {
+                        "help": "enable rule",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def edge_fw_rule_update(self):
+        edge_id = self.app.pargs.edge
+        rule_id = self.app.pargs.id
+        name = self.app.pargs.name
+        desc = self.app.pargs.desc
+        action = self.app.pargs.act
+        direction = self.app.pargs.dir
+        source_add = self.app.pargs.src_add
+        source_del = self.app.pargs.src_del
+        dest_add = self.app.pargs.dst_add
+        dest_del = self.app.pargs.dst_del
+        appl = self.app.pargs.appl
+        logged = self.app.pargs.logged
+        enabled = self.app.pargs.enabled
+
+        if source_add:
+            source_add = source_add.split(",")
+        if source_del:
+            source_del = source_del.split(",")
+        if dest_add:
+            dest_add = dest_add.split(",")
+        if dest_del:
+            dest_del = dest_del.split(",")
+        if appl:
+            appl = appl.split(",")
+
+        self.client.network.nsx.edge.get(edge_id)
+        self.client.network.nsx.edge.firewall_rule_update(
+            edge_id,
+            rule_id,
+            name=name,
+            action=action,
+            desc=desc,
+            direction=direction,
+            enabled=enabled,
+            source_add=source_add,
+            source_del=source_del,
+            dest_add=dest_add,
+            dest_del=dest_del,
+            appl=appl,
+            logged=logged,
+        )
+        self.app.render({"msg": "update firewall rule %s" % rule_id})
+
+    @ex(
+        help="delete edge firewall rule",
+        description="delete edge firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rule"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_fw_rule_del(self):
         oid = self.app.pargs.id
         rule = self.app.pargs.rule
         self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.firewall_rule_delete(oid, rule)
-        self.app.render({'msg': 'delete firewall rule %s' % rule})
+        self.app.render({"msg": "delete firewall rule %s" % rule})
 
     @ex(
-        help='get edge nat config',
-        description='get edge nat config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge nat config",
+        description="get edge nat config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_nat_config(self):
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.nat(edge)
-        headers = ['id', 'desc', 'type', 'action', 'vnic', 'enabled', 'originalAddress', 'originalPort',
-                   'translatedAddress', 'translatedPort', 'dnatMatchSourceAddress', 'dnatMatchSourcePort',
-                   'loggingEnabled', 'enabled', 'protocol']
-        fields = ['ruleId', 'description', 'ruleType', 'action', 'vnic', 'enabled', 'originalAddress', 'originalPort',
-                  'translatedAddress', 'translatedPort', 'dnatMatchSourceAddress', 'dnatMatchSourcePort',
-                  'loggingEnabled', 'enabled', 'protocol']
+        headers = [
+            "id",
+            "desc",
+            "type",
+            "action",
+            "vnic",
+            "enabled",
+            "originalAddress",
+            "originalPort",
+            "translatedAddress",
+            "translatedPort",
+            "dnatMatchSourceAddress",
+            "dnatMatchSourcePort",
+            "loggingEnabled",
+            "enabled",
+            "protocol",
+        ]
+        fields = [
+            "ruleId",
+            "description",
+            "ruleType",
+            "action",
+            "vnic",
+            "enabled",
+            "originalAddress",
+            "originalPort",
+            "translatedAddress",
+            "translatedPort",
+            "dnatMatchSourceAddress",
+            "dnatMatchSourcePort",
+            "loggingEnabled",
+            "enabled",
+            "protocol",
+        ]
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge nat rule',
-        description='add edge nat rule',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['desc'], {'help': 'rule description', 'action': 'store', 'type': str, 'default': None}),
-            (['action'], {'help': 'can be dnat, snat', 'action': 'store', 'type': str, 'default': ''}),
-            (['original_address'], {'help': 'original address', 'action': 'store', 'type': str, 'default': ''}),
-            (['translated_address'], {'help': 'translated address', 'action': 'store', 'type': str, 'default': ''}),
-            (['-logged'], {'help': 'if True enable logging', 'action': 'store', 'type': str, 'default': True}),
-            (['-enabled'], {'help': 'if True enable nat', 'action': 'store', 'type': str, 'default': True}),
-            (['-original_port'], {'help': 'original port', 'action': 'store', 'type': str, 'default': None}),
-            (['-translated_port'], {'help': 'translated port', 'action': 'store', 'type': str, 'default': None}),
-            (['-protocol'], {'help': 'protocol', 'action': 'store', 'type': str, 'default': None}),
-            (['-vnic'], {'help': 'vnic', 'action': 'store', 'type': str, 'default': 0}),
-        ])
+        help="add edge nat rule",
+        description="add edge nat rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["desc"],
+                    {
+                        "help": "rule description",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["action"],
+                    {
+                        "help": "can be dnat, snat",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["original_address"],
+                    {
+                        "help": "original address",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["translated_address"],
+                    {
+                        "help": "translated address",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["-logged"],
+                    {
+                        "help": "if True enable logging",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+                (
+                    ["-enabled"],
+                    {
+                        "help": "if True enable nat",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+                (
+                    ["-original_port"],
+                    {
+                        "help": "original port",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-translated_port"],
+                    {
+                        "help": "translated port",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-protocol"],
+                    {
+                        "help": "protocol",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-vnic"],
+                    {"help": "vnic", "action": "store", "type": str, "default": 0},
+                ),
+            ]
+        ),
     )
     def edge_nat_rule_add(self):
         oid = self.app.pargs.id
@@ -2253,32 +4628,70 @@ class VspherePlatformController(BaseController):
         vnic = self.app.pargs.vnic
 
         self.client.network.nsx.edge.get(oid)
-        self.client.network.nsx.edge.nat_rule_add(oid, desc, action, original_address, translated_address,
-                                                  logged=logged, enabled=enabled, protocol=protocol, vnic=vnic,
-                                                  translated_port=translated_port, original_port=original_port)
-        self.app.render({'msg': 'create nat rule %s' % desc})
+        self.client.network.nsx.edge.nat_rule_add(
+            oid,
+            desc,
+            action,
+            original_address,
+            translated_address,
+            logged=logged,
+            enabled=enabled,
+            protocol=protocol,
+            vnic=vnic,
+            translated_port=translated_port,
+            original_port=original_port,
+        )
+        self.app.render({"msg": "create nat rule %s" % desc})
 
     @ex(
-        help='delete edge nat rule',
-        description='delete edge nat rule',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['rule'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete edge nat rule",
+        description="delete edge nat rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rule"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_nat_rule_del(self):
         oid = self.app.pargs.id
         rule = self.app.pargs.rule
         self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.nat_rule_delete(oid, rule)
-        self.app.render({'msg': 'delete nat rule %s' % rule})
+        self.app.render({"msg": "delete nat rule %s" % rule})
 
     @ex(
-        help='get edge routing info',
-        description='get edge routing info',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge routing info",
+        description="get edge routing info",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_route_get(self):
         oid = self.app.pargs.id
@@ -2287,26 +4700,71 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='get edge static routes',
-        description='get edge static routes',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge static routes",
+        description="get edge static routes",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_route_static_get(self):
         oid = self.app.pargs.id
         res = self.client.network.nsx.edge.route_static_get(oid)
-        self.app.render(res, headers=['type', 'description', 'vnic', 'network', 'nextHop', 'gateway', 'mtu'])
+        self.app.render(
+            res,
+            headers=[
+                "type",
+                "description",
+                "vnic",
+                "network",
+                "nextHop",
+                "gateway",
+                "mtu",
+            ],
+        )
 
     @ex(
-        help='add edge default route',
-        description='add edge default route',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['gateway'], {'help': 'edge gateway', 'action': 'store', 'type': str, 'default': None}),
-            (['-mtu'], {'help': 'mtu', 'action': 'store', 'type': str, 'default': 1500}),
-            (['-vnic'], {'help': 'vnic', 'action': 'store', 'type': str, 'default': 0}),
-        ])
+        help="add edge default route",
+        description="add edge default route",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["gateway"],
+                    {
+                        "help": "edge gateway",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-mtu"],
+                    {"help": "mtu", "action": "store", "type": str, "default": 1500},
+                ),
+                (
+                    ["-vnic"],
+                    {"help": "vnic", "action": "store", "type": str, "default": 0},
+                ),
+            ]
+        ),
     )
     def edge_route_default_add(self):
         oid = self.app.pargs.id
@@ -2314,19 +4772,59 @@ class VspherePlatformController(BaseController):
         mtu = self.app.pargs.mtu
         vnic = self.app.pargs.vnic
         self.client.network.nsx.edge.route_default_add(oid, gateway, mtu=mtu, vnic=vnic)
-        self.app.render({'msg': 'create default route'})
+        self.app.render({"msg": "create default route"})
 
     @ex(
-        help='add edge static route',
-        description='add edge static route',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['desc'], {'help': 'rule description', 'action': 'store', 'type': str, 'default': None}),
-            (['network'], {'help': 'network', 'action': 'store', 'type': str, 'default': ''}),
-            (['next_hop'], {'help': 'next_hop address', 'action': 'store', 'type': str, 'default': ''}),
-            (['-mtu'], {'help': 'mtu', 'action': 'store', 'type': str, 'default': 1500}),
-            (['-vnic'], {'help': 'if True enable logging', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add edge static route",
+        description="add edge static route",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["desc"],
+                    {
+                        "help": "rule description",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["network"],
+                    {"help": "network", "action": "store", "type": str, "default": ""},
+                ),
+                (
+                    ["next_hop"],
+                    {
+                        "help": "next_hop address",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["-mtu"],
+                    {"help": "mtu", "action": "store", "type": str, "default": 1500},
+                ),
+                (
+                    ["-vnic"],
+                    {
+                        "help": "if True enable logging",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_route_static_add(self):
         oid = self.app.pargs.id
@@ -2336,27 +4834,47 @@ class VspherePlatformController(BaseController):
         mtu = self.app.pargs.mtu
         vnic = self.app.pargs.vnic
         self.client.network.nsx.edge.route_static_add(oid, desc, network, next_hop, mtu=mtu, vnic=vnic)
-        self.app.render({'msg': 'create static route %s' % desc})
+        self.app.render({"msg": "create static route %s" % desc})
 
     @ex(
-        help='delete edge static route',
-        description='delete edge static route',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete edge static route",
+        description="delete edge static route",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_route_del_all(self):
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.route_static_del_all(oid)
-        self.app.render({'msg': 'delete all edge %s routes' % oid})
+        self.app.render({"msg": "delete all edge %s routes" % oid})
 
     @ex(
-        help='get edge syslog config',
-        description='get edge syslog config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge syslog config",
+        description="get edge syslog config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_syslog_get(self):
         oid = self.app.pargs.id
@@ -2364,37 +4882,74 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help='add edge syslog servers',
-        description='add edge syslog servers',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['servers'], {'help': 'rsyslog server ip address comma separated', 'action': 'store', 'type': str}),
-        ])
+        help="add edge syslog servers",
+        description="add edge syslog servers",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["servers"],
+                    {
+                        "help": "rsyslog server ip address comma separated",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_syslog_add(self):
         oid = self.app.pargs.id
-        servers = self.app.pargs.servers.split(',')
+        servers = self.app.pargs.servers.split(",")
         self.client.network.nsx.edge.syslog_add(oid, servers)
-        self.app.render({'msg': 'add syslog servers %s to edge %s' % (servers, oid)})
+        self.app.render({"msg": "add syslog servers %s to edge %s" % (servers, oid)})
 
     @ex(
-        help='delete edge syslog servers',
-        description='delete edge syslog servers',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete edge syslog servers",
+        description="delete edge syslog servers",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_syslog_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.syslog_del(oid)
-        self.app.render({'msg': 'delete syslog servers from edge %s' % oid})
+        self.app.render({"msg": "delete syslog servers from edge %s" % oid})
 
     @ex(
-        help='get vsphere edge l2 vpn config',
-        description='get vsphere edge l2 vpn config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vsphere edge l2 vpn config",
+        description="get vsphere edge l2 vpn config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_l2vpn_get(self):
         oid = self.app.pargs.id
@@ -2403,73 +4958,140 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='get edge ssl vpn config',
-        description='get edge ssl vpn config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge ssl vpn config",
+        description="get edge ssl vpn config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_get(self):
         oid = self.app.pargs.id
         sslvpn_config = self.client.network.nsx.edge.sslvpn(oid)
 
-        advanced_config = sslvpn_config.pop('advancedConfig', {})
-        server_settings = sslvpn_config.pop('serverSettings', {})
-        client_configuration = sslvpn_config.pop('clientConfiguration', {})
-        layout_configuration = sslvpn_config.pop('layoutConfiguration', {})
-        ip_address_pools = sslvpn_config.pop('ipAddressPools', {}).get('ipAddressPool', [])
-        private_networks = sslvpn_config.pop('privateNetworks', {}).get('privateNetwork', [])
-        users = sslvpn_config.pop('users', {}).get('user', [])
-        client_install_packages = sslvpn_config.pop('clientInstallPackages', {}).get('clientInstallPackage', {})
-        authentication_configuration = sslvpn_config.pop('authenticationConfiguration', {})\
-            .get('passwordAuthentication', {})
+        advanced_config = sslvpn_config.pop("advancedConfig", {})
+        server_settings = sslvpn_config.pop("serverSettings", {})
+        client_configuration = sslvpn_config.pop("clientConfiguration", {})
+        layout_configuration = sslvpn_config.pop("layoutConfiguration", {})
+        ip_address_pools = sslvpn_config.pop("ipAddressPools", {}).get("ipAddressPool", [])
+        private_networks = sslvpn_config.pop("privateNetworks", {}).get("privateNetwork", [])
+        users = sslvpn_config.pop("users", {}).get("user", [])
+        client_install_packages = sslvpn_config.pop("clientInstallPackages", {}).get("clientInstallPackage", {})
+        authentication_configuration = sslvpn_config.pop("authenticationConfiguration", {}).get(
+            "passwordAuthentication", {}
+        )
 
         self.app.render(sslvpn_config, details=True)
-        self.c('\nserver settings', 'underline')
+        self.c("\nserver settings", "underline")
         self.app.render(server_settings, details=True)
-        self.c('\nadvanced config', 'underline')
+        self.c("\nadvanced config", "underline")
         self.app.render(advanced_config, details=True)
-        self.c('\nclient configuration', 'underline')
+        self.c("\nclient configuration", "underline")
         self.app.render(client_configuration, details=True)
-        self.c('\nlayout configuration', 'underline')
+        self.c("\nlayout configuration", "underline")
         self.app.render(layout_configuration, details=True)
-        self.c('\nclient install packages', 'underline')
+        self.c("\nclient install packages", "underline")
         self.app.render(client_install_packages, details=True)
-        self.c('\nauthentication configuration - primaryAuthServers - localAuthServer', 'underline')
-        self.app.render(authentication_configuration.pop('primaryAuthServers', {}).get('localAuthServer'), details=True)
-        self.c('\nauthentication configuration - primaryAuthServers - LdapAuthServer', 'underline')
-        self.app.render(authentication_configuration.pop('primaryAuthServers', {}).get('LdapAuthServer', {}),
-                        details=True)
-        self.c('\nauthentication configuration - primaryAuthServers - RadiusAuthServer', 'underline')
-        self.app.render(authentication_configuration.pop('primaryAuthServers', {}).get('RadiusAuthServer', {}),
-                        details=True)
-        self.c('\nauthentication configuration - primaryAuthServers - RsaAuthServer', 'underline')
-        self.app.render(authentication_configuration.pop('primaryAuthServers', {}).get('RsaAuthServer', {}),
-                        details=True)
-        self.c('\nauthentication configuration - secondaryAuthServer', 'underline')
-        secondary_auth_server = authentication_configuration.pop('secondaryAuthServer', None)
+        self.c(
+            "\nauthentication configuration - primaryAuthServers - localAuthServer",
+            "underline",
+        )
+        self.app.render(
+            authentication_configuration.pop("primaryAuthServers", {}).get("localAuthServer"),
+            details=True,
+        )
+        self.c(
+            "\nauthentication configuration - primaryAuthServers - LdapAuthServer",
+            "underline",
+        )
+        self.app.render(
+            authentication_configuration.pop("primaryAuthServers", {}).get("LdapAuthServer", {}),
+            details=True,
+        )
+        self.c(
+            "\nauthentication configuration - primaryAuthServers - RadiusAuthServer",
+            "underline",
+        )
+        self.app.render(
+            authentication_configuration.pop("primaryAuthServers", {}).get("RadiusAuthServer", {}),
+            details=True,
+        )
+        self.c(
+            "\nauthentication configuration - primaryAuthServers - RsaAuthServer",
+            "underline",
+        )
+        self.app.render(
+            authentication_configuration.pop("primaryAuthServers", {}).get("RsaAuthServer", {}),
+            details=True,
+        )
+        self.c("\nauthentication configuration - secondaryAuthServer", "underline")
+        secondary_auth_server = authentication_configuration.pop("secondaryAuthServer", None)
         if secondary_auth_server is not None:
             self.app.render(secondary_auth_server, details=True)
-        self.c('\nauthentication configuration', 'underline')
+        self.c("\nauthentication configuration", "underline")
         self.app.render(authentication_configuration, details=True)
-        self.c('\nip address pools', 'underline')
-        headers = ['objectId', 'ipRange', 'netmask', 'gateway', 'primaryDns', 'secondaryDns', 'dnsSuffix', 'winsServer',
-                   'description', 'description', 'enabled']
+        self.c("\nip address pools", "underline")
+        headers = [
+            "objectId",
+            "ipRange",
+            "netmask",
+            "gateway",
+            "primaryDns",
+            "secondaryDns",
+            "dnsSuffix",
+            "winsServer",
+            "description",
+            "description",
+            "enabled",
+        ]
         self.app.render(ip_address_pools, headers=headers)
-        self.c('\nprivate networks', 'underline')
-        headers = ['objectId', 'network', 'sendOverTunnel.optimize', 'description', 'enabled']
+        self.c("\nprivate networks", "underline")
+        headers = [
+            "objectId",
+            "network",
+            "sendOverTunnel.optimize",
+            "description",
+            "enabled",
+        ]
         self.app.render(private_networks, headers=headers)
-        self.c('\nusers', 'underline')
-        headers = ['objectId', 'userId', 'firstName', 'lastName', 'description', 'disableUserAccount',
-                   'passwordNeverExpires', 'allowChangePassword.changePasswordOnNextLogin']
+        self.c("\nusers", "underline")
+        headers = [
+            "objectId",
+            "userId",
+            "firstName",
+            "lastName",
+            "description",
+            "disableUserAccount",
+            "passwordNeverExpires",
+            "allowChangePassword.changePasswordOnNextLogin",
+        ]
         self.app.render(users, headers=headers)
 
     @ex(
-        help='get vsphere edge sslvpn sessions',
-        description='get vsphere edge sslvpn sessions',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get vsphere edge sslvpn sessions",
+        description="get vsphere edge sslvpn sessions",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_session_get(self):
         oid = self.app.pargs.id
@@ -2477,12 +5099,30 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='delete vsphere edge sslvpn session',
-        description='delete vsphere edge sslvpn session',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['session'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge sslvpn session",
+        description="delete vsphere edge sslvpn session",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["session"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_session_delete(self):
         oid = self.app.pargs.id
@@ -2491,13 +5131,39 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='add edge ssl vpn server config',
-        description='add edge ssl vpn server config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['ip'], {'help': 'server ip address', 'action': 'store', 'type': str, 'default': None}),
-            (['port'], {'help': 'server port', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add edge ssl vpn server config",
+        description="add edge ssl vpn server config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ip"],
+                    {
+                        "help": "server ip address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["port"],
+                    {
+                        "help": "server port",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_server_add(self):
         oid = self.app.pargs.id
@@ -2506,13 +5172,39 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_server_config_add(oid, ip, port)
 
     @ex(
-        help='add edge ssl vpn private network',
-        description='add edge ssl vpn private network',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['network'], {'help': 'network cidr', 'action': 'store', 'type': str, 'default': None}),
-            (['-optimize'], {'help': 'send tunnel optimize', 'action': 'store', 'type': str, 'default': True}),
-        ])
+        help="add edge ssl vpn private network",
+        description="add edge ssl vpn private network",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["network"],
+                    {
+                        "help": "network cidr",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-optimize"],
+                    {
+                        "help": "send tunnel optimize",
+                        "action": "store",
+                        "type": str,
+                        "default": True,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_private_network_add(self):
         oid = self.app.pargs.id
@@ -2521,12 +5213,30 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_private_network_add(oid, network, optimize=str2bool(optimize))
 
     @ex(
-        help='delete all the edge ssl vpn private network',
-        description='delete all the  edge ssl vpn private network',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['network'], {'help': 'network id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete all the edge ssl vpn private network",
+        description="delete all the  edge ssl vpn private network",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["network"],
+                    {
+                        "help": "network id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_private_network_del(self):
         oid = self.app.pargs.id
@@ -2534,34 +5244,105 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_private_network_delete(oid, network)
 
     @ex(
-        help='delete all the edge ssl vpn private network',
-        description='delete all the  edge ssl vpn private network',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete all the edge ssl vpn private network",
+        description="delete all the  edge ssl vpn private network",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_sslvpn_private_network_del_all(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_private_network_delete_all(oid)
 
     @ex(
-        help='add edge ssl vpn ippool',
-        description='add edge ssl vpn ippool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['-ip_range'], {'help': 'ip range. Default 172.30.0.10-172.30.0.99', 'action': 'store', 'type': str,
-                             'default': '172.30.0.10-172.30.0.99'}),
-            (['-netmask'], {'help': 'netmask. Default 255.255.255.0', 'action': 'store', 'type': str,
-                            'default': '255.255.255.0'}),
-            (['-gateway'], {'help': 'gateway. Default 172.30.0.1', 'action': 'store', 'type': str,
-                            'default': '172.30.0.1'}),
-            (['-primary_dns'], {'help': 'primary dns. Default 10.103.48.1', 'action': 'store', 'type': str,
-                                'default': '10.103.48.1'}),
-            (['-secondary_dns'], {'help': 'secondary dns. Default 10.103.48.2', 'action': 'store', 'type': str,
-                                  'default': '10.103.48.2'}),
-            (['-dns_suffix'], {'help': 'dns suffix', 'action': 'store', 'type': str, 'default': None}),
-            (['-wins_server'], {'help': 'wins server', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="add edge ssl vpn ippool",
+        description="add edge ssl vpn ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ip_range"],
+                    {
+                        "help": "ip range. Default 172.30.0.10-172.30.0.99",
+                        "action": "store",
+                        "type": str,
+                        "default": "172.30.0.10-172.30.0.99",
+                    },
+                ),
+                (
+                    ["-netmask"],
+                    {
+                        "help": "netmask. Default 255.255.255.0",
+                        "action": "store",
+                        "type": str,
+                        "default": "255.255.255.0",
+                    },
+                ),
+                (
+                    ["-gateway"],
+                    {
+                        "help": "gateway. Default 172.30.0.1",
+                        "action": "store",
+                        "type": str,
+                        "default": "172.30.0.1",
+                    },
+                ),
+                (
+                    ["-primary_dns"],
+                    {
+                        "help": "primary dns. Default 10.103.48.1",
+                        "action": "store",
+                        "type": str,
+                        "default": "10.103.48.1",
+                    },
+                ),
+                (
+                    ["-secondary_dns"],
+                    {
+                        "help": "secondary dns. Default 10.103.48.2",
+                        "action": "store",
+                        "type": str,
+                        "default": "10.103.48.2",
+                    },
+                ),
+                (
+                    ["-dns_suffix"],
+                    {
+                        "help": "dns suffix",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-wins_server"],
+                    {
+                        "help": "wins server",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_ip_pool_add(self):
         oid = self.app.pargs.id
@@ -2572,16 +5353,42 @@ class VspherePlatformController(BaseController):
         secondary_dns = self.app.pargs.secondary_dns
         dns_suffix = self.app.pargs.dns_suffix
         wins_server = self.app.pargs.wins_server
-        self.client.network.nsx.edge.sslvpn_ip_pool_add(oid, ip_range, netmask, gateway, primary_dns, secondary_dns,
-                                                        dns_suffix=dns_suffix, wins_server=wins_server)
+        self.client.network.nsx.edge.sslvpn_ip_pool_add(
+            oid,
+            ip_range,
+            netmask,
+            gateway,
+            primary_dns,
+            secondary_dns,
+            dns_suffix=dns_suffix,
+            wins_server=wins_server,
+        )
 
     @ex(
-        help='delete all the edge ssl vpn ippool',
-        description='delete all the  edge ssl vpn ippool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['ippool'], {'help': 'ippool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete all the edge ssl vpn ippool",
+        description="delete all the  edge ssl vpn ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["ippool"],
+                    {
+                        "help": "ippool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_ip_pool_del(self):
         oid = self.app.pargs.id
@@ -2589,38 +5396,86 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_ip_pool_delete(oid, ippool)
 
     @ex(
-        help='delete all the edge ssl vpn ippool',
-        description='delete all the  edge ssl vpn ippool',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete all the edge ssl vpn ippool",
+        description="delete all the  edge ssl vpn ippool",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_sslvpn_ip_pool_del_all(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_ip_pool_delete_all(oid)
 
     @ex(
-        help='add edge ssl vpn install pkg',
-        description='add edge ssl vpn install pkg',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['name'], {'help': 'install package name', 'action': 'store', 'type': str}),
-            (['gateways'], {'help': 'comma separated list of gateway. server:port', 'action': 'store', 'type': str}),
-        ])
+        help="add edge ssl vpn install pkg",
+        description="add edge ssl vpn install pkg",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["name"],
+                    {"help": "install package name", "action": "store", "type": str},
+                ),
+                (
+                    ["gateways"],
+                    {
+                        "help": "comma separated list of gateway. server:port",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_install_pkg_add(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        gateways = self.app.pargs.gateways.split(',')
-        self.client.network.nsx.edge.sslvpn_install_pkg_add(oid, name, [g.split(':') for g in gateways])
+        gateways = self.app.pargs.gateways.split(",")
+        self.client.network.nsx.edge.sslvpn_install_pkg_add(oid, name, [g.split(":") for g in gateways])
 
     @ex(
-        help='delete all the edge ssl vpn install pkg',
-        description='delete all the  edge ssl vpn install pkg',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['install_pkg'], {'help': 'install_pkg id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete all the edge ssl vpn install pkg",
+        description="delete all the  edge ssl vpn install pkg",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["install_pkg"],
+                    {
+                        "help": "install_pkg id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_install_pkg_del(self):
         oid = self.app.pargs.id
@@ -2628,33 +5483,90 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_install_pkg_delete(oid, install_pkg)
 
     @ex(
-        help='delete all the edge ssl vpn install pkg',
-        description='delete all the  edge ssl vpn install pkg',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None})
-        ])
+        help="delete all the edge ssl vpn install pkg",
+        description="delete all the  edge ssl vpn install pkg",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
     )
     def edge_sslvpn_install_pkg_del_all(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_install_pkg_delete_all(oid)
 
     @ex(
-        help='add edge ssl vpn user',
-        description='add edge ssl vpn user',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['user_id'], {'help': 'user id', 'action': 'store', 'type': str}),
-            (['password'], {'help': 'user password', 'action': 'store', 'type': str}),
-            (['first_name'], {'help': 'first name', 'action': 'store', 'type': str}),
-            (['last_name'], {'help': 'last name', 'action': 'store', 'type': str}),
-            (['desc'], {'help': 'user description', 'action': 'store', 'action': StringAction, 'type': str,
-                        'nargs': '+', 'default': ''}),
-            (['-disable'], {'help': 'disable user account', 'action': 'store', 'type': str, 'default': 'false'}),
-            (['-password_never_expires'], {'help': 'password never expires', 'action': 'store', 'type': str,
-                                           'default': 'true'}),
-            (['-change_password_on_next_login'], {'help': 'change password on next login', 'action': 'store',
-                                                  'type': str, 'default': 'true'}),
-        ])
+        help="add edge ssl vpn user",
+        description="add edge ssl vpn user",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (["user_id"], {"help": "user id", "action": "store", "type": str}),
+                (
+                    ["password"],
+                    {"help": "user password", "action": "store", "type": str},
+                ),
+                (
+                    ["first_name"],
+                    {"help": "first name", "action": "store", "type": str},
+                ),
+                (["last_name"], {"help": "last name", "action": "store", "type": str}),
+                (
+                    ["desc"],
+                    {
+                        "help": "user description",
+                        "action": "store",
+                        "action": StringAction,
+                        "type": str,
+                        "nargs": "+",
+                        "default": "",
+                    },
+                ),
+                (
+                    ["-disable"],
+                    {
+                        "help": "disable user account",
+                        "action": "store",
+                        "type": str,
+                        "default": "false",
+                    },
+                ),
+                (
+                    ["-password_never_expires"],
+                    {
+                        "help": "password never expires",
+                        "action": "store",
+                        "type": str,
+                        "default": "true",
+                    },
+                ),
+                (
+                    ["-change_password_on_next_login"],
+                    {
+                        "help": "change password on next login",
+                        "action": "store",
+                        "type": str,
+                        "default": "true",
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_user_add(self):
         oid = self.app.pargs.id
@@ -2666,17 +5578,43 @@ class VspherePlatformController(BaseController):
         disable = str2bool(self.app.pargs.disable)
         password_expires = str2bool(self.app.pargs.password_never_expires)
         change_password_on_next_login = str2bool(self.app.pargs.change_password_on_next_login)
-        self.client.network.nsx.edge.sslvpn_user_add(oid, user_id, password, first_name, last_name, description,
-                                                     disable=disable, password_expires=password_expires,
-                                                     change_password_on_next_login=change_password_on_next_login)
+        self.client.network.nsx.edge.sslvpn_user_add(
+            oid,
+            user_id,
+            password,
+            first_name,
+            last_name,
+            description,
+            disable=disable,
+            password_expires=password_expires,
+            change_password_on_next_login=change_password_on_next_login,
+        )
 
     @ex(
-        help='delete all the edge ssl vpn user',
-        description='delete all the  edge ssl vpn user',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-            (['user'], {'help': 'user id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete all the edge ssl vpn user",
+        description="delete all the  edge ssl vpn user",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["user"],
+                    {
+                        "help": "user id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_user_del(self):
         oid = self.app.pargs.id
@@ -2684,112 +5622,192 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_user_delete(oid, user)
 
     @ex(
-        help='enable edge ssl vpn service',
-        description='enable edge ssl vpn service',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="enable edge ssl vpn service",
+        description="enable edge ssl vpn service",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_enable(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_enable(oid)
 
     @ex(
-        help='disable edge ssl vpn service',
-        description='disable edge ssl vpn service',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="disable edge ssl vpn service",
+        description="disable edge ssl vpn service",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_disable(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_disable(oid)
 
     @ex(
-        help='delete edge ssl vpn service',
-        description='delete edge ssl vpn service',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete edge ssl vpn service",
+        description="delete edge ssl vpn service",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_sslvpn_delete(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.sslvpn_delete(oid)
 
     @ex(
-        help='delete vsphere edge',
-        description='delete vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge",
+        description="delete vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_availability_config(self):
         """Get edge high availability config.
 
-fields:
-  edge                  edge mor-id"""
+        fields:
+          edge                  edge mor-id"""
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.high_availability(edge)
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='delete vsphere edge',
-        description='delete vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge",
+        description="delete vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_dns_config(self):
         """Get edge dns config.
 
-fields:
-  edge                  edge mor-id"""
+        fields:
+          edge                  edge mor-id"""
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.dns(edge)
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='delete vsphere edge',
-        description='delete vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge",
+        description="delete vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_dhcp_config(self):
         """Get edge dhcp config.
 
-fields:
-  edge                  edge mor-id"""
+        fields:
+          edge                  edge mor-id"""
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.dhcp(edge)
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='delete vsphere edge',
-        description='delete vsphere edge',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="delete vsphere edge",
+        description="delete vsphere edge",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_ipsec_config(self):
         """Get edge ipsec config.
 
-fields:
-  edge                  edge mor-id"""
+        fields:
+          edge                  edge mor-id"""
         oid = self.app.pargs.id
         edge = self.client.network.nsx.edge.get(oid)
         res = self.client.network.nsx.edge.ipsec(edge)
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='get edge global load balancer config',
-        description='get edge global load balancer config',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge global load balancer config",
+        description="get edge global load balancer config",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_gslb_config(self):
         oid = self.app.pargs.id
@@ -2798,37 +5816,43 @@ fields:
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help='enable edge load balancer',
-        description='enable edge load balancer configuration',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-        ])
+        help="enable edge load balancer",
+        description="enable edge load balancer configuration",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_start(self):
         edge_id = self.app.pargs.edge
         res = self.client.network.nsx.edge.lb.config_update(edge_id, enabled=True)
-        msg = {'msg': 'Enable load balancer on edge %s' % edge_id}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Enable load balancer on edge %s" % edge_id}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='disable edge load balancer',
-        description='disable edge load balancer configuration',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-        ])
+        help="disable edge load balancer",
+        description="disable edge load balancer configuration",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_stop(self):
         edge_id = self.app.pargs.edge
         res = self.client.network.nsx.edge.lb.config_update(edge_id, enabled=False)
-        msg = {'msg': 'Disable load balancer on edge %s' % edge_id}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Disable load balancer on edge %s" % edge_id}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer config',
-        description='get edge load balancer config',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-        ])
+        help="get edge load balancer config",
+        description="get edge load balancer config",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_config_get(self):
         edge_id = self.app.pargs.edge
@@ -2837,77 +5861,206 @@ fields:
         def manage_data(data):
             sections = [
                 {
-                    'title': 'monitor',
-                    'headers': ['id', 'name', 'interval', 'timeout', 'maxRetries', 'type', 'method', 'url'],
-                    'fields': ['monitorId', 'name', 'interval', 'timeout', 'maxRetries', 'type', 'method', 'url']
+                    "title": "monitor",
+                    "headers": [
+                        "id",
+                        "name",
+                        "interval",
+                        "timeout",
+                        "maxRetries",
+                        "type",
+                        "method",
+                        "url",
+                    ],
+                    "fields": [
+                        "monitorId",
+                        "name",
+                        "interval",
+                        "timeout",
+                        "maxRetries",
+                        "type",
+                        "method",
+                        "url",
+                    ],
                 },
                 {
-                    'title': 'pool',
-                    'headers': ['id', 'name', 'desc', 'transparent', 'algorithm', 'monitor_id'],
-                    'fields': ['poolId', 'name', 'description', 'transparent', 'algorithm', 'monitorId']
+                    "title": "pool",
+                    "headers": [
+                        "id",
+                        "name",
+                        "desc",
+                        "transparent",
+                        "algorithm",
+                        "monitor_id",
+                    ],
+                    "fields": [
+                        "poolId",
+                        "name",
+                        "description",
+                        "transparent",
+                        "algorithm",
+                        "monitorId",
+                    ],
                 },
                 {
-                    'title': 'applicationProfile',
-                    'headers': ['id', 'name', 'insertXForwardedFor', 'serverSslEnabled',
-                                'template', 'sslPassthrough', 'clientSsl.clientAuth', 'clientSsl.ciphers',
-                                'clientSsl.serviceCertificate'],
-                    'fields': ['applicationProfileId', 'name', 'insertXForwardedFor', 'serverSslEnabled',
-                               'template', 'sslPassthrough', 'clientSsl.clientAuth', 'clientSsl.ciphers',
-                               'clientSsl.serviceCertificate']
+                    "title": "applicationProfile",
+                    "headers": [
+                        "id",
+                        "name",
+                        "insertXForwardedFor",
+                        "serverSslEnabled",
+                        "template",
+                        "sslPassthrough",
+                        "clientSsl.clientAuth",
+                        "clientSsl.ciphers",
+                        "clientSsl.serviceCertificate",
+                    ],
+                    "fields": [
+                        "applicationProfileId",
+                        "name",
+                        "insertXForwardedFor",
+                        "serverSslEnabled",
+                        "template",
+                        "sslPassthrough",
+                        "clientSsl.clientAuth",
+                        "clientSsl.ciphers",
+                        "clientSsl.serviceCertificate",
+                    ],
                 },
                 {
-                    'title': 'applicationRule',
-                    'headers': ['id', 'name', 'script'],
-                    'fields': ['applicationRuleId', 'name', 'script']
+                    "title": "applicationRule",
+                    "headers": ["id", "name", "script"],
+                    "fields": ["applicationRuleId", "name", "script"],
                 },
                 {
-                    'title': 'virtualServer',
-                    'headers': ['id', 'name', 'desc', 'app_rules', 'enabled', 'app_profile',
-                                'conn_rate_limit', 'conn_limit', 'service_insert', 'acceleration',
-                                'ip_addr',  'proto', 'port'],
-                    'fields': ['virtualServerId', 'name', 'description', 'applicationRuleId',
-                               'enabled', 'applicationProfileId', 'connectionRateLimit', 'connectionLimit',
-                               'enableServiceInsertion', 'accelerationEnabled', 'ipAddress', 'protocol', 'port']
-                }
+                    "title": "virtualServer",
+                    "headers": [
+                        "id",
+                        "name",
+                        "desc",
+                        "app_rules",
+                        "enabled",
+                        "app_profile",
+                        "conn_rate_limit",
+                        "conn_limit",
+                        "service_insert",
+                        "acceleration",
+                        "ip_addr",
+                        "proto",
+                        "port",
+                    ],
+                    "fields": [
+                        "virtualServerId",
+                        "name",
+                        "description",
+                        "applicationRuleId",
+                        "enabled",
+                        "applicationProfileId",
+                        "connectionRateLimit",
+                        "connectionLimit",
+                        "enableServiceInsertion",
+                        "accelerationEnabled",
+                        "ipAddress",
+                        "protocol",
+                        "port",
+                    ],
+                },
             ]
             pool_members = []
             for item in sections:
-                item['value'] = data.pop(item.get('title'))
+                item["value"] = data.pop(item.get("title"))
 
-                if item.get('title') == 'pool':
-                    for pool in item['value']:
+                if item.get("title") == "pool":
+                    for pool in item["value"]:
                         members = []
-                        for m in pool.pop('member'):
-                            m['poolId'] = pool.get('poolId')
-                            m['poolName'] = pool.get('name')
+                        for m in pool.pop("member"):
+                            m["poolId"] = pool.get("poolId")
+                            m["poolName"] = pool.get("name")
                             members.append(m)
                         pool_members.extend(members)
 
-            sections.append({
-                'title': 'pool members',
-                'value': pool_members,
-                'headers': ['pool-id', 'pool-name', 'id', 'name', 'weight', 'ip-addr', 'condition', 'port',
-                            'monitor-port', 'min-conn', 'max_conn'],
-                'fields': ['poolId', 'poolName', 'memberId', 'name', 'weight', 'ipAddress', 'condition', 'port',
-                           'monitorPort', 'minConn', 'maxConn']
-            })
+            sections.append(
+                {
+                    "title": "pool members",
+                    "value": pool_members,
+                    "headers": [
+                        "pool-id",
+                        "pool-name",
+                        "id",
+                        "name",
+                        "weight",
+                        "ip-addr",
+                        "condition",
+                        "port",
+                        "monitor-port",
+                        "min-conn",
+                        "max_conn",
+                    ],
+                    "fields": [
+                        "poolId",
+                        "poolName",
+                        "memberId",
+                        "name",
+                        "weight",
+                        "ipAddress",
+                        "condition",
+                        "port",
+                        "monitorPort",
+                        "minConn",
+                        "maxConn",
+                    ],
+                }
+            )
 
             return data, sections
 
         self.app.render(res, details=True, maxsize=200, manage_data=manage_data)
 
     @ex(
-        help='set general edge load balancer parameters',
-        description='set general edge load balancer parameters',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-acceleration'], {'help': 'force load balancer to use L4 engine which is faster and more efficient than '
-                                         'L7 engine', 'action': 'store', 'type': str, 'choices': [True, False]}),
-            (['-logging'], {'help': 'enable/disable load balancer logging', 'action': 'store', 'type': str,
-                            'choices': [True, False]}),
-            (['-log_level'], {'help': 'logging level', 'action': 'store', 'type': str, 'choices': ['emergency',
-                              'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug']}),
-        ])
+        help="set general edge load balancer parameters",
+        description="set general edge load balancer parameters",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-acceleration"],
+                    {
+                        "help": "force load balancer to use L4 engine which is faster and more efficient than "
+                        "L7 engine",
+                        "action": "store",
+                        "type": str,
+                        "choices": [True, False],
+                    },
+                ),
+                (
+                    ["-logging"],
+                    {
+                        "help": "enable/disable load balancer logging",
+                        "action": "store",
+                        "type": str,
+                        "choices": [True, False],
+                    },
+                ),
+                (
+                    ["-log_level"],
+                    {
+                        "help": "logging level",
+                        "action": "store",
+                        "type": str,
+                        "choices": [
+                            "emergency",
+                            "alert",
+                            "critical",
+                            "error",
+                            "warning",
+                            "notice",
+                            "info",
+                            "debug",
+                        ],
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_config_set(self):
         edge_id = self.app.pargs.edge
@@ -2919,23 +6072,33 @@ fields:
 
         data = {}
         if acceleration is not None:
-            data.update({'acceleration_enabled': acceleration})
+            data.update({"acceleration_enabled": acceleration})
         if logging is not None:
-            data.update({'logging': str2bool(logging)})
+            data.update({"logging": str2bool(logging)})
         if log_level is not None:
-            data.update({'log_level': log_level})
+            data.update({"log_level": log_level})
 
         res = self.client.network.nsx.edge.lb.config_update(edge_id, **data)
-        msg = {'msg': 'Update load balancer configuration on edge %s' % edge_id}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update load balancer configuration on edge %s" % edge_id}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer statistics',
-        description='get edge load balancer statistics',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-pool'], {'help': 'pool id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge load balancer statistics",
+        description="get edge load balancer statistics",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-pool"],
+                    {
+                        "help": "pool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_stats_get(self):
         edge_id = self.app.pargs.edge
@@ -2945,68 +6108,193 @@ fields:
 
         if pool_id is not None:
             if self.is_output_text():
-                pools = res.pop('pool', [])
-                pools = [p for p in pools if dict_get(p, 'poolId') == pool_id]
+                pools = res.pop("pool", [])
+                pools = [p for p in pools if dict_get(p, "poolId") == pool_id]
                 if len(pools) > 0:
                     pool = pools[0]
-                    member = pool.pop('member', [])
+                    member = pool.pop("member", [])
 
                     self.app.render(pool, details=True)
-                    self.c('\nmembers', 'underline')
-                    headers = ['memberId', 'name', 'ipAddress', 'status', 'failureCause', 'lastStateChangeTime',
-                               'bytesIn', 'bytesOut', 'curSessions', 'httpReqTotal', 'httpReqRate', 'httpReqRateMax',
-                               'maxSessions', 'rate', 'rateLimit', 'rateMax', 'totalSessions']
-                    fields = ['memberId', 'name', 'ipAddress', 'status', 'bytesIn', 'bytesOut', 'curSessions',
-                              'httpReqTotal', 'httpReqRate', 'httpReqRateMax', 'maxSessions', 'rate', 'rateLimit',
-                              'rateMax', 'totalSessions']
+                    self.c("\nmembers", "underline")
+                    headers = [
+                        "memberId",
+                        "name",
+                        "ipAddress",
+                        "status",
+                        "failureCause",
+                        "lastStateChangeTime",
+                        "bytesIn",
+                        "bytesOut",
+                        "curSessions",
+                        "httpReqTotal",
+                        "httpReqRate",
+                        "httpReqRateMax",
+                        "maxSessions",
+                        "rate",
+                        "rateLimit",
+                        "rateMax",
+                        "totalSessions",
+                    ]
+                    fields = [
+                        "memberId",
+                        "name",
+                        "ipAddress",
+                        "status",
+                        "bytesIn",
+                        "bytesOut",
+                        "curSessions",
+                        "httpReqTotal",
+                        "httpReqRate",
+                        "httpReqRateMax",
+                        "maxSessions",
+                        "rate",
+                        "rateLimit",
+                        "rateMax",
+                        "totalSessions",
+                    ]
                     self.app.render(member, headers=headers, fields=fields)
-                    self.c('\nmembers failure', 'underline')
-                    headers = ['memberId', 'name', 'failureCause', 'lastStateChangeTime']
-                    fields = ['memberId', 'name', 'failureCause', 'lastStateChangeTime']
+                    self.c("\nmembers failure", "underline")
+                    headers = [
+                        "memberId",
+                        "name",
+                        "failureCause",
+                        "lastStateChangeTime",
+                    ]
+                    fields = ["memberId", "name", "failureCause", "lastStateChangeTime"]
                     self.app.render(member, headers=headers, fields=fields)
             else:
                 self.app.render(res, details=True)
         else:
             if self.is_output_text():
-                pools = res.pop('pool', [])
-                virt_servers = res.pop('virtualServer', [])
+                pools = res.pop("pool", [])
+                virt_servers = res.pop("virtualServer", [])
 
-                self.c('\nvirtualServers', 'underline')
-                headers = ['virtualServerId', 'name', 'ipAddress', 'status', 'bytesIn', 'bytesOut', 'curSessions',
-                           'httpReqTotal', 'httpReqRate', 'httpReqRateMax', 'maxSessions',
-                           'rate', 'rateLimit', 'rateMax', 'totalSessions']
-                fields = ['virtualServerId', 'name', 'ipAddress', 'status', 'bytesIn', 'bytesOut', 'curSessions',
-                          'httpReqTotal', 'httpReqRate', 'httpReqRateMax', 'maxSessions',
-                          'rate', 'rateLimit', 'rateMax', 'totalSessions']
+                self.c("\nvirtualServers", "underline")
+                headers = [
+                    "virtualServerId",
+                    "name",
+                    "ipAddress",
+                    "status",
+                    "bytesIn",
+                    "bytesOut",
+                    "curSessions",
+                    "httpReqTotal",
+                    "httpReqRate",
+                    "httpReqRateMax",
+                    "maxSessions",
+                    "rate",
+                    "rateLimit",
+                    "rateMax",
+                    "totalSessions",
+                ]
+                fields = [
+                    "virtualServerId",
+                    "name",
+                    "ipAddress",
+                    "status",
+                    "bytesIn",
+                    "bytesOut",
+                    "curSessions",
+                    "httpReqTotal",
+                    "httpReqRate",
+                    "httpReqRateMax",
+                    "maxSessions",
+                    "rate",
+                    "rateLimit",
+                    "rateMax",
+                    "totalSessions",
+                ]
                 self.app.render(virt_servers, headers=headers, fields=fields)
 
-                self.c('\npools', 'underline')
-                headers = ['poolId', 'name', 'status', 'bytesIn', 'bytesOut', 'curSessions', 'httpReqTotal',
-                           'httpReqRate', 'httpReqRateMax', 'maxSessions', 'rate', 'rateLimit', 'rateMax',
-                           'totalSessions']
-                fields = ['poolId', 'name', 'status', 'bytesIn', 'bytesOut', 'curSessions', 'httpReqTotal',
-                          'httpReqRate', 'httpReqRateMax', 'maxSessions', 'rate', 'rateLimit', 'rateMax',
-                          'totalSessions']
+                self.c("\npools", "underline")
+                headers = [
+                    "poolId",
+                    "name",
+                    "status",
+                    "bytesIn",
+                    "bytesOut",
+                    "curSessions",
+                    "httpReqTotal",
+                    "httpReqRate",
+                    "httpReqRateMax",
+                    "maxSessions",
+                    "rate",
+                    "rateLimit",
+                    "rateMax",
+                    "totalSessions",
+                ]
+                fields = [
+                    "poolId",
+                    "name",
+                    "status",
+                    "bytesIn",
+                    "bytesOut",
+                    "curSessions",
+                    "httpReqTotal",
+                    "httpReqRate",
+                    "httpReqRateMax",
+                    "maxSessions",
+                    "rate",
+                    "rateLimit",
+                    "rateMax",
+                    "totalSessions",
+                ]
                 self.app.render(pools, headers=headers, fields=fields)
             else:
                 self.app.render(res, details=True)
 
     def __render_members(self, members):
-        self.c('\nmembers', 'underline')
-        headers = ['id', 'name', 'ipAddress', 'weight', 'monitorPort', 'port', 'maxConn', 'minConn',
-                   'condition']
-        fields = ['memberId', 'name', 'ipAddress', 'weight', 'monitorPort', 'port', 'maxConn', 'minConn',
-                  'condition']
+        self.c("\nmembers", "underline")
+        headers = [
+            "id",
+            "name",
+            "ipAddress",
+            "weight",
+            "monitorPort",
+            "port",
+            "maxConn",
+            "minConn",
+            "condition",
+        ]
+        fields = [
+            "memberId",
+            "name",
+            "ipAddress",
+            "weight",
+            "monitorPort",
+            "port",
+            "maxConn",
+            "minConn",
+            "condition",
+        ]
         self.app.render(members, headers=headers, fields=fields)
 
     @ex(
-        help='get edge load balancer pools',
-        description='get edge load balancer pools',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-id'], {'help': 'pool id', 'action': 'store', 'type': str, 'default': None}),
-            (['-name'], {'help': 'pool name', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge load balancer pools",
+        description="get edge load balancer pools",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-id"],
+                    {
+                        "help": "pool id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "pool name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_pool_get(self):
         edge_id = self.app.pargs.edge
@@ -3016,7 +6304,7 @@ fields:
         if pool_id is not None:
             res = self.client.network.nsx.edge.lb.pool_get(edge_id, pool_id)
             if self.is_output_text():
-                members = res.pop('member', [])
+                members = res.pop("member", [])
                 self.app.render(res, details=True)
                 self.__render_members(members)
             else:
@@ -3024,180 +6312,327 @@ fields:
         else:
             res = self.client.network.nsx.edge.lb.pool_list(edge_id)
             if pool_name is not None:
-                pool = next((item for item in res if item.get('name') == pool_name), None)
+                pool = next((item for item in res if item.get("name") == pool_name), None)
                 if pool is not None:
-                    members = pool.pop('member', [])
+                    members = pool.pop("member", [])
                     self.app.render(pool, details=True)
                     self.__render_members(members)
                 else:
-                    msg = {'msg': 'Pool %s not found' % pool_name}
-                    self.app.render(msg, headers=['msg'])
+                    msg = {"msg": "Pool %s not found" % pool_name}
+                    self.app.render(msg, headers=["msg"])
             else:
-                headers = ['id', 'name', 'desc', 'transparent', 'algorithm', 'monitor_id']
-                fields = ['poolId', 'name', 'description', 'transparent', 'algorithm', 'monitorId']
+                headers = [
+                    "id",
+                    "name",
+                    "desc",
+                    "transparent",
+                    "algorithm",
+                    "monitor_id",
+                ]
+                fields = [
+                    "poolId",
+                    "name",
+                    "description",
+                    "transparent",
+                    "algorithm",
+                    "monitorId",
+                ]
                 self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge load balancer pool',
-        description='add edge load balancer pool',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'pool name', 'action': 'store', 'type': str}),
-            (['algorithm'], {'metavar': 'algorithm', 'help': 'balancing algorithm {round-robin,ip-hash,leastconn,uri}',
-                             'choices': ['round-robin', 'ip-hash', 'leastconn', 'uri'], 'action': 'store',
-                             'type': str, }),
-            (['-desc'], {'help': 'pool description', 'action': 'store', 'type': str, 'default': ''}),
-            (['-transparent'], {'help': 'whether client IP addresses are visible to the backend servers',
-                                'action': 'store', 'type': bool, 'default': False, 'choices': [True, False]}),
-            (['-monitor'], {'help': 'health check monitor id', 'action': 'store', 'type': str}),
-            (['-ip_ver'], {'help': 'ip address version', 'action': 'store', 'type': str, 'choices': ['ipv4', 'ipv6']})
-        ])
+        help="add edge load balancer pool",
+        description="add edge load balancer pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["name"], {"help": "pool name", "action": "store", "type": str}),
+                (
+                    ["algorithm"],
+                    {
+                        "metavar": "algorithm",
+                        "help": "balancing algorithm {round-robin,ip-hash,leastconn,uri}",
+                        "choices": ["round-robin", "ip-hash", "leastconn", "uri"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-desc"],
+                    {
+                        "help": "pool description",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["-transparent"],
+                    {
+                        "help": "whether client IP addresses are visible to the backend servers",
+                        "action": "store",
+                        "type": bool,
+                        "default": False,
+                        "choices": [True, False],
+                    },
+                ),
+                (
+                    ["-monitor"],
+                    {"help": "health check monitor id", "action": "store", "type": str},
+                ),
+                (
+                    ["-ip_ver"],
+                    {
+                        "help": "ip address version",
+                        "action": "store",
+                        "type": str,
+                        "choices": ["ipv4", "ipv6"],
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_pool_add(self):
         edge_id = self.app.pargs.edge
         name = self.app.pargs.name
         algorithm = self.app.pargs.algorithm
         params = {
-            'description': self.app.pargs.desc,
-            'transparent': bool2str(self.app.pargs.transparent),
-            'monitor_id': self.app.pargs.monitor,
-            'ip_version': self.app.pargs.ip_ver,
+            "description": self.app.pargs.desc,
+            "transparent": self.app.pargs.transparent,
+            "monitor_id": self.app.pargs.monitor,
+            "ip_version": self.app.pargs.ip_ver,
         }
 
         res = self.client.network.nsx.edge.lb.pool_add(edge_id, name, algorithm, **params)
-        pool_id = res.get('ext_id')
-
-        msg = {'msg': 'Add pool %s on edge %s' % (pool_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Add pool %s on edge %s" % (res.get("ext_id"), edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='add member to edge load balancer pool',
-        description='add member to edge load balancer pool',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'pool id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'member name', 'action': 'store', 'type': str}),
-            (['-ip_addr'], {'help': 'member ip address', 'action': 'store', 'type': str, 'default': None}),
-            (['-grouping_obj_id'], {'help': 'member grouping object id', 'action': 'store', 'type': str,
-                                    'default': None}),
-            (['-port'], {'help': 'member port', 'action': 'store', 'type': int, 'default': 80}),
-            (['-monit_port'], {'help': 'monitor port', 'action': 'store', 'type': int, 'default': 80}),
-            (['-weight'], {'help': 'member weight', 'action': 'store', 'type': int, 'default': 1}),
-            (['-max_conn'], {'help': 'maximum number of concurrent connections a member can handle. Default is 0 which '
-                             'means unlimited', 'action': 'store', 'type': int, 'default': 0}),
-            (['-min_conn'], {'help': 'minimum number of concurrent connections a member can handle. Default is 0 which '
-                             'means unlimited', 'action': 'store', 'type': int, 'default': 0}),
-            (['-cond'], {'help': 'Whether the member is enabled or disabled. Default is enabled', 'action': 'store',
-                         'type': str, 'default': 'enabled'})
-        ])
+        help="add member to edge load balancer pool",
+        description="add member to edge load balancer pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "pool id", "action": "store", "type": str}),
+                (["name"], {"help": "member name", "action": "store", "type": str}),
+                (
+                    ["-ip_addr"],
+                    {
+                        "help": "member ip address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-grouping_obj_id"],
+                    {
+                        "help": "member grouping object id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-port"],
+                    {
+                        "help": "member port",
+                        "action": "store",
+                        "type": int,
+                        "default": 80,
+                    },
+                ),
+                (
+                    ["-monit_port"],
+                    {
+                        "help": "monitor port",
+                        "action": "store",
+                        "type": int,
+                        "default": 80,
+                    },
+                ),
+                (
+                    ["-weight"],
+                    {
+                        "help": "member weight",
+                        "action": "store",
+                        "type": int,
+                        "default": 1,
+                    },
+                ),
+                (
+                    ["-max_conn"],
+                    {
+                        "help": "maximum number of concurrent connections a member can handle. Default is 0 which "
+                        "means unlimited",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-min_conn"],
+                    {
+                        "help": "minimum number of concurrent connections a member can handle. Default is 0 which "
+                        "means unlimited",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-cond"],
+                    {
+                        "help": "Whether the member is enabled or disabled. Default is enabled",
+                        "action": "store",
+                        "type": str,
+                        "default": "enabled",
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_pool_member_add(self):
         edge_id = self.app.pargs.edge
         pool_id = self.app.pargs.id
         name = self.app.pargs.name
         params = {
-            'name': name,
-            'ip_address': self.app.pargs.ip_addr,
-            'grouping_obj_id': self.app.pargs.grouping_obj_id,
-            'port': self.app.pargs.port,
-            'monitor_port': self.app.pargs.monit_port,
-            'weight': self.app.pargs.weight,
-            'max_conn': self.app.pargs.max_conn,
-            'min_conn': self.app.pargs.min_conn,
-            'condition': self.app.pargs.cond,
+            "name": name,
+            "ip_addr": self.app.pargs.ip_addr,
+            "grouping_obj_id": self.app.pargs.grouping_obj_id,
+            "port": self.app.pargs.port,
+            "monitor_port": self.app.pargs.monit_port,
+            "weight": self.app.pargs.weight,
+            "max_conn": self.app.pargs.max_conn,
+            "min_conn": self.app.pargs.min_conn,
+            "condition": self.app.pargs.cond,
         }
-        params = [params]
 
-        self.client.network.nsx.edge.lb.pool_members_add(edge_id, pool_id, params)
-
-        msg = {'msg': 'Add member %s in pool %s on edge %s' % (name, pool_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        self.client.network.nsx.edge.lb.pool_members_add(edge_id, pool_id, [params])
+        msg = {"msg": "Add member %s in pool %s on edge %s" % (name, pool_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='remove member from edge load balancer pool',
-        description='remove member from edge load balancer pool',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['pool'], {'help': 'pool id', 'action': 'store', 'type': str}),
-            (['ids'], {'help': 'comma separated list of member ids', 'action': 'store', 'type': str}),
-        ])
+        help="remove member from edge load balancer pool",
+        description="remove member from edge load balancer pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["pool"], {"help": "pool id", "action": "store", "type": str}),
+                (
+                    ["ids"],
+                    {
+                        "help": "comma separated list of member ids",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_pool_members_del(self):
         edge_id = self.app.pargs.edge
         pool_id = self.app.pargs.pool
         member_ids = self.app.pargs.ids
-        member_ids = member_ids.split(',')
+        member_ids = member_ids.split(",")
 
         res = self.client.network.nsx.edge.lb.pool_member_del(edge_id, pool_id, member_ids)
-
-        msg = {'msg': 'Remove members %s from pool %s on edge %s' % (member_ids, pool_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Remove members %s from pool %s on edge %s" % (member_ids, pool_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='update edge load balancer pool',
-        description='update edge load balancer pool',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'pool id', 'action': 'store', 'type': str})
-        ])
+        help="update edge load balancer pool",
+        description="update edge load balancer pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "pool id", "action": "store", "type": str}),
+                (
+                    ["-algorithm"],
+                    {
+                        "metavar": "algorithm",
+                        "help": "balancing algorithm {round-robin,ip-hash,leastconn,uri}",
+                        "choices": ["round-robin", "ip-hash", "leastconn", "uri"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-transparent"],
+                    {
+                        "help": "whether client IP addresses are visible to the backend servers",
+                        "action": "store",
+                        "type": bool,
+                        "default": False,
+                        "choices": [True, False],
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_pool_update(self):
-        """
-
-        TODO: define parameters to modify
-
-        :return:
-        """
         edge_id = self.app.pargs.edge
         pool_id = self.app.pargs.id
-        params = {}
+        params = {
+            "algorithm": self.app.pargs.algorithm,
+            "transparent": self.app.pargs.transparent,
+        }
 
         res = self.client.network.nsx.edge.lb.pool_update(edge_id, pool_id, **params)
-
-        msg = {'msg': 'Update pool %s on edge %s' % (pool_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update pool %s on edge %s" % (pool_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='delete edge load balancer pool',
-        description='delete edge load balancer pool',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'pool id', 'action': 'store', 'type': str}),
-        ])
+        help="delete edge load balancer pool",
+        description="delete edge load balancer pool",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "pool id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_pool_del(self):
         edge_id = self.app.pargs.edge
         pool_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.pool_del(edge_id, pool_id)
-
-        msg = {'msg': 'Delete pool %s on edge %s' % (pool_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Delete pool %s on edge %s" % (pool_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer application profiles',
-        description='get edge load balancer application profiles',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-id'], {'help': 'application profile id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge load balancer application profiles",
+        description="get edge load balancer application profiles",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-id"],
+                    {
+                        "help": "application profile id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_app_profile_get(self):
-        edge_id = getattr(self.app.pargs, 'edge', None)
-        profile_id = getattr(self.app.pargs, 'id', None)
+        edge_id = getattr(self.app.pargs, "edge", None)
+        profile_id = getattr(self.app.pargs, "id", None)
         if profile_id is not None:
             res = self.client.network.nsx.edge.lb.app_profile_get(edge_id, profile_id)
 
             def manage_data(data):
                 sections = [
                     {
-                        'title': 'clientSsl',
-                        'headers': ['serviceCertificate', 'ciphers', 'clientAuth'],
-                        'fields': ['serviceCertificate', 'ciphers', 'clientAuth']
+                        "title": "clientSsl",
+                        "headers": ["serviceCertificate", "ciphers", "clientAuth"],
+                        "fields": ["serviceCertificate", "ciphers", "clientAuth"],
                     }
                 ]
                 for item in sections:
-                    item['value'] = data.pop(item.get('title'), None)
+                    item["value"] = data.pop(item.get("title"), None)
 
                 return data, sections
 
@@ -3205,144 +6640,375 @@ fields:
 
         else:
             res = self.client.network.nsx.edge.lb.app_profile_list(edge_id)
-            headers = ['id', 'name', 'insertXForwardedFor', 'serverSslEnabled', 'template', 'sslPassthrough',
-                       'clientSsl.clientAuth', 'clientSsl.ciphers', 'clientSsl.serviceCertificate']
-            fields = ['applicationProfileId', 'name', 'insertXForwardedFor', 'serverSslEnabled', 'template',
-                      'sslPassthrough', 'clientSsl.clientAuth', 'clientSsl.ciphers', 'clientSsl.serviceCertificate']
+            headers = [
+                "id",
+                "name",
+                "insertXForwardedFor",
+                "serverSslEnabled",
+                "template",
+                "sslPassthrough",
+                "clientSsl.clientAuth",
+                "clientSsl.ciphers",
+                "clientSsl.serviceCertificate",
+            ]
+            fields = [
+                "applicationProfileId",
+                "name",
+                "insertXForwardedFor",
+                "serverSslEnabled",
+                "template",
+                "sslPassthrough",
+                "clientSsl.clientAuth",
+                "clientSsl.ciphers",
+                "clientSsl.serviceCertificate",
+            ]
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge load balancer application profile',
-        description='add edge load balancer application profile',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'profile name', 'action': 'store', 'type': str}),
-            (['template'], {'metavar': 'template', 'help': 'network traffic template {TCP,UDP,HTTP,HTTPS}',
-                            'choices': ['TCP', 'UDP', 'HTTP', 'HTTPS'], 'action': 'store', 'type': str}),
-            (['-http_redirect_url'], {'help': 'HTTP redirect URL', 'action': 'store', 'type': str, 'default': None}),
-            (['-persistence'], {'help': 'persistence method', 'choices': ['cookie', 'ssl_sessionid', 'sourceip',
-                                'msrdp'], 'action': 'store', 'type': str, 'default': None}),
-            (['-expire'], {'help': 'persistence time in seconds [Default=300]', 'action': 'store', 'type': str,
-                           'default': 300}),
-            (['-cookie_name'], {'help': 'cookie name', 'action': 'store', 'type': str, 'default': None}),
-            (['-cookie_mode'], {'help': 'cookie mode [Default=insert]', 'choices': ['insert', 'prefix', 'app'],
-                                'action': 'store', 'type': str, 'default': 'insert'}),
-            (['-insert_x_forwarded_for'], {'help': 'insert X-Forwarded-for HTTP header [Default=False]',
-                                           'action': 'store', 'type': bool, 'choices': [True, False],
-                                           'default': False}),
-            (['-ssl_passthrough'], {'help': 'enable SSL passthrough [Default=False]', 'action': 'store', 'type': bool,
-                                    'choices': [True, False], 'default': False}),
-            (['-client_ssl_serv_cert'], {'help': 'client service certificate id. Required when client ssl=True',
-                                         'action': 'store', 'type': str, 'default': None}),
-            (['-client_ssl_ca_cert'], {'help': 'client ca certificate id [Optional]', 'action': 'store', 'type': str,
-                                       'default': None}),
-            (['-client_ssl_cipher'], {'help': 'client cipher suite [Default=DEFAULT]', 'choices': ['DEFAULT',
-                                      'ECDHE-RSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES256-GCM-SHA384',
-                                      'ECDHE-RSA-AES256-SHA', 'ECDHE-ECDSA-AES256-SHA', 'ECDH-ECDSA-AES256-SHA',
-                                      'ECDH-RSA-AES256-SHA', 'AES256-SHA AES128-SHA', 'DES-CBC3-SHA'],
-                                      'action': 'store', 'type': str, 'default': 'DEFAULT'}),
-            (['-client_auth'], {'help': 'whether peer certificate should be verified [Default=Ignore]',
-                                'choices': ['Required', 'Ignore'], 'action': 'store', 'type': str,
-                                'default': 'Ignore'}),
-            (['-server_ssl_serv_cert'], {'help': 'server service certificate id', 'action': 'store', 'type': str,
-                                         'default': None}),
-            (['-server_ssl_ca_cert'], {'help': 'server ca certificate id. Mandatory if -server_auth is set to Required',
-                                       'action': 'store', 'type': str, 'default': None}),
-            (['-server_ssl_cipher'], {'help': 'server cipher suite [Default=DEFAULT]', 'choices': ['DEFAULT',
-                                      'ECDHE-RSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES256-GCM-SHA384',
-                                      'ECDHE-RSA-AES256-SHA', 'ECDHE-ECDSA-AES256-SHA', 'ECDH-ECDSA-AES256-SHA',
-                                      'ECDH-RSA-AES256-SHA', 'AES256-SHA AES128-SHA', 'DES-CBC3-SHA'],
-                                      'action': 'store', 'type': str, 'default': 'DEFAULT'}),
-            (['-server_auth'], {'help': 'whether peer certificate should be verified [Default=Ignore]',
-                                'choices': ['Required', 'Ignore'], 'action': 'store', 'type': str,
-                                'default': 'Ignore'}),
-            (['-server_ssl_enabled'], {'help': 'enable pool side SSL [Default=False]', 'choices': [True, False],
-                                       'action': 'store', 'type': bool, 'default': False}),
-        ])
+        help="add edge load balancer application profile",
+        description="add edge load balancer application profile",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["name"], {"help": "profile name", "action": "store", "type": str}),
+                (
+                    ["template"],
+                    {
+                        "metavar": "template",
+                        "help": "network traffic template {TCP,UDP,HTTP,HTTPS}",
+                        "choices": ["TCP", "UDP", "HTTP", "HTTPS"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-http_redirect_url"],
+                    {
+                        "help": "HTTP redirect URL",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-persistence"],
+                    {
+                        "help": "persistence method",
+                        "choices": ["cookie", "ssl_sessionid", "sourceip", "msrdp"],
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-expire"],
+                    {
+                        "help": "persistence time in seconds [Default=300]",
+                        "action": "store",
+                        "type": str,
+                        "default": 300,
+                    },
+                ),
+                (
+                    ["-cookie_name"],
+                    {
+                        "help": "cookie name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-cookie_mode"],
+                    {
+                        "help": "cookie mode [Default=insert]",
+                        "choices": ["insert", "prefix", "app"],
+                        "action": "store",
+                        "type": str,
+                        "default": "insert",
+                    },
+                ),
+                (
+                    ["-insert_x_forwarded_for"],
+                    {
+                        "help": "insert X-Forwarded-for HTTP header [Default=False]",
+                        "action": "store",
+                        "type": bool,
+                        "choices": [True, False],
+                        "default": False,
+                    },
+                ),
+                (
+                    ["-ssl_passthrough"],
+                    {
+                        "help": "enable SSL passthrough [Default=False]",
+                        "action": "store",
+                        "type": bool,
+                        "choices": [True, False],
+                        "default": False,
+                    },
+                ),
+                (
+                    ["-client_ssl_serv_cert"],
+                    {
+                        "help": "client service certificate id. Required when client ssl=True",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-client_ssl_ca_cert"],
+                    {
+                        "help": "client ca certificate id [Optional]",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-client_ssl_cipher"],
+                    {
+                        "help": "client cipher suite [Default=DEFAULT]",
+                        "choices": [
+                            "DEFAULT",
+                            "ECDHE-RSA-AES128-GCM-SHA256",
+                            "ECDHE-RSA-AES256-GCM-SHA384",
+                            "ECDHE-RSA-AES256-SHA",
+                            "ECDHE-ECDSA-AES256-SHA",
+                            "ECDH-ECDSA-AES256-SHA",
+                            "ECDH-RSA-AES256-SHA",
+                            "AES256-SHA AES128-SHA",
+                            "DES-CBC3-SHA",
+                        ],
+                        "action": "store",
+                        "type": str,
+                        "default": "DEFAULT",
+                    },
+                ),
+                (
+                    ["-client_auth"],
+                    {
+                        "help": "whether peer certificate should be verified [Default=Ignore]",
+                        "choices": ["Required", "Ignore"],
+                        "action": "store",
+                        "type": str,
+                        "default": "Ignore",
+                    },
+                ),
+                (
+                    ["-server_ssl_serv_cert"],
+                    {
+                        "help": "server service certificate id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-server_ssl_ca_cert"],
+                    {
+                        "help": "server ca certificate id. Mandatory if -server_auth is set to Required",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-server_ssl_cipher"],
+                    {
+                        "help": "server cipher suite [Default=DEFAULT]",
+                        "choices": [
+                            "DEFAULT",
+                            "ECDHE-RSA-AES128-GCM-SHA256",
+                            "ECDHE-RSA-AES256-GCM-SHA384",
+                            "ECDHE-RSA-AES256-SHA",
+                            "ECDHE-ECDSA-AES256-SHA",
+                            "ECDH-ECDSA-AES256-SHA",
+                            "ECDH-RSA-AES256-SHA",
+                            "AES256-SHA AES128-SHA",
+                            "DES-CBC3-SHA",
+                        ],
+                        "action": "store",
+                        "type": str,
+                        "default": "DEFAULT",
+                    },
+                ),
+                (
+                    ["-server_auth"],
+                    {
+                        "help": "whether peer certificate should be verified [Default=Ignore]",
+                        "choices": ["Required", "Ignore"],
+                        "action": "store",
+                        "type": str,
+                        "default": "Ignore",
+                    },
+                ),
+                (
+                    ["-server_ssl_enabled"],
+                    {
+                        "help": "enable pool side SSL [Default=False]",
+                        "choices": [True, False],
+                        "action": "store",
+                        "type": bool,
+                        "default": False,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_app_profile_add(self):
         edge_id = self.app.pargs.edge
         name = self.app.pargs.name
         template = self.app.pargs.template
         params = {
-            'http_redirect_url': self.app.pargs.http_redirect_url,
-            'persistence': {
-                'method': self.app.pargs.persistence,
-                'expire': self.app.pargs.expire,
-                'cookie_name': self.app.pargs.cookie_name,
-                'cookie_mode': self.app.pargs.cookie_mode,
+            "http_redirect_url": self.app.pargs.http_redirect_url,
+            "persistence": {
+                "method": self.app.pargs.persistence,
+                "expire": self.app.pargs.expire,
+                "cookie_name": self.app.pargs.cookie_name,
+                "cookie_mode": self.app.pargs.cookie_mode,
             },
-            'insert_x_forwarded_for': self.app.pargs.insert_x_forwarded_for,
-            'ssl_passthrough': self.app.pargs.ssl_passthrough,
-            'client_ssl_service_certificate': self.app.pargs.client_ssl_serv_cert,
-            'client_ssl_ca_certificate': self.app.pargs.client_ssl_ca_cert,
-            'client_ssl_cipher': self.app.pargs.client_ssl_cipher,
-            'client_auth': self.app.pargs.client_auth,
-            'server_ssl_service_certificate': self.app.pargs.server_ssl_serv_cert,
-            'server_ssl_ca_certificate': self.app.pargs.server_ssl_ca_cert,
-            'server_ssl_cipher': self.app.pargs.server_ssl_cipher,
-            'server_auth': self.app.pargs.server_auth,
-            'server_ssl_enabled': self.app.pargs.server_ssl_enabled
+            "insert_x_forwarded_for": self.app.pargs.insert_x_forwarded_for,
+            "ssl_passthrough": self.app.pargs.ssl_passthrough,
+            "client_ssl_service_certificate": self.app.pargs.client_ssl_serv_cert,
+            "client_ssl_ca_certificate": self.app.pargs.client_ssl_ca_cert,
+            "client_ssl_cipher": self.app.pargs.client_ssl_cipher,
+            "client_auth": self.app.pargs.client_auth,
+            "server_ssl_service_certificate": self.app.pargs.server_ssl_serv_cert,
+            "server_ssl_ca_certificate": self.app.pargs.server_ssl_ca_cert,
+            "server_ssl_cipher": self.app.pargs.server_ssl_cipher,
+            "server_auth": self.app.pargs.server_auth,
+            "server_ssl_enabled": self.app.pargs.server_ssl_enabled,
         }
 
         res = self.client.network.nsx.edge.lb.app_profile_add(edge_id, name, template, **params)
-        app_profile_id = res.get('ext_id')
-
-        msg = {'msg': 'Add app profile %s on edge %s' % (app_profile_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Add app profile %s on edge %s" % (res.get("ext_id"), edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='update edge load balancer application profile',
-        description='update edge load balancer application profile',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'profile id', 'action': 'store', 'type': str}),
-        ])
+        help="update edge load balancer application profile",
+        description="update edge load balancer application profile",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "profile id", "action": "store", "type": str}),
+                (
+                    ["-http_redirect_url"],
+                    {
+                        "help": "HTTP redirect URL",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-persistence"],
+                    {
+                        "help": "persistence method",
+                        "choices": ["cookie", "ssl_sessionid", "sourceip", "msrdp"],
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-expire"],
+                    {
+                        "help": "persistence time in seconds [Default=300]",
+                        "action": "store",
+                        "type": str,
+                        "default": 300,
+                    },
+                ),
+                (
+                    ["-cookie_name"],
+                    {
+                        "help": "cookie name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-cookie_mode"],
+                    {
+                        "help": "cookie mode [Default=insert]",
+                        "choices": ["insert", "prefix", "app"],
+                        "action": "store",
+                        "type": str,
+                        "default": "insert",
+                    },
+                ),
+                (
+                    ["-insert_x_forwarded_for"],
+                    {
+                        "help": "insert X-Forwarded-for HTTP header [Default=False]",
+                        "action": "store",
+                        "type": bool,
+                        "choices": [True, False],
+                        "default": False,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_app_profile_update(self):
-        """
-
-        TODO: define parameters to modify
-
-        :return:
-        """
         edge_id = self.app.pargs.edge
         profile_id = self.app.pargs.id
-        params = {}
+        params = {
+            "persistence": {
+                "method": self.app.pargs.persistence,
+                "cookieName": self.app.pargs.cookie_name,
+                "cookieMode": self.app.pargs.cookie_mode,
+                "expire": self.app.pargs.expire,
+            },
+            "insertXForwardedFor": self.app.pargs.insert_x_forwarded_for,
+            "http_redirect_url": self.app.pargs.http_redirect_url,
+        }
 
         res = self.client.network.nsx.edge.lb.app_profile_update(edge_id, profile_id, **params)
-
-        msg = {'msg': 'Update app profile %s on edge %s' % (profile_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update app profile %s on edge %s" % (profile_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='delete edge load balancer application profile',
-        description='delete edge load balancer application profile',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'profile id', 'action': 'store', 'type': str}),
-        ])
+        help="delete edge load balancer application profile",
+        description="delete edge load balancer application profile",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "profile id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_app_profile_del(self):
         edge_id = self.app.pargs.edge
         profile_id = self.app.pargs.id
 
         res = self.client.network.nsx.edge.lb.app_profile_del(edge_id, profile_id)
-
-        msg = {'msg': 'Delete profile %s on edge %s' % (profile_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Delete profile %s on edge %s" % (profile_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer application rules',
-        description='get edge load balancer application rules',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-id'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge load balancer application rules",
+        description="get edge load balancer application rules",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-id"],
+                    {
+                        "help": "rule id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_rule_get(self):
-        """Get edge load balancer application rules.
-        """
+        """Get edge load balancer application rules."""
         edge_id = self.app.pargs.edge
         rule_id = self.app.pargs.id
         if rule_id is not None:
@@ -3350,128 +7016,251 @@ fields:
             self.app.render(res, details=True, maxsize=400)
         else:
             res = self.client.network.nsx.edge.lb.app_rule_list(edge_id)
-            headers = ['id', 'name', 'script']
-            fields = ['applicationRuleId', 'name', 'script']
+            headers = ["id", "name", "script"]
+            fields = ["applicationRuleId", "name", "script"]
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge load balancer application rule',
-        description='add edge load balancer application rule',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'rule name', 'action': 'store', 'type': str}),
-            (['script'], {'help': 'rule script. If it starts with "@", read content from a file. '
-                          'E.g. acl is_site01 hdr_dom(host) -i test-lb.site01.nivolapiemonte.it | use_backend '
-                          'test-pool-1 if is_site01', 'action': 'store', 'type': str}),
-        ])
+        help="add edge load balancer application rule",
+        description="add edge load balancer application rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["name"], {"help": "rule name", "action": "store", "type": str}),
+                (
+                    ["script"],
+                    {
+                        "help": 'rule script. If it starts with "@", read content from a file. '
+                        "E.g. acl is_site01 hdr_dom(host) -i test-lb.site01.nivolapiemonte.it | use_backend "
+                        "test-pool-1 if is_site01",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_rule_add(self):
         edge_id = self.app.pargs.edge
         name = self.app.pargs.name
         script = self.app.pargs.script
-        if script is not None and script.find('@') == 0:
-            script = BaseController.load_file(script.lstrip('@'))
+        if script is not None and script.find("@") == 0:
+            script = BaseController.load_file(script.lstrip("@"))
         res = self.client.network.nsx.edge.lb.app_rule_add(edge_id, name, script)
-        msg = {'msg': 'Add application rule %s to edge %s' % (name, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Add application rule %s to edge %s" % (name, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='update edge load balancer application rules',
-        description='update edge load balancer application rules',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'rule id', 'action': 'store', 'type': str}),
-            (['-name'], {'help': 'rule name', 'action': 'store', 'type': str, 'default': None}),
-            (['-script'], {'help': 'rule script', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="update edge load balancer application rules",
+        description="update edge load balancer application rules",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "rule id", "action": "store", "type": str}),
+                (
+                    ["-name"],
+                    {
+                        "help": "rule name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-script"],
+                    {
+                        "help": "rule script",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_rule_update(self):
         edge_id = self.app.pargs.edge
         rule_id = self.app.pargs.id
         name = self.app.pargs.name
         script = self.app.pargs.script
-        if script is not None and script.find('@') == 0:
-            script = BaseController.load_file(script.lstrip('@'))
+        if script is not None and script.find("@") == 0:
+            script = BaseController.load_file(script.lstrip("@"))
         res = self.client.network.nsx.edge.lb.app_rule_update(edge_id, rule_id, name=name, script=script)
-        msg = {'msg': 'Update application rule %s to edge %s' % (rule_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update application rule %s to edge %s" % (rule_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='delete edge load balancer application rules',
-        description='delete edge load balancer application rules',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'rule id', 'action': 'store', 'type': str}),
-        ])
+        help="delete edge load balancer application rules",
+        description="delete edge load balancer application rules",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "rule id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_rule_del(self):
         edge_id = self.app.pargs.edge
         rule_id = self.app.pargs.id
         res = self.client.network.nsx.edge.lb.app_rule_del(edge_id, rule_id)
-        msg = {'msg': 'Delete application rule %s on edge %s' % (rule_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Delete application rule %s on edge %s" % (rule_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer monitors',
-        description='get edge load balancer monitors',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-id'], {'help': 'monitor id', 'action': 'store', 'type': str}),
-            (['-name'], {'help': 'monitor name', 'action': 'store', 'type': str}),
-        ])
+        help="get edge load balancer monitors",
+        description="get edge load balancer monitors",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["-id"], {"help": "monitor id", "action": "store", "type": str}),
+                (["-name"], {"help": "monitor name", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_monitor_get(self):
-        """Get edge load balancer monitors.
-        """
-        edge_id = getattr(self.app.pargs, 'edge', None)
-        monitor_id = getattr(self.app.pargs, 'id', None)
-        monitor_name = getattr(self.app.pargs, 'name', None)
+        """Get edge load balancer monitors."""
+        edge_id = getattr(self.app.pargs, "edge", None)
+        monitor_id = getattr(self.app.pargs, "id", None)
+        monitor_name = getattr(self.app.pargs, "name", None)
         if monitor_id is not None:
             res = self.client.network.nsx.edge.lb.monitor_get(edge_id, monitor_id)
             self.app.render(res, details=True, maxsize=400)
         else:
             res = self.client.network.nsx.edge.lb.monitor_list(edge_id)
             if monitor_name is not None:
-                monitor = next((item for item in res if item.get('name') == monitor_name), None)
+                monitor = next((item for item in res if item.get("name") == monitor_name), None)
                 if monitor is not None:
                     self.app.render(monitor, details=True, maxsize=400)
                 else:
-                    msg = {'msg': 'Health monitor %s not found' % monitor_name}
-                    self.app.render(msg, headers=['msg'])
+                    msg = {"msg": "Health monitor %s not found" % monitor_name}
+                    self.app.render(msg, headers=["msg"])
             else:
-                headers = ['id', 'type', 'name', 'url', 'method', 'interval', 'timeout', 'max_retries']
-                fields = ['monitorId', 'type', 'name', 'url', 'method', 'interval', 'timeout', 'maxRetries']
+                headers = [
+                    "id",
+                    "type",
+                    "name",
+                    "url",
+                    "method",
+                    "interval",
+                    "timeout",
+                    "max_retries",
+                ]
+                fields = [
+                    "monitorId",
+                    "type",
+                    "name",
+                    "url",
+                    "method",
+                    "interval",
+                    "timeout",
+                    "maxRetries",
+                ]
                 self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge load balancer monitor',
-        description='add edge load balancer monitor',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'monitor name', 'action': 'store', 'type': str}),
-            (['type'], {'metavar': 'type', 'help': 'monitor type {HTTP,HTTPS,TCP,ICMP,UDP}', 'choices': ['HTTP',
-                        'HTTPS', 'TCP', 'ICMP', 'UDP'], 'action': 'store', 'type': str}),
-            (['-interval'], {'help': 'interval in seconds in which a server is to be tested [Default=5]',
-                             'action': 'store', 'type': int, 'default': 5}),
-            (['-timeout'], {'help': 'maximum time in seconds in which a response from the server must be received '
-                                    '[Default=15]', 'action': 'store', 'type': int, 'default': 15}),
-            (['-max_retries'], {'help': 'maximum number of times the server is tested before it is declared down '
-                                        '[Default=3]', 'action': 'store', 'type': int, 'default': 3}),
-            (['-method'], {'help': 'method to send the health check request to the server [Default=GET for HTTP/HTTPS '
-                           'monitor type]', 'choices': ['GET', 'POST', 'OPTIONS'], 'action': 'store', 'type': str}),
-            (['-url'], {'help': 'URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]', 'action': 'store',
-                        'type': str}),
-            (['-expected'], {'help': 'expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]',
-                             'action': 'store', 'type': str, 'default': None}),
-            (['-send'], {'help': 'string to be sent to the backend server after a connection is established. This '
-                                 'option is mandatory when monitor type is UDP.', 'action': 'store', 'type': str,
-                         'default': None}),
-            (['-receive'], {'help': 'string to be received from the backend server for HTTP/HTTPS protocol . This '
-                                    'option is mandatory when monitor type is UDP.',
-                            'action': 'store', 'type': str, 'default': None}),
-            (['-extension'], {'help': 'advanced monitor configuration.', 'action': 'store', 'type': str,
-                              'default': None}),
-        ])
+        help="add edge load balancer monitor",
+        description="add edge load balancer monitor",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["name"], {"help": "monitor name", "action": "store", "type": str}),
+                (
+                    ["type"],
+                    {
+                        "metavar": "type",
+                        "help": "monitor type {HTTP,HTTPS,TCP,ICMP,UDP}",
+                        "choices": ["HTTP", "HTTPS", "TCP", "ICMP", "UDP"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-interval"],
+                    {
+                        "help": "interval in seconds in which a server is to be tested [Default=5]",
+                        "action": "store",
+                        "type": int,
+                        "default": 5,
+                    },
+                ),
+                (
+                    ["-timeout"],
+                    {
+                        "help": "maximum time in seconds in which a response from the server must be received "
+                        "[Default=15]",
+                        "action": "store",
+                        "type": int,
+                        "default": 15,
+                    },
+                ),
+                (
+                    ["-max_retries"],
+                    {
+                        "help": "maximum number of times the server is tested before it is declared down "
+                        "[Default=3]",
+                        "action": "store",
+                        "type": int,
+                        "default": 3,
+                    },
+                ),
+                (
+                    ["-method"],
+                    {
+                        "help": "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
+                        "monitor type]",
+                        "choices": ["GET", "POST", "OPTIONS"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-url"],
+                    {
+                        "help": 'URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]',
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-expected"],
+                    {
+                        "help": 'expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]',
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-send"],
+                    {
+                        "help": "string to be sent to the backend server after a connection is established. This "
+                        "option is mandatory when monitor type is UDP.",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-receive"],
+                    {
+                        "help": "string to be received from the backend server for HTTP/HTTPS protocol. This "
+                        "option is mandatory when monitor type is UDP.",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-extension"],
+                    {
+                        "help": "advanced monitor configuration.",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_monitor_add(self):
         edge_id = self.app.pargs.edge
@@ -3479,83 +7268,172 @@ fields:
         monitor_type = self.app.pargs.type
 
         method = self.app.pargs.method
-        if method is None and monitor_type in ['HTTP', 'HTTPS']:
-            method = 'GET'
+        if method is None and monitor_type in ["HTTP", "HTTPS"]:
+            method = "GET"
 
         url = self.app.pargs.url
-        if url is None and monitor_type in ['HTTP', 'HTTPS']:
-            url = '/'
+        if url is None and monitor_type in ["HTTP", "HTTPS"]:
+            url = "/"
 
         expected = self.app.pargs.expected
-        if expected is None and monitor_type in ['HTTP', 'HTTPS']:
-            expected = 'HTTP/1'
+        if expected is None and monitor_type in ["HTTP", "HTTPS"]:
+            expected = "HTTP/1"
 
         params = {
-            'interval': self.app.pargs.interval,
-            'timeout': self.app.pargs.timeout,
-            'max_retries': self.app.pargs.max_retries,
-            'method': method,
-            'url': url,
-            'expected': expected,
-            'send': self.app.pargs.send,
-            'receive': self.app.pargs.receive,
-            'extension': self.app.pargs.extension
+            "interval": self.app.pargs.interval,
+            "timeout": self.app.pargs.timeout,
+            "max_retries": self.app.pargs.max_retries,
+            "method": method,
+            "url": url,
+            "expected": expected,
+            "send": self.app.pargs.send,
+            "receive": self.app.pargs.receive,
+            "extension": self.app.pargs.extension,
         }
 
         res = self.client.network.nsx.edge.lb.monitor_add(edge_id, name, monitor_type, **params)
-        monitor_id = res.get('ext_id')
-
-        msg = {'msg': 'Add monitor %s on edge %s' % (monitor_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Add monitor %s on edge %s" % (res.get("ext_id"), edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='update edge load balancer service monitor',
-        description='update edge load balancer service monitor',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'monitor id', 'action': 'store', 'type': str}),
-        ])
+        help="update edge load balancer service monitor",
+        description="update edge load balancer service monitor",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "monitor id", "action": "store", "type": str}),
+                (
+                    ["-interval"],
+                    {
+                        "help": "interval in seconds in which a server is to be tested [Default=5]",
+                        "action": "store",
+                        "type": int,
+                        "default": 5,
+                    },
+                ),
+                (
+                    ["-timeout"],
+                    {
+                        "help": "maximum time in seconds in which a response from the server must be received "
+                        "[Default=15]",
+                        "action": "store",
+                        "type": int,
+                        "default": 15,
+                    },
+                ),
+                (
+                    ["-max_retries"],
+                    {
+                        "help": "maximum number of times the server is tested before it is declared down "
+                        "[Default=3]",
+                        "action": "store",
+                        "type": int,
+                        "default": 3,
+                    },
+                ),
+                (
+                    ["-method"],
+                    {
+                        "help": "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
+                        "monitor type]",
+                        "choices": ["GET", "POST", "OPTIONS"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-url"],
+                    {
+                        "help": 'URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]',
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-expected"],
+                    {
+                        "help": 'expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]',
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-send"],
+                    {
+                        "help": "string to be sent to the backend server after a connection is established. This "
+                        "option is mandatory when monitor type is UDP.",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-receive"],
+                    {
+                        "help": "string to be received from the backend server for HTTP/HTTPS protocol. This "
+                        "option is mandatory when monitor type is UDP.",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_monitor_update(self):
-        """
-
-        TODO: define parameters to modify
-
-        :return:
-        """
         edge_id = self.app.pargs.edge
         monitor_id = self.app.pargs.id
-        params = {}
+        params = {
+            "interval": self.app.pargs.interval,
+            "timeout": self.app.pargs.timeout,
+            "max_retries": self.app.pargs.max_retries,
+            "method": self.app.pargs.method,
+            "url": self.app.pargs.url,
+            "expected": self.app.pargs.expected,
+            "send": self.app.pargs.send,
+            "receive": self.app.pargs.receive,
+        }
 
         res = self.client.network.nsx.edge.lb.monitor_update(edge_id, monitor_id, **params)
-
-        msg = {'msg': 'Update monitor %s on edge %s' % (monitor_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update monitor %s on edge %s" % (monitor_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='delete edge load balancer monitor',
-        description='delete edge load balancer monitor',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'monitor id', 'action': 'store', 'type': str}),
-        ])
+        help="delete edge load balancer monitor",
+        description="delete edge load balancer monitor",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "monitor id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_monitor_del(self):
         edge_id = self.app.pargs.edge
         monitor_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.monitor_del(edge_id, monitor_id)
-
-        msg = {'msg': 'Delete monitor %s on edge %s' % (monitor_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Delete monitor %s on edge %s" % (monitor_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='get edge load balancer virtual servers',
-        description='get edge load balancer virtual servers',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['-id'], {'help': 'virtual server id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get edge load balancer virtual servers",
+        description="get edge load balancer virtual servers",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-id"],
+                    {
+                        "help": "virtual server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_virt_server_get(self):
         edge_id = self.app.pargs.edge
@@ -3565,31 +7443,100 @@ fields:
             self.app.render(res, details=True)
         else:
             res = self.client.network.nsx.edge.lb.virt_server_list(edge_id)
-            headers = ['id', 'name', 'enable', 'ip_address', 'protocol', 'port', 'app_profile', 'pool']
-            fields = ['virtualServerId', 'name', 'enabled', 'ipAddress', 'protocol', 'port', 'applicationProfileId',
-                      'defaultPoolId']
+            headers = [
+                "id",
+                "name",
+                "description",
+                "enable",
+                "ip_address",
+                "protocol",
+                "port",
+                "app_profile",
+                "pool",
+            ]
+            fields = [
+                "virtualServerId",
+                "name",
+                "description",
+                "enabled",
+                "ipAddress",
+                "protocol",
+                "port",
+                "applicationProfileId",
+                "defaultPoolId",
+            ]
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help='add edge load balancer virtual server',
-        description='add edge load balancer virtual server',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['name'], {'help': 'virtual server name', 'action': 'store', 'type': str}),
-            (['ip_address'], {'help': 'ip address that the load balancer is listening on', 'action': 'store',
-                              'type': str}),
-            (['protocol'], {'metavar': 'protocol', 'help': 'virtual server protocol {HTTP,HTTPS}', 'choices': ['HTTP',
-                            'HTTPS'], 'action': 'store', 'type': str}),
-            (['port'], {'help': 'port number', 'action': 'store', 'type': int}),
-            (['app_profile'], {'help': 'application profile id', 'action': 'store', 'type': str}),
-            (['pool'], {'help': 'pool id', 'action': 'store', 'type': str}),
-            (['-desc'], {'help': 'virtual server description', 'action': 'store', 'type': str, 'default': ''}),
-            (['-max_conn'], {'help': 'maximum concurrent connections', 'action': 'store', 'type': int}),
-            (['-max_conn_rate'], {'help': 'maximum incoming new connection requests per second', 'action': 'store',
-                                  'type': int}),
-            (['-acceleration_enabled'], {'help': 'use faster L4 load balancer engine rather than L7 load balancer '
-                                                 'engine', 'choices': [True, False], 'action': 'store', 'type': bool}),
-        ])
+        help="add edge load balancer virtual server",
+        description="add edge load balancer virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["name"],
+                    {"help": "virtual server name", "action": "store", "type": str},
+                ),
+                (
+                    ["ip_address"],
+                    {
+                        "help": "ip address that the load balancer is listening on",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["protocol"],
+                    {
+                        "metavar": "protocol",
+                        "help": "virtual server protocol {HTTP,HTTPS}",
+                        "choices": ["HTTP", "HTTPS"],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (["port"], {"help": "port number", "action": "store", "type": int}),
+                (
+                    ["app_profile"],
+                    {"help": "application profile id", "action": "store", "type": str},
+                ),
+                (["pool"], {"help": "pool id", "action": "store", "type": str}),
+                (
+                    ["-desc"],
+                    {
+                        "help": "virtual server description",
+                        "action": "store",
+                        "type": str,
+                        "default": "",
+                    },
+                ),
+                (
+                    ["-max_conn"],
+                    {
+                        "help": "maximum concurrent connections",
+                        "action": "store",
+                        "type": int,
+                    },
+                ),
+                (
+                    ["-max_conn_rate"],
+                    {
+                        "help": "maximum incoming new connection requests per second",
+                        "action": "store",
+                        "type": int,
+                    },
+                ),
+                (
+                    ["-acceleration_enabled"],
+                    {
+                        "help": "use faster L4 load balancer engine rather than L7 load balancer " "engine",
+                        "choices": [True, False],
+                        "action": "store",
+                        "type": bool,
+                    },
+                ),
+            ]
+        ),
     )
     def edge_lb_virt_server_add(self):
         edge_id = self.app.pargs.edge
@@ -3600,118 +7547,270 @@ fields:
         app_profile = self.app.pargs.app_profile
         pool = self.app.pargs.pool
         params = {
-            'description': self.app.pargs.desc,
-            'max_conn': self.app.pargs.max_conn,
-            'max_conn_rate': self.app.pargs.max_conn_rate,
-            'acceleration_enabled': self.app.pargs.acceleration_enabled,
+            "description": self.app.pargs.desc,
+            "max_conn": self.app.pargs.max_conn,
+            "max_conn_rate": self.app.pargs.max_conn_rate,
+            "acceleration_enabled": self.app.pargs.acceleration_enabled,
         }
 
-        res = self.client.network.nsx.edge.lb.virt_server_add(edge_id, name, ip_address, protocol, port, app_profile,
-                                                              pool, **params)
-        virt_srv_id = res.get('ext_id')
-
-        msg = {'msg': 'Add virtual server %s on edge %s' % (virt_srv_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        res = self.client.network.nsx.edge.lb.virt_server_add(
+            edge_id, name, ip_address, protocol, port, app_profile, pool, **params
+        )
+        msg = {"msg": "Add virtual server %s on edge %s" % (res.get("ext_id"), edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='update edge load balancer virtual server',
-        description='update edge load balancer virtual server',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'virtual server id', 'action': 'store', 'type': str}),
-            (['-enabled'], {'help': 'whether the virtual server is enabled', 'choices': [True, False],
-                            'action': 'store', 'type': bool}),
-            (['-ip_address'], {'help': 'ip address that the load balancer is listening on', 'action': 'store',
-                               'type': str}),
-            (['-protocol'], {'help': 'virtual server protocol', 'choices': [True, False], 'action': 'store',
-                             'type': str}),
-            (['-port'], {'help': 'port number', 'action': 'store', 'type': int}),
-            (['-app_profile'], {'help': 'application profile id', 'action': 'store', 'type': str}),
-            (['-pool'], {'help': 'pool id', 'action': 'store', 'type': str}),
-        ])
+        help="update edge load balancer virtual server",
+        description="update edge load balancer virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+                (
+                    ["-enabled"],
+                    {
+                        "help": "whether the virtual server is enabled",
+                        "choices": [True, False],
+                        "action": "store",
+                        "type": bool,
+                    },
+                ),
+                (
+                    ["-ip_address"],
+                    {
+                        "help": "ip address that the load balancer is listening on",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["-protocol"],
+                    {
+                        "help": "virtual server protocol",
+                        "choices": [True, False],
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (["-port"], {"help": "port number", "action": "store", "type": int}),
+                (
+                    ["-app_profile"],
+                    {"help": "application profile id", "action": "store", "type": str},
+                ),
+                (["-pool"], {"help": "pool id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_virt_server_update(self):
         edge_id = self.app.pargs.edge
         virt_srv_id = self.app.pargs.id
         params = {
-            'enabled': self.app.pargs.enabled,
-            'ip_address': self.app.pargs.ip_address,
-            'protocol': self.app.pargs.protocol,
-            'port': self.app.pargs.port,
-            'app_profile': self.app.pargs.app_profile,
-            'pool': self.app.pargs.pool,
+            "enabled": self.app.pargs.enabled,
+            "ip_address": self.app.pargs.ip_address,
+            "protocol": self.app.pargs.protocol,
+            "port": self.app.pargs.port,
+            "app_profile": self.app.pargs.app_profile,
+            "pool": self.app.pargs.pool,
         }
 
         res = self.client.network.nsx.edge.lb.virt_server_update(edge_id, virt_srv_id, **params)
-
-        msg = {'msg': 'Update virtual server %s on edge %s' % (virt_srv_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Update virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='delete edge load balancer virtual server',
-        description='delete edge load balancer virtual server',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'virtual server id', 'action': 'store', 'type': str}),
-        ])
+        help="delete edge load balancer virtual server",
+        description="delete edge load balancer virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_virt_server_del(self):
         edge_id = self.app.pargs.edge
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_del(edge_id, virt_srv_id)
-
-        msg = {'msg': 'Delete virtual server %s on edge %s' % (virt_srv_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Delete virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='enable edge load balancer virtual server',
-        description='enable edge load balancer virtual server',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'virtual server id', 'action': 'store', 'type': str}),
-        ])
+        help="enable edge load balancer virtual server",
+        description="enable edge load balancer virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_virt_server_enable(self):
         edge_id = self.app.pargs.edge
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_enable(edge_id, virt_srv_id)
-
-        msg = {'msg': 'Enable virtual server %s on edge %s' % (virt_srv_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Enable virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='disable edge load balancer virtual server',
-        description='disable edge load balancer virtual server',
-        arguments=VSPHERE_ARGS([
-            (['edge'], {'help': 'edge id', 'action': 'store', 'type': str}),
-            (['id'], {'help': 'virtual server id', 'action': 'store', 'type': str}),
-        ])
+        help="disable edge load balancer virtual server",
+        description="disable edge load balancer virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+            ]
+        ),
     )
     def edge_lb_virt_server_disable(self):
         edge_id = self.app.pargs.edge
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_disable(edge_id, virt_srv_id)
-
-        msg = {'msg': 'Disable virtual server %s on edge %s' % (virt_srv_id, edge_id)}
-        self.app.render(msg, headers=['msg'])
+        msg = {"msg": "Disable virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        self.app.render(msg, headers=["msg"])
 
     @ex(
-        help='list vsphere dlr',
-        description='list vsphere dlr',
-        arguments=VSPHERE_ARGS([
-            (['id'], {'help': 'edge id', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="Add account in description of nsx virtual server",
+        description="add account in description of nsx virtual server",
+        arguments=VSPHERE_ARGS(
+            [
+                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (
+                    ["-id"],
+                    {
+                        "help": "virtual server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def edge_lb_virt_server_add_account_desc(self):
+        def get_account_desc_by_params(controller, params):
+            nodes_uri = "%s/nodes" % controller.api.baseuri
+            for item in params:
+                nodes = controller.cmp_get(nodes_uri, data=item).get("nodes", [])
+                if len(nodes) < 1:
+                    continue
+                for node in nodes:
+                    node_uri = node["__meta__"]["uri"]
+                    enr_node = controller.cmp_get(node_uri)
+                    enr_nodes = enr_node.get("node", [])
+                    enr_groups = enr_nodes.get("groups", [])
+                    if len(enr_groups) < 1:
+                        continue
+                    enr_group = enr_groups[0]
+                    account = enr_group["name"]
+                    return account
+            return None
+
+        def add_edge_account(controller, edge_pool_vs, edge_id):
+            pool_vs = edge_pool_vs[edge_id]
+            pool_d = {p["poolId"]: p for p in net_nsx_lb.pool_list(edge_id)}
+            for pool_id in pool_vs.keys():
+                vs = pool_vs[pool_id]
+                pool = pool_d[pool_id]
+                params = [
+                    {"ip_address": a["ipAddress"], "names": a["name"]}
+                    for a in pool.get("member", [])
+                    if a.get("condition") == "enabled"
+                ]
+                if len(params) < 1:
+                    self.app.log.debug("Skip %s %s it has no enabled ip in pool %s" % (edge_id, vs_id, pool_id))
+                account_desc = get_account_desc_by_params(controller, params)
+                vs["account"] = account_desc
+
+        def update_vs_descriptions(edge_pool_vs):
+            for edge_id in edge_pool_vs:
+                vss = edge_pool_vs[edge_id].values()
+                for vs in vss:
+                    vs_id = vs["virtualServerId"]
+                    vs_description = vs.get("virtualServerDescription")
+                    if vs_description is not None and '"account":' in vs_description:
+                        self.app.log.debug("Skip %s %s it has description %s" % (edge_id, vs_id, vs_description))
+                        continue
+                    account = vs["account"]
+                    if account is None:
+                        continue
+                    params = {
+                        "description": {"account": account},
+                    }
+                    self.app.log.debug("Update %s %s with account %s" % (edge_id, vs_id, account))
+                    pool = net_nsx_lb.virt_server_update(edge_id, vs_id, **params)
+
+        from beehive3_cli.core.cmp_api_client import CmpApiClient
+
+        edge_id = getattr(self.app.pargs, "edge", None)
+        virt_srv_id = getattr(self.app.pargs, "id", None)
+        net_nsx_edge = self.client.network.nsx.edge
+        net_nsx_lb = net_nsx_edge.lb
+        edge_ids = []
+        if edge_id is not None:
+            edge_ids = [edge_id]
+        else:
+            edge_ids = [a["objectId"] for a in net_nsx_edge.list()]
+        edge_pool_vs = {}
+        for edge_id in edge_ids:
+            vss = []
+            if virt_srv_id is not None:
+                vs_n = net_nsx_lb.virt_server_get(edge_id, virt_srv_id)
+                if vs_n is not None:
+                    vss = [vs_n]
+            else:
+                vss = net_nsx_lb.virt_server_list(edge_id)
+
+            if len(vss) < 1:
+                continue
+            edge_pool_vs[edge_id] = {}
+            for vs in vss:
+                vs_id = vs["virtualServerId"]
+                vs_description = vs.get("description")
+                if vs.get("enabled") != "true":
+                    self.app.log.debug("Skip %s %s it is disabled" % (edge_id, vs_id))
+                    continue
+                edge_pool_vs[edge_id][vs["defaultPoolId"]] = {
+                    "virtualServerId": vs_id,
+                    "virtualServerDescription": vs_description,
+                }
+        cmp = {"baseuri": "/v1.0/gas", "subsystem": "ssh"}
+        self.api = CmpApiClient(
+            self.app,
+            cmp.get("subsystem"),
+            cmp.get("baseuri"),
+            self.key,
+        )
+        for edge_id in edge_pool_vs:
+            add_edge_account(self, edge_pool_vs, edge_id)
+        update_vs_descriptions(edge_pool_vs)
+
+    @ex(
+        help="list vsphere dlr",
+        description="list vsphere dlr",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
     )
     def dlr_get(self):
         """List distributed logical routers"""
         objs = self.client.network.nsx.dlr.list()
         res = []
         for obj in objs:
-            res.append(self.client.network.nsx.dlr.info(obj))        
-        self.app.render(res, headers=['objectId', 'name', 'value'])
+            res.append(self.client.network.nsx.dlr.info(obj))
+        self.app.render(res, headers=["objectId", "name", "value"])
 
         oid = self.app.pargs.edge
         network = self.client.network.nsx.dlr.get(oid)

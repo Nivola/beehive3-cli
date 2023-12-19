@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from cement.core.output import OutputHandler
 from tabulate import tabulate
@@ -12,9 +12,9 @@ class TabularOutputHandler(OutputHandler):
     c = ColoredText()
 
     class Meta:
-        label = 'tabular_output_handler'
+        label = "tabular_output_handler"
 
-    def _multi_get(self, data, key, separator='.'):
+    def _multi_get(self, data, key, separator="."):
         keys = key.split(separator)
         res = data
         for k in keys:
@@ -26,17 +26,28 @@ class TabularOutputHandler(OutputHandler):
             else:
                 if res is not None:
                     res = res.get(k, {})
-        if isinstance(res, list):
-            res = res
+        # if isinstance(res, list):
+        #     res = res
         if res is None or res == {}:
-            res = '-'
+            res = "-"
 
         return res
 
-    def _tabularprint(self, data, table_style, headers=None, other_headers=None, fields=None, maxsize=20,
-                      separator='.', transform=None, print_header=True, showindex='never'):
+    def _tabularprint(
+        self,
+        data,
+        table_style,
+        headers=None,
+        other_headers=None,
+        fields=None,
+        maxsize=20,
+        separator=".",
+        transform=None,
+        print_header=True,
+        showindex="never",
+    ):
         if data is None:
-            data = '-'
+            data = "-"
         if not isinstance(data, list):
             values = [data]
         else:
@@ -44,12 +55,12 @@ class TabularOutputHandler(OutputHandler):
 
         # get additional fields from external parameters
         new_fields = []
-        if getattr(self.app.pargs, 'afields', None) is not None:
-            new_fields = self.app.pargs.afields.split(',')
+        if getattr(self.app.pargs, "afields", None) is not None:
+            new_fields = self.app.pargs.afields.split(",")
 
         # get alternative fields from external parameters
-        elif getattr(self.app.pargs, 'fields', None) is not None:
-            alt_fields = self.app.pargs.fields.split(',')
+        elif getattr(self.app.pargs, "fields", None) is not None:
+            alt_fields = self.app.pargs.fields.split(",")
             headers = alt_fields
             fields = alt_fields
 
@@ -75,9 +86,9 @@ class TabularOutputHandler(OutputHandler):
                 raw.append(item)
 
             base_transform = {
-                'base_state': self.app.color_error,
-                'state': self.app.color_error,
-                'status': self.app.color_error,
+                "base_state": self.app.color_error,
+                "state": self.app.color_error,
+                "status": self.app.color_error,
             }
             if transform is None:
                 transform = base_transform
@@ -93,13 +104,13 @@ class TabularOutputHandler(OutputHandler):
                 except ValueError:
                     pass
 
-            if getattr(self.app.pargs, 'notruncate', False) is False:
+            if getattr(self.app.pargs, "notruncate", False) is False:
                 raw = map(lambda x: truncate(x, maxsize, replace_new_line=False), raw)
 
             table.append(raw)
 
         if print_header is True:
-            if table_style == 'plain':
+            if table_style == "plain":
                 headers = [self.c.gray(h) for h in headers]
             print(tabulate(table, headers=headers, tablefmt=table_style, showindex=showindex))
         else:
@@ -140,31 +151,31 @@ class TabularOutputHandler(OutputHandler):
 
                 return data, sections
         """
-        other_headers = kwargs.get('other_headers', [])
-        headers = kwargs.get('headers', None)
-        key = kwargs.get('key', None)
-        fields = kwargs.get('fields', None)
-        details = kwargs.get('details', False)
-        maxsize = kwargs.get('maxsize', 50)
-        key_separator = kwargs.get('separator', '.')
-        table_style = kwargs.get('table_style', 'plain')
-        transform = kwargs.get('transform', {})
-        print_header = kwargs.get('print_header', True)
-        manage_data = kwargs.get('manage_data', None)
-        showindex = kwargs.get('showindex', 'never')
+        other_headers = kwargs.get("other_headers", [])
+        headers = kwargs.get("headers", None)
+        key = kwargs.get("key", None)
+        fields = kwargs.get("fields", None)
+        details = kwargs.get("details", False)
+        maxsize = kwargs.get("maxsize", 50)
+        key_separator = kwargs.get("separator", ".")
+        table_style = kwargs.get("table_style", "plain")
+        transform = kwargs.get("transform", {})
+        print_header = kwargs.get("print_header", True)
+        manage_data = kwargs.get("manage_data", None)
+        showindex = kwargs.get("showindex", "never")
 
         if data is None:
-            self.app.error('data is undefined')
+            self.app.error("data is undefined")
 
         orig_data = data
 
         if data is not None and key is not None:
             data = data[key]
-        elif isinstance(data, dict) and data.get('msg', None) is not None:
-            msg = data.get('msg')
-            if transform.get('msg',None) is not None:
+        elif isinstance(data, dict) and data.get("msg", None) is not None:
+            msg = data.get("msg")
+            if transform.get("msg", None) is not None:
                 try:
-                    msg = transform.get('msg')(msg)
+                    msg = transform.get("msg")(msg)
                 except ValueError:
                     pass
             print(msg)
@@ -192,43 +203,63 @@ class TabularOutputHandler(OutputHandler):
                 if isinstance(v, list):
                     i = 0
                     for n in v:
-                        __format_table_data('%s.%s' % (k, i), n)
+                        __format_table_data("%s.%s" % (k, i), n)
                         i += 1
                 elif isinstance(v, dict):
                     for k1, v1 in v.items():
-                        __format_table_data('%s.%s' % (k, k1), v1)
+                        __format_table_data("%s.%s" % (k, k1), v1)
                 else:
-                    if isinstance(v, str):
-                        v = v
+                    # if isinstance(v, str):
+                    #     v = v
 
                     value = truncate(v, size=maxsize, replace_new_line=False)
                     key = k
-                    resp.append({'attrib': self.c.gray(key), 'value': value})
+                    resp.append({"attrib": self.c.gray(key), "value": value})
 
             if data is not None:
                 for k, v in data.items():
                     __format_table_data(k, v)
             else:
-                self.app.error('data is None!')
-            
+                self.app.error("data is None!")
+
             data = resp
-            headers = ['attrib', 'value']
+            headers = ["attrib", "value"]
             print_header = False
-            table_style = 'plain'
+            table_style = "plain"
 
         if isinstance(data, dict) or isinstance(data, list):
-            if orig_data is not None and 'page' in orig_data:
-                print('Page: %s' % orig_data['page'])
-                print('Count: %s' % orig_data['count'])
-                print('Total: %s' % orig_data['total'])
-                print('Order: %s %s' % (orig_data.get('sort').get('field'), orig_data.get('sort').get('order')))
-                print('')
-            self._tabularprint(data, table_style, other_headers=other_headers, headers=headers, fields=fields,
-                               maxsize=maxsize, separator=key_separator, transform=transform, print_header=print_header,
-                               showindex=showindex)
+            if orig_data is not None and "page" in orig_data:
+                print("Page: %s" % orig_data["page"])
+                print("Count: %s" % orig_data["count"])
+                print("Total: %s" % orig_data["total"])
+                print(
+                    "Order: %s %s"
+                    % (
+                        orig_data.get("sort").get("field"),
+                        orig_data.get("sort").get("order"),
+                    )
+                )
+                print("")
+            self._tabularprint(
+                data,
+                table_style,
+                other_headers=other_headers,
+                headers=headers,
+                fields=fields,
+                maxsize=maxsize,
+                separator=key_separator,
+                transform=transform,
+                print_header=print_header,
+                showindex=showindex,
+            )
 
-            fn = getattr(ColoredText(), 'underline')
+            fn = getattr(ColoredText(), "underline")
             for section in sections:
-                print('\n'+fn(section.get('title')))
-                self._tabularprint(section.get('value'), table_style, headers=section.get('headers'),
-                                   fields=section.get('fields'), maxsize=maxsize)
+                print("\n" + fn(section.get("title")))
+                self._tabularprint(
+                    section.get("value"),
+                    table_style,
+                    headers=section.get("headers"),
+                    fields=section.get("fields"),
+                    maxsize=maxsize,
+                )

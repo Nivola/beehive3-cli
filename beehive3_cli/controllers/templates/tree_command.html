@@ -1,0 +1,165 @@
+{# templates/tree_command.html #}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Beehive CLI</title>
+
+  <style>
+    h1 { 
+      display: block;
+      font-size: 2em;
+      margin-top: 0em;
+      margin-bottom: 1em;
+      margin-left: 0;
+      margin-right: 0;
+      font-weight: bold;
+    }
+
+    h2 { 
+      display: block;
+      font-size: 1.5em;
+      margin-top: 3em;
+      margin-left: 0;
+      margin-right: 0;
+      font-weight: bold;
+    }
+
+    h3 { 
+      display: block;
+      font-size: 1.25em;
+      margin-top: 2.5em;
+      margin-left: 0;
+      margin-right: 0;
+      font-weight: bold;
+    }
+
+    h4 { 
+      display: block;
+      font-size: 1.1em;
+      margin-top: 2.2em;
+      margin-left: 0;
+      margin-right: 0;
+      font-weight: bold;
+    }
+
+    h5 { 
+      display: block;
+      font-size: 1em;
+      margin-top: 2em;
+      margin-left: 0;
+      margin-right: 0;
+      font-weight: bold;
+    }
+
+    table {
+      width: 100%;
+    }
+    td.command {
+      width: 20%;
+      vertical-align: top;
+      border-top: 1px solid;
+    }
+    td.help {
+      width: 30%;
+      vertical-align: top;
+      border-top: 1px solid;
+    }
+    td.args {
+      width: 50%;
+      vertical-align: top;
+      border-top: 1px solid;
+      padding-bottom: 0.8em;
+    }
+  </style>
+
+</head>
+
+<body>
+  <h1>Beehive CLI</h1>
+
+  {% for path in array_path %}
+
+      {% if path.type == "folder" %}
+
+          {% if path.deep == 1 %}
+            <h2>
+              {% for command in path.array_command %}
+                {{ command }}
+              {% endfor %}
+              &nbsp;&nbsp;({{ path.help }})
+            </h2>
+            <hr>
+          {% endif %}
+
+          {% if path.deep == 2 %}
+            <h3>
+              {% for command in path.array_command %}
+                {{ command }}
+              {% endfor %}
+              &nbsp;&nbsp;({{ path.help }})
+            </h3>
+          {% endif %}
+
+          {% if path.deep == 3 %}
+            <h4>
+              {% for command in path.array_command %}
+                {{ command }}
+              {% endfor %}
+              &nbsp;&nbsp;({{ path.help }})
+            </h4>
+          {% endif %}
+
+          {% if path.deep == 4 %}
+            <h5>
+              {% for command in path.array_command %}
+                {{ command }}
+              {% endfor %}
+              &nbsp;&nbsp;({{ path.help }})
+            </h5>
+          {% endif %}
+
+      {% else %}
+      
+          <table>
+            <tr>
+              <td class="command">
+                {% for command in path.array_command %}
+                    {{ command }}
+                {% endfor %}
+              </td>
+
+              <td class="help">
+                {{ path.help }}
+              </td>
+
+              <td class="args">
+                {% for command_argument in path.command_arguments %}
+
+                  {% if command_argument.sintassi == "-y" %}
+                  {% elif command_argument.sintassi == "-e, --env" %}
+                  {% elif command_argument.sintassi == "-f" %}
+                  {% elif command_argument.sintassi == "-k, --key" %}
+                  {% elif command_argument.sintassi == "--vault" %}
+                  {% elif command_argument.sintassi == "--notruncate" %}
+                  {% elif command_argument.sintassi == "--curl" %}
+                  {% else %}
+                    {{ command_argument.sintassi }}: 
+                    {{ command_argument.help }}
+                    <br>
+                  {% endif %}
+
+                {% endfor %}
+              </td>
+            </tr>
+          </table>
+
+      {% endif %}
+
+  {% endfor %}
+
+  </ul>
+
+</body>
+</html>

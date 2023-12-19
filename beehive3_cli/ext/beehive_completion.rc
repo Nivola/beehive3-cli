@@ -11,8 +11,8 @@ declare -A CMDS
 #source commands
 source $1
 command=''
-#envs=''
-envs=`beehive3 bash-completion-envs`
+envs=$(ls ${BEEHIVE_CFG:-$HOME/.beehive3/config}/env/* |xargs -n1 basename|sed "s/.yml//g")
+#envs=`beehive3 bash-completion-envs`
 
 _bee_complete()
 {

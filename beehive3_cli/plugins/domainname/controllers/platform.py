@@ -2,18 +2,27 @@
 #
 # (C) Copyright 2018-2022 Regione Piemonte
 
+from cement import ex
 from beecell.simple import merge_list
 from beedrones.dns.client import DnsManager
-from beehive3_cli.core.controller import BaseController, BASE_ARGS, StringAction
-from cement import ex
-from beehive3_cli.core.util import load_environment_config, load_config
+from beehive3_cli.core.controller import BaseController, BASE_ARGS
+from beehive3_cli.core.util import load_environment_config
 
 
 def DNS_ARGS(*list_args):
     orchestrator_args = [
-        (['-O', '--orchestrator'], {'action': 'store', 'dest': 'orchestrator',
-                                    'help': 'dns platform reference label'}),
-        (['-P', '--project'], {'action': 'store', 'dest': 'project', 'help': 'dns current project name'}),
+        (
+            ["-O", "--orchestrator"],
+            {
+                "action": "store",
+                "dest": "orchestrator",
+                "help": "dns platform reference label",
+            },
+        ),
+        (
+            ["-P", "--project"],
+            {"action": "store", "dest": "project", "help": "dns current project name"},
+        ),
     ]
     res = merge_list(BASE_ARGS, orchestrator_args, *list_args)
     return res
@@ -21,9 +30,9 @@ def DNS_ARGS(*list_args):
 
 class DnsPlatformController(BaseController):
     class Meta:
-        label = 'dns'
-        stacked_on = 'platform'
-        stacked_type = 'nested'
+        label = "dns"
+        stacked_on = "platform"
+        stacked_type = "nested"
         description = "dns platform"
         help = "dns platform"
 
@@ -32,81 +41,87 @@ class DnsPlatformController(BaseController):
 
         self.config = load_environment_config(self.app)
 
-        orchestrators = self.config.get('orchestrators', {}).get('dns', {})
-        label = getattr(self.app.pargs, 'orchestrator', None)
+        orchestrators = self.config.get("orchestrators", {}).get("dns", {})
+        label = getattr(self.app.pargs, "orchestrator", None)
 
         if label is None:
             keys = list(orchestrators.keys())
             if len(keys) > 0:
                 label = keys[0]
             else:
-                raise Exception('No dns default platform is available for this environment. Select '
-                                'another environment')
+                raise Exception(
+                    "No dns default platform is available for this environment. Select " "another environment"
+                )
 
         if label not in orchestrators:
-            raise Exception('Valid label are: %s' % ', '.join(orchestrators.keys()))
+            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
         conf = orchestrators.get(label)
 
-        self.client = DnsManager(conf.get('serverdns'), zones=conf.get('zones'), dnskey=conf.get('key'),
-                                 key=self.key)
+        self.client = DnsManager(
+            conf.get("serverdns"),
+            zones=conf.get("zones"),
+            dnskey=conf.get("key"),
+            key=self.key,
+        )
 
-    @ex(
-        help='ping dns',
-        description='ping dns',
-        arguments=DNS_ARGS()
-    )
+    @ex(help="ping dns", description="ping dns", arguments=DNS_ARGS())
     def ping(self):
         res = self.client.ping()
-        self.app.render({'ping': res}, headers=['ping'])
+        self.app.render({"ping": res}, headers=["ping"])
 
-    @ex(
-        help='get dns version',
-        description='get dns version',
-        arguments=DNS_ARGS()
-    )
+    @ex(help="get dns version", description="get dns version", arguments=DNS_ARGS())
     def version(self):
         res = self.client.version()
-        self.app.render({'version': res}, headers=['version'])
+        self.app.render({"version": res}, headers=["version"])
 
     @ex(
-        help='get all the configured orchestrators',
-        description='get all the configured orchestrators',
-        arguments=DNS_ARGS()
+        help="get all the configured orchestrators",
+        description="get all the configured orchestrators",
+        arguments=DNS_ARGS(),
     )
     def zone_orchestrator_get(self):
-        orchestrators = self.config.get('orchestrators', {}).get('dns', {})
+        orchestrators = self.config.get("orchestrators", {}).get("dns", {})
 
         # orchestrators = self.configs['environments'][self.env]['orchestrators'].get('dns')
         resp = []
         for k, v in orchestrators.items():
             update = True
-            if v.get('key', {}) == {}:
+            if v.get("key", {}) == {}:
                 update = False
             item = {
-                'name': k,
-                'nameservers': v.get('serverdns', {}).get('resolver', []),
-                'zones': v.get('zones', []),
-                'support_update': update
+                "name": k,
+                "nameservers": v.get("serverdns", {}).get("resolver", []),
+                "zones": v.get("zones", []),
+                "support_update": update,
             }
             resp.append(item)
-        self.app.render(resp, headers=['name', 'nameservers', 'zones', 'support_update'], maxsize=200)
+        self.app.render(
+            resp,
+            headers=["name", "nameservers", "zones", "support_update"],
+            maxsize=200,
+        )
 
     @ex(
-        help='get all the managed zones',
-        description='get all the managed zones',
-        arguments=DNS_ARGS()
+        help="get all the managed zones",
+        description="get all the managed zones",
+        arguments=DNS_ARGS(),
     )
     def zone_get(self):
         zones = self.client.get_managed_zones()
-        resp = [{'label': k, 'zone': v} for k, v in zones.items()]
-        self.app.render(resp, headers=['label', 'zone'])
+        resp = [{"label": k, "zone": v} for k, v in zones.items()]
+        self.app.render(resp, headers=["label", "zone"])
 
     @ex(
-        help='get all the nameservers that resolve the zone',
-        description='get all the nameservers that resolve the zone',
-        arguments=DNS_ARGS([
-            (['id'], {'help': 'zone', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="get all the nameservers that resolve the zone",
+        description="get all the nameservers that resolve the zone",
+        arguments=DNS_ARGS(
+            [
+                (
+                    ["id"],
+                    {"help": "zone", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
     )
     def zone_nameserver_get(self):
         zone = self.app.pargs.id
@@ -115,19 +130,20 @@ class DnsPlatformController(BaseController):
         for k, vs in res.items():
             if vs is not None:
                 for v in vs:
-                    resp.append({
-                        'start-nameserver': k,
-                        'ip_addr': v[0],
-                        'fqdn': v[1]
-                    })
-        self.app.render(resp, headers=['start-nameserver', 'ip_addr', 'fqdn'])
+                    resp.append({"start-nameserver": k, "ip_addr": v[0], "fqdn": v[1]})
+        self.app.render(resp, headers=["start-nameserver", "ip_addr", "fqdn"])
 
     @ex(
-        help='the SOA (Start of Authority) used to manage the zone',
-        description='the SOA (Start of Authority) used to manage the zone',
-        arguments=DNS_ARGS([
-            (['id'], {'help': 'zone', 'action': 'store', 'type': str, 'default': None}),
-        ])
+        help="the SOA (Start of Authority) used to manage the zone",
+        description="the SOA (Start of Authority) used to manage the zone",
+        arguments=DNS_ARGS(
+            [
+                (
+                    ["id"],
+                    {"help": "zone", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
     )
     def zone_authority_get(self):
         """
@@ -147,19 +163,42 @@ class DnsPlatformController(BaseController):
         res = self.client.query_authority(zone)
         resp = []
         for k, v in res.items():
-            v['start-nameserver'] = k
+            v["start-nameserver"] = k
             resp.append(v)
-        self.app.render(resp, headers=['start-nameserver', 'rname', 'mname', 'retry', 'minimum', 'refresh',
-                                       'expire', 'serial'])
+        self.app.render(
+            resp,
+            headers=[
+                "start-nameserver",
+                "rname",
+                "mname",
+                "retry",
+                "minimum",
+                "refresh",
+                "expire",
+                "serial",
+            ],
+        )
 
     @ex(
-        help='get ip address form fqdn',
-        description='get ip address form fqdn',
-        arguments=DNS_ARGS([
-            (['fqdn'], {'help': 'fqdn', 'action': 'store', 'type': str, 'default': None}),
-            (['-group'], {'help': 'dns group. Can be resolver or update [default=resolver]', 'action': 'store',
-                          'type': str, 'default': 'resolver'}),
-        ])
+        help="get ip address form fqdn",
+        description="get ip address form fqdn",
+        arguments=DNS_ARGS(
+            [
+                (
+                    ["fqdn"],
+                    {"help": "fqdn", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-group"],
+                    {
+                        "help": "dns group. Can be resolver or update [default=resolver]",
+                        "action": "store",
+                        "type": str,
+                        "default": "resolver",
+                    },
+                ),
+            ]
+        ),
     )
     def zone_fqdn_query(self):
         host = self.app.pargs.fqdn
@@ -167,20 +206,29 @@ class DnsPlatformController(BaseController):
         res = self.client.query_record_A(host, timeout=1.0, group=group)
         resp = []
         for k, v in res.items():
-            resp.append({
-                'start-nameserver': k,
-                'ip-address': v
-            })
-        self.app.render(resp, headers=['start-nameserver', 'ip-address'])
+            resp.append({"start-nameserver": k, "ip-address": v})
+        self.app.render(resp, headers=["start-nameserver", "ip-address"])
 
     @ex(
-        help='get fqdn address form alias',
-        description='get fqdn address form alias',
-        arguments=DNS_ARGS([
-            (['alias'], {'help': 'alias', 'action': 'store', 'type': str, 'default': None}),
-            (['-group'], {'help': 'dns group. Can be resolver or update [default=resolver]', 'action': 'store',
-                          'type': str, 'default': 'resolver'}),
-        ])
+        help="get fqdn address form alias",
+        description="get fqdn address form alias",
+        arguments=DNS_ARGS(
+            [
+                (
+                    ["alias"],
+                    {"help": "alias", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-group"],
+                    {
+                        "help": "dns group. Can be resolver or update [default=resolver]",
+                        "action": "store",
+                        "type": str,
+                        "default": "resolver",
+                    },
+                ),
+            ]
+        ),
     )
     def zone_alias_query(self):
         alias = self.app.pargs.alias
@@ -188,11 +236,8 @@ class DnsPlatformController(BaseController):
         res = self.client.query_record_CNAME(alias, timeout=1.0, group=group)
         resp = []
         for k, v in res.items():
-            resp.append({
-                'start-nameserver': k,
-                'base-fqdn': v
-            })
-        self.app.render(resp, headers=['start-nameserver', 'base-fqdn'])
+            resp.append({"start-nameserver": k, "base-fqdn": v})
+        self.app.render(resp, headers=["start-nameserver", "base-fqdn"])
 
     '''
     class DnsRecordAControllerChild(DnsControllerChild):

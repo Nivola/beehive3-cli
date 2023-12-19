@@ -1,5 +1,92 @@
 # Changelog
 
+
+## Version 1.15.0
+
+* Added ...
+    * warning when importing all lb in nsx edge
+    * clear cache
+    * zabbix management
+    * monitoring alert management
+    * ontap platform
+    * command to load resource volume on service
+* Fixed ...
+    * load balancer import
+    * refactoring imports
+    * some descriptions and messages
+    * fix wait for task
+    * bash completion
+    * options when creatings security group
+
+## Version 1.14.0
+
+* Added ...
+  * ssh gateway improvement
+  * hypervisor and creation date infos to list-all vms
+  * ssh nodes as inventory in JSON format
+  * session set permission by role
+  * veeam platform backup management
+  * load balancer improvements
+  * utility for metadata updating of databases as a service
+* Fixed ...
+  * Load balancer updates and reworks
+  * Ssh Gateway updates and reworks
+  * list-all vm counter
+  * minor fixes
+
+
+## Version 1.13.0
+
+* Added ...
+    * Get hostname using socket library
+    * shh keys export to file
+    * ssh key hide export
+    * ask command
+    * grafana filter dashboard per folder
+    * monitoring as a service dashboard copy
+    * logging as a service management
+    * ssh gateway management
+    * some improvement on query openstack platform
+* Fixed ...
+    * volume migrate and volume api extensions
+    * add_oracle method
+    * monitoring fix sync users
+    * elasticsearch upgrade
+    * other minor fixes
+    * Pass number of vms to look for in list_all method
+    * deprecated cpaas enable/disable monitoring/logging
+    * fix cancellazione internet gateway
+    * add compute instance quota
+    * miglior output in caso di data None
+    * ssh gateway api first commit
+
+## Version 1.12.0
+
+* Added ...
+  * refresh vm state
+  * monitor as a service management
+  * Add command to refresh vm state
+  * Add filter by account in compute tag list
+  * add check in instance add for openstack host_group
+  * add print cpaas instance list with host info
+  * Add cmds to start/stop nsx edge lb
+  * add security group in rule list
+  * add auth perms get-method
+  * Add load balancer health monitor cli business commands
+  * Support for oracle 12EE
+* Fixed ...
+  * graphana protocolo connection
+  * curl description
+  * Openstack flavor creation made by customization
+  * Vms load command
+  * Reworked add methods for nsx edge monitor and app profile
+  * Minor changes on vsphere nsx network edge load balancer platform cmds
+  * Draft of network edge load balancer plugin vsphere cmds
+  * Update nsx edge paltform commands
+  * Update vsphere nsx edge load balancer platform cmds
+
+
+
 ## Version 1.11.0 (oct 11, 2022)
 * Added ...
     * add grafana platform management
@@ -28,7 +115,7 @@
     * fixed bug in SecurityGroup rule representation when protocol is icmp
     * big performance optimization
 * Integrated ...
-    * update bush completion reference file
+    * update bash completion reference file
     * update redis get command to support list
     * add redis ping cmp ping
     * update bu capabilities and account capabilities to support account definitions
@@ -44,13 +131,13 @@
     * add cmp ssh ops command check_disk_rw
 * Fixed ...
 * Integrated ...
-    * account delete command now permit defining if remove child services 
+    * account delete command now permit defining if remove child services
 * Various bugfixes
 
 ## Version 1.7.0 (May 03, 2021)
 
 * Added ...
-    * add commands dbaas_check_dd, dbaas_umount_dd, dbaas_mount_dd in section ssh.ops to manage mount and umount of 
+    * add commands dbaas_check_dd, dbaas_umount_dd, dbaas_mount_dd in section ssh.ops to manage mount and umount of
       datadomain nfs share used for logical dbaas backup
     * add commands in platform redis to manage redis with sentinel
     * add business compute instance methods to reboot, enable logging, enable monitorig
@@ -110,7 +197,7 @@
 * Added ...
     * add openstack share network command
     * add openstack share server command
-    * add openstack resource command for shares 
+    * add openstack resource command for shares
     * add resource entities command cache_get and cache_del
     * add section for trilio
 * Fixed ...
@@ -118,7 +205,7 @@
     * fixed provider resource command for shares
 * Integrated ...
     * integrated render of tabular data with color in state and status
-    * integrated staas efs api param PerformanceMode used to manage share based on netapp and new share base on local 
+    * integrated staas efs api param PerformanceMode used to manage share based on netapp and new share base on local
       openstack server
 * Various bugfixes
 
