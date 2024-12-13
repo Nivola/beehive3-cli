@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import os
 import logging
@@ -77,6 +77,7 @@ class CliLogHandler(ColorLogHandler):
         for logger in loggers:
             self.other_backends.append(logging.getLogger(logger))
         self.other_backends.append(logging.getLogger("beecell.paramiko_shell.shell"))
+        self.other_backends.append(logging.getLogger("bee_client"))
 
         # hack for application debugging
         if is_true(self.app._meta.debug):
@@ -220,6 +221,46 @@ class CliLogHandler(ColorLogHandler):
             propagate=False,
             syslog_port=514,
         )
+
+    def info(self, msg, *args, namespace=None, **kw):
+        """
+        extends default info with possibility of passing more than 1 argument
+        see super().info(msg, namespace, **kw) to compare
+        """
+        kwargs = self._get_logging_kwargs(namespace, **kw)
+        self.backend.info(msg, *args, **kwargs)
+
+    def warning(self, msg, *args, namespace=None, **kw):
+        """
+        extends default warning with possibility of passing more than 1 argument
+        see super().warning(msg, namespace, **kw) to compare
+        """
+        kwargs = self._get_logging_kwargs(namespace, **kw)
+        self.backend.warning(msg, *args, **kwargs)
+
+    def error(self, msg, *args, namespace=None, **kw):
+        """
+        extends default error with possibility of passing more than 1 argument
+        see super().error(msg, namespace, **kw) to compare
+        """
+        kwargs = self._get_logging_kwargs(namespace, **kw)
+        self.backend.error(msg, *args, **kwargs)
+
+    def fatal(self, msg, *args, namespace=None, **kw):
+        """
+        extends default fatal with possibility of passing more than 1 argument
+        see super().fatal(msg, namespace, **kw) to compare
+        """
+        kwargs = self._get_logging_kwargs(namespace, **kw)
+        self.backend.fatal(msg, *args, **kwargs)
+
+    def debug(self, msg, *args, namespace=None, **kw):
+        """
+        extends default debug with possibility of passing more than 1 argument
+        see super().debug(msg, namespace, **kw) to compare
+        """
+        kwargs = self._get_logging_kwargs(namespace, **kw)
+        self.backend.debug(msg, *args, **kwargs)
 
 
 def load(app):

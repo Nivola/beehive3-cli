@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from oauthlib.oauth2.rfc6749.clients.backend_application import BackendApplicationClient
@@ -360,6 +360,7 @@ class ClientController(Oauth2ControllerChild):
     @ex(
         help="get oauth2 clients",
         description="get oauth2 clients",
+        example="beehive auth oauth2-clients get -id uuid;beehive auth oauth2-clients get -id uuid",
         arguments=PARGS(
             [
                 (

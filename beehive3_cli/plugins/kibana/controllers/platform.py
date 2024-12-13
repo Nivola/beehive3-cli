@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beecell.simple import merge_list
@@ -21,7 +21,6 @@ def KIBANA_ARGS(*list_args):
             },
         )
     ]
-    # TODO fv - eliminare pagination args?
     res = merge_list(BASE_ARGS, PAGINATION_ARGS, orchestrator_args, *list_args)
     return res
 
@@ -58,13 +57,14 @@ class KibanaPlatformController(BaseController):
             raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
         self.conf = orchestrators.get(label)
 
-        # print("-+-+- self.conf: " + str(self.conf))
         uri = "%s://%s:%s%s" % (
             self.conf.get("proto"),
             self.conf.get("hosts")[0],
             self.conf.get("port"),
             self.conf.get("path"),
         )
+        self.app.log.debug("pre_command_run - uri: %s" % uri)
+
         user = self.conf.get("user")
         password = self.conf.get("pwd")
         self.client = KibanaManager(uri, user, password)
@@ -321,3 +321,149 @@ class KibanaPlatformController(BaseController):
         else:
             res = self.client.role.list()
             self.app.render(res, headers=["name", "indice", "space_id"])
+
+    # -----------------
+    # --- DASHBOARD ---
+    # -----------------
+    @ex(
+        help="get space dashboard",
+        description="get space dashboard",
+        arguments=KIBANA_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "space id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def space_dashboard_get(self):
+        space_id = self.app.pargs.id
+        res = self.client.space.get_dashboard(space_id)
+        self.app.render(
+            res["dashboards"],
+            headers=[
+                "id",
+                "namespaces",
+                "attributes.title",
+                "updated_at",
+            ],
+        )
+
+    @ex(
+        help="get dashboard",
+        description="get dashboard",
+        arguments=KIBANA_ARGS(
+            [
+                (
+                    ["-search"],
+                    {
+                        "help": "dashboard to search",
+                        "action": "store",
+                        "type": str,
+                        "default": "*",
+                    },
+                ),
+                (
+                    ["-spaceid"],
+                    {
+                        "help": "space id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dashboard_get(self):
+        dashboard_to_search = self.app.pargs.search
+        space_id = self.app.pargs.spaceid
+        size = self.app.pargs.size
+
+        headers = ["id", "title", "namespaces", "updated_at"]
+        fields = [
+            "id",
+            "attributes.title",
+            "namespaces",
+            "updated_at",
+        ]
+
+        res = self.client.space.get_dashboard(space_id, dashboard_to_search, size)
+        self.app.render(
+            res,
+            key="dashboards",
+            headers=headers,
+            fields=fields,
+            maxsize=40,
+        )
+
+    @ex(
+        help="get dashboard",
+        description="get dashboard",
+        arguments=KIBANA_ARGS(
+            [
+                (
+                    ["dashboard_to_search"],
+                    {
+                        "help": "dashboard to search",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-spaceid"],
+                    {
+                        "help": "space id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dashboard_get_id(self):
+        dashboard_to_search = self.app.pargs.dashboard_to_search
+        space_id = self.app.pargs.spaceid
+
+        dashboard_id = self.client.space.find_dashboard(dashboard_to_search, space_id)
+        print("dashboard_id: %s" % dashboard_id)
+
+    @ex(
+        help="delete dashboard",
+        description="delete dashboard",
+        arguments=KIBANA_ARGS(
+            [
+                (
+                    ["space_id"],
+                    {
+                        "help": "space id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["dashboard_id"],
+                    {
+                        "help": "dashboard id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dashboard_del(self):
+        space_id = self.app.pargs.space_id
+        dashboard_id = self.app.pargs.dashboard_id
+        self.client.space.delete_dashboard(space_id, dashboard_id)
+        self.app.render({"msg": "delete dashboard %s" % dashboard_id}, headers=["msg"])

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.controller import PARGS, ARGS
@@ -38,7 +38,8 @@ class DivisionController(AuthorityControllerChild):
 
     @ex(
         help="get divisions",
-        description="get divisions",
+        description="This command is used to retrieve all the configured divisions or a specific division based on name or id from the Nivola CMP platform. Divisions in Nivola CMP are logical groupings of environments like Dev, Test, Staging etc that can be used for authorization and access control purposes.",
+        example="beehive bu divs get -name Staging;beehive bu divs get -id Sanita-Regione -e <env>",
         arguments=PARGS(
             [
                 (
@@ -110,17 +111,17 @@ class DivisionController(AuthorityControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/divisions/%s" % (self.baseuri, oid)
-            res = self.cmp_get(uri)
+            res = self.get_division(oid)
 
             if self.is_output_text():
-                data = "division_id=%s" % oid
+                data = "division_id=%s&size=100" % res.get("id")
                 uri = "%s/accounts" % self.baseuri
-                accounts = self.cmp_get(uri, data=data).get("accounts", [])
-                self.app.render(res, key="division", details=True)
+                accounts = self.cmp_get(uri, data=data)
+                self.app.render(res, details=True)
                 self.c("\naccounts", "underline")
                 self.app.render(
                     accounts,
+                    key="accounts",
                     headers=[
                         "id",
                         "uuid",
@@ -129,6 +130,7 @@ class DivisionController(AuthorityControllerChild):
                         "email",
                         "active",
                         "date.creation",
+                        "status",
                     ],
                 )
             else:
@@ -154,7 +156,7 @@ class DivisionController(AuthorityControllerChild):
 
     @ex(
         help="add division",
-        description="add division",
+        description="This command adds a new division to an organization. It requires the division name and organization UUID as arguments. The division name is used to identify the division being added and the organization UUID specifies which organization this new division will belong to.",
         arguments=ARGS(
             [
                 (["name"], {"help": "division name", "action": "store", "type": str}),
@@ -228,7 +230,7 @@ class DivisionController(AuthorityControllerChild):
 
     @ex(
         help="update division",
-        description="update division",
+        description="This command updates an existing division in Nivola CMP. The division name argument is required to identify which division to update.",
         arguments=ARGS(
             [
                 (["name"], {"help": "division name", "action": "store", "type": str}),
@@ -300,7 +302,7 @@ class DivisionController(AuthorityControllerChild):
 
     @ex(
         help="refresh division",
-        description="refresh division",
+        description="This command refreshes a division by its unique ID. The ID argument is required to identify which division to refresh. Refreshing a division updates it with any changes from the server.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -316,7 +318,7 @@ class DivisionController(AuthorityControllerChild):
 
     @ex(
         help="delete division",
-        description="delete division",
+        description="This command deletes a division from the Nivola CMP platform by its unique ID. The ID of the division to delete must be provided as the only required argument.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -382,7 +384,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="get division roles",
-        description="get division roles",
+        description="This command retrieves the roles associated with a specific division. The division is identified by its UUID which must be provided using the 'id' argument. The roles are returned for authorization on the specified division.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -393,11 +395,11 @@ class DivisionAuthController(AuthorityControllerChild):
         oid = self.app.pargs.id
         uri = "%s/divisions/%s/roles" % (self.baseuri, oid)
         res = self.cmp_get(uri)
-        self.app.render(res, key="roles", headers=["name", "desc"], maxsize=200)
+        self.app.render(res, key="roles", headers=["name", "desc", "role"], maxsize=200)
 
     @ex(
         help="get division users",
-        description="get division users",
+        description="This command retrieves user details for a specific division. The division uuid must be provided using the required 'id' argument.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -418,7 +420,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="add division role to a user",
-        description="add division role to a user",
+        description="This command adds a division role to a user. It requires the division UUID, the role to assign within that division, and the user to assign the role to as required arguments.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -441,7 +443,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove division role from a user",
-        description="remove division role from a user",
+        description="This command removes a division role from a specific user. It requires the division UUID, the role within that division (such as 'admin' or 'member'), and the username to remove the role from.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -464,7 +466,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="get division groups",
-        description="get division groups",
+        description="This command retrieves the groups associated with a specific division. The division is identified by its UUID which must be provided with the 'id' argument. This allows retrieving all the groups that have access to the specified division for authorization purposes.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -485,7 +487,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="add division role to a group",
-        description="add division role to a group",
+        description="This command adds an authorization group to a division role. It requires the division UUID, role and group name as arguments.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),
@@ -508,7 +510,7 @@ class DivisionAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove division role from a group",
-        description="remove division role from a group",
+        description="This command removes a division role from an authorization group. It requires the division UUID, role and group name as arguments to identify which specific division role assignment to remove from the group.",
         arguments=ARGS(
             [
                 (["id"], {"help": "division uuid", "action": "store", "type": str}),

@@ -7,6 +7,7 @@
 # (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import List, Callable, Union
+from urllib.parse import urlencode
 import json
 import yaml
 
@@ -16,46 +17,37 @@ from beehive3_cli.core.controller import ARGS
 from .child import AdminChildController, AdminError
 
 
-class DatabaseAdminController(AdminChildController):
+class ComputeAdminController(AdminChildController):
+
     """
-    DatabaseAdminController: This contains commands to manage and adjust metadata of dbaas stackv2.
+    ComputeAdminController: This contains commands to manage and adjust metadata of compute.
     """
 
     class Meta:
-        label = "database"
-        description = "database administration commands"
-        help = "database administration commands"
+        label = "compute"
+        description = "compute service administration commands"
+        help = "compute administration commands"
 
     @ex(
-        help="check database storage",
+        help="check compute service storage",
         description="""
-Database management, the holistic way :)
-The database parameters must be a service identifier.
-It should be an uuid, id or name of a db instance.
-You can get it listing the services of the account using commands like "bu account get" or "bu dbaas db-instance get".
-The procedure checks database storage consistency between Nivola and hypervisors.
-The procedure query both Nivola and the hypervisor on which the database server is running.
+compute management, the holistic way :)
+The compute parameters must be a service identifier.
+It should be an uuid, id or name of a compute service.
+You can get it listing the services of the account using commands like "bu account get" or "bu compute vms get".
+The procedure checks compute storage consistency between Nivola and hypervisors.
+The procedure query both Nivola and the hypervisor on which the compute service is running.
 Then display details about volumes.
 Pay attention to the column "ext_id" of the volumes that should uniquely identify the hypervisor's volume.
 You may change Nivola's volumes information by matching with hypervisor volumes.
 You will be asked for which match has to be established.
-Then you will be asked for change backup tags on the database volume.
-Remember that volume tagged as backup will generates ad hoc metrics distinct from allocated storage.
-Then you will be asked to disable volume quotas.
-Database's volumes should always have quotas disabled otherwise they will generate compute metrics in addition to
-database metrics.
-After that you will be asked to change the allocated storage for the databases.
-The allocated storage is displayed by the service portal and some beehive commands, it should be the sum of database
-volumes used for database data.
-As a matter of fact, Nivola calculates data storage as the sum of attached volumes that are neither the boot volume or
-tagged as backup.
 """,
         arguments=ARGS(
             [
                 (
-                    ["database"],
+                    ["compute"],
                     {
-                        "help": "database service id uuid or name; this is one of the service identifiers",
+                        "help": "compute service id uuid or name; this is one of the service identifiers",
                         "action": "store",
                         "type": str,
                     },
@@ -78,37 +70,79 @@ tagged as backup.
     )
     def check(self):
         """
-        Sanity check for dbaas metadata stackv2 against platform.
+        Sanity check for compute metadata against platform.
         """
         self.cmp_fernet = self.app.pargs.cmp_key
         if self.cmp_fernet is None or self.cmp_fernet == "":
             print("Warning: You have no specified fernet key", end="\n")
         else:
             print(f"Info: Using Fernet key {self.cmp_fernet}", end="\n")
-        database = self.app.pargs.database
+        compute = self.app.pargs.compute
         metadata = None
         try:
             print()
             print(self.styler.clear_line() + "Collecting Metadata", end="...", flush=True)
-            metadata = self.get_metadata(database)
+            metadata = self.get_metadata(compute)
         except AdminError as e:
             print(self.styler.error(data=str(e)))
 
         if self.is_output_text():
-            self.manage_interactions(database, metadata)
+            self.manage_interactions(compute, metadata)
             print()
         else:
             metadata = None
-            with open(f"{database}.{self.format}", mode="+tw", encoding="utf-8") as outfile:
+            with open(f"{compute}.{self.format}", mode="+tw", encoding="utf-8") as outfile:
                 if self.format == "json":
                     outfile.write(json.dumps(metadata))
                 elif self.format == "yaml":
                     yaml.dump(metadata, outfile)
             self.app.render(metadata, key="object", details=True)
 
-    def get_metadata(self, database: str) -> dict:
+    def align_service_to_resource(self, metadata):
         """
-        Get database from service down to hypervisor in order
+        Align resource information to service.
+        """
+        bu_servinst_uuid = metadata["service_servinst"]["uuid"]
+        compute_instance_id = metadata["provider_compute_instance"]["uuid"]
+        compute_instance = self.get_cmp_resource(compute_instance_id)
+        service_baseuri = "/v2.0/nws"
+        uri = f"{service_baseuri}/computeservices/instance/describeinstances"
+        data = {"instance-id.N": [bu_servinst_uuid]}
+        bu_servinst = self.cmp_get(uri, data=urlencode(data, doseq=True))
+        instance_item = bu_servinst["DescribeInstancesResponse"]["reservationSet"][0]["instancesSet"][0]
+        account_id = instance_item["nvl-ownerId"]
+        service_inst_name = instance_item["nvl-name"]
+        data = {"force": True, "propagate": False}
+        for block_device_item in instance_item["blockDeviceMapping"]:
+            service_volume_id = block_device_item["ebs"]["volumeId"]
+            if service_volume_id is None:
+                continue
+            uri = f"{service_baseuri}/serviceinsts/{service_volume_id}"
+            self.cmp_delete(
+                uri, data=data, timeout=180, entity=f"service instance {service_volume_id}", confirm=False, output=False
+            )
+
+        compute_instance_block_device_mapping = compute_instance.get("block_device_mapping", [])
+        for compute_instance_block_device_item in compute_instance_block_device_mapping:
+            resource_id = compute_instance_block_device_item["id"]
+            boot_index = compute_instance_block_device_item["boot_index"]
+            service_volume_name = f"{service_inst_name}-volume-{boot_index}"
+            data = {
+                "serviceinst": {
+                    "name": service_volume_name,
+                    "account_id": account_id,
+                    "plugintype": "ComputeVolume",
+                    "container_plugintype": "ComputeService",
+                    "resource_id": resource_id,
+                }
+            }
+            uri = f"{service_baseuri}/serviceinsts/import"
+            self.cmp_post(uri, data=data)
+        print(self.styler.clear_line() + self.styler.green("Aligned volume service instance."), flush=True)
+
+    def get_metadata(self, compute: str) -> dict:
+        """
+        Get compute from service down to hypervisor in order
         to get all information about volumes mapped and available.
         """
 
@@ -129,30 +163,28 @@ tagged as backup.
             tp = node.get("type")
             return tp in ("Vsphere.DataCenter.Folder.volume", "Openstack.Domain.Project.Volume")
 
-        self.print_looking_for("Servervice Instance")
-        bu_servinst = self.get_cmp_service_instance(database)
+        self.print_looking_for("Service Instance")
+        bu_servinst = self.get_cmp_service_instance(compute, "ComputeInstance")
         resource_uuid = bu_servinst.get("resource_uuid")
-        provider_sqlstack = {
-            "id": resource_uuid,
-            "config": self.get_cmp_resource_config(resource_uuid),
-        }
+        # self.reset_cmp_cache_resource(resource_uuid)
+        resource_config = self.get_cmp_resource_config(resource_uuid)
         # get of the unuseful resource uri = f"/v1.0/nrs/entities/{resource_uuid}"
-        # get of the linked entities to search for the ComputeInstance that implements the db
+        # get of the linked entities to search for the ComputeInstance
         self.print_looking_for("resource linked entities")
-        linked_resources = self.get_cmp_linkedres(resource_uuid)
+        provider_config = {
+            "id": resource_uuid,
+            "config": resource_config,
+        }
         compute_instance = None
 
         # get of the ComputeInstance between the linked entities
         self.print_looking_for("Provider.ComputeZone.ComputeInstance")
-        for resource in linked_resources:
-            definition = dict_get(resource, "__meta__.definition")
-            if definition == "Provider.ComputeZone.ComputeInstance":
-                compute_instance = resource
-                break
+        compute_instance = self.get_cmp_resource(resource_uuid)
+
         if compute_instance is None:
             raise AdminError(
-                f" Could not find any ComputeInstance in the ComputeStack {resource_uuid} "
-                + f"which implements the database {database}"
+                f" Could not find any ComputeInstance for resource {resource_uuid} "
+                + f"which implements the compute {compute}"
             )
         for vol in compute_instance.get("block_device_mapping", []):
             tags = self.get_cmp_entity_tags(vol["id"])
@@ -166,7 +198,7 @@ tagged as backup.
         if hypervisor_server is None:
             raise AdminError(
                 f" Could not find any Server in ComputeInstance in the ComputeStack {resource_uuid}"
-                + f"which implements the database {database}"
+                + f"which implements the compute {compute}"
             )
 
         # get hypervisor info in order to connect from resource containers
@@ -185,7 +217,7 @@ tagged as backup.
         result = {}
         result["service_servinst"] = bu_servinst
         result["provider_compute_instance"] = compute_instance
-        result["provider_sqlstack"] = provider_sqlstack
+        result["provider_config"] = provider_config
         result["resource_hypervisor_server"] = hypervisor_server
         result["hypervisor_serverserver_det"] = hypervisor_server_detail
         result["hypervisor_container"] = hypervisor_container
@@ -202,12 +234,8 @@ tagged as backup.
         general_instance = {
             "service name": dict_get(metadata, "service_servinst.name"),
             "service uuid": dict_get(metadata, "service_servinst.uuid"),
-            "service allocated storage": dict_get(metadata, "service_servinst.config.dbinstance.AllocatedStorage"),
-            "provider allocated storage": dict_get(metadata, "provider_sqlstack.config.allocated_storage"),
             "account name": dict_get(metadata, "service_servinst.account.name"),
             "account uuid": dict_get(metadata, "service_servinst.account.uuid"),
-            "engine": dict_get(metadata, "provider_compute_instance.config.dbinstance.Engine"),
-            "engine version": dict_get(metadata, "provider_compute_instance.config.dbinstance.EngineVersion"),
             "provider instance fqdn": dict_get(metadata, "provider_compute_instance.attributes.fqdn"),
             "provider instance type": dict_get(metadata, "provider_compute_instance.attributes.type"),
             "provider instance has quotas": dict_get(metadata, "provider_compute_instance.attributes.has_quotas"),
@@ -266,134 +294,15 @@ tagged as backup.
         hyp_headers = ["#", "name", "index", "ext_id", "size (GiB)", "id"]
         hyp_fields = ["#", "name", "index", "ext_id", "size", "id"]
         self.app.render(tab_hyp, headers=hyp_headers, fields=hyp_fields, maxsize=2000)
-        compute_res = self.make_suggestions(tab_cmp, tab_hyp)
-        db_stack_res = self.storage_suggestion(metadata)
-        if compute_res and db_stack_res:
+        res = self.make_suggestions(tab_cmp, tab_hyp)
+        if res:
             self.print_info()
             msg = self.styler.red("Please e" + self.styler.underline("X")) + self.styler.red("it, all is fine!")
             print(msg)
+
         return general_instance, tab_cmp, tab_hyp
 
-    def manage_interactive_quotas(self, tab_cmp):
-        """
-        Manage quotas. For dbaas only data volumes must be set with enable_quotas to True.
-        Usually only the first volume, the boot one must have enable_quotas to False.
-        """
-        PR1_QT_CHANGE = "Do you want to disable quotas for some volumes? [y/n] "
-        PR2_QT_CHOOSECMP = "Which volume's quotas do you want disable? [#/-1 for all] "
-        PR3_QT_CHECK = "Are you sure you want disable quotas for volume %s? [y/n] "
-        PR3_QT_CHECK_ALL = "Are you sure you want disable quotas for ALL volumes? [y/n] "
-        PR1_QT_ANOTHER_CHANGE = "Do you want to disable quotas for another volume? [y/n] "
-        print()
-        check = self.ask(PR1_QT_CHANGE, yn=True)
-        while check == "Y":
-            cmpindex = None
-            while cmpindex is None:
-                indata = self.ask(PR2_QT_CHOOSECMP, yn=False)
-                try:
-                    cmpindex = int(indata)
-                    if cmpindex < -1 or cmpindex > len(tab_cmp) - 1:
-                        cmpindex = None
-                except Exception:
-                    cmpindex = None
-            if cmpindex != -1:
-                check = self.ask(PR3_QT_CHECK % cmpindex, yn=True)
-            else:
-                check = self.ask(PR3_QT_CHECK_ALL, yn=True)
-            print()
-            if check == "Y":
-                print("", end="", flush=True)
-                if cmpindex == -1:
-                    for tab_cmp_item in tab_cmp:
-                        self.set_cmp_resource_enable_quotas(tab_cmp_item["id"], False)
-                else:
-                    r_id = tab_cmp[cmpindex]["id"]
-                    self.set_cmp_resource_enable_quotas(r_id, False)
-            if cmpindex != -1:
-                check = self.ask(PR1_QT_ANOTHER_CHANGE, yn=True)
-            else:
-                check = False
-
-    def storage_suggestion(self, metadata):
-        ret = False
-        msg = ""
-        block_devices = metadata["provider_compute_instance"]["block_device_mapping"]
-        has_quotas = any(a["config"]["has_quotas"] for a in block_devices)
-        if has_quotas:
-            quotas_msg = "Usually the dbaas storage 'has_quotas' field is set to False for all volumes! Please disable"
-            msg += (
-                self.styler.red(quotas_msg)
-                + " "
-                + self.styler.red(self.styler.underline("Q"))
-                + self.styler.red("uotas.")
-            )
-        current_storage = metadata["provider_sqlstack"]["config"]["allocated_storage"]
-        extimated_storage = sum(a["volume_size"] for a in block_devices[1:] if a["tags"] == "")
-        if current_storage == extimated_storage:
-            self.print_success()
-            success_msg = "Overall storage is coherent with volumes and tags."
-            print(self.styler.green(success_msg))
-        else:
-            PR_STO_EXPLAIN = self.styler.red(
-                "Usually the allocated overall storage for dbaas is set as the sum of the size of "
-                "all volumes except the first one and those with a tag."
-            )
-            post_msg = (
-                self.styler.red(f"Please " + self.styler.underline("T"))
-                + self.styler.red("ag the cmp metadata volumes before set overall " + self.styler.underline("S"))
-                + self.styler.red("torage!")
-            )
-            msg += "\n" + PR_STO_EXPLAIN + " " + post_msg
-            current_storage_msg = (
-                f"Current overall storage is {current_storage} GiB, "
-                + f"Extimated overall storage is {extimated_storage} GiB. "
-                + "Please set overall "
-                + self.styler.underline("S")
-            )
-            msg += "\n" + self.styler.red(current_storage_msg) + self.styler.red("torage.")
-        if msg != "":
-            self.print_warning()
-            print(msg, flush=True)
-        else:
-            ret = True
-        return ret
-
-    def manage_interactive_storage(self, metadata):
-        """
-        Manage interactive storage; change the metadata volume size.
-        """
-        PR1_STO_CHANGE = "Do you want change the database allocated storage? [y/n] "
-        PR2_STO_CHOOSE = "Which value do you want to set for allocated storage (in GiB)? [#] "
-        PR3_STO_CHECK = "Are you sure you want to set allocated storage to %s ? [y/n] "
-        # change t backup tag interaction
-        print()
-        check = self.ask(PR1_STO_CHANGE, yn=True)
-        if check == "Y":
-            storage_value = -1
-            while storage_value == -1:
-                self.storage_suggestion(metadata)
-                indata = self.ask(PR2_STO_CHOOSE, yn=False)
-                try:
-                    storage_value = int(indata)
-                    if storage_value < 0:
-                        storage_value = -1
-                except Exception:
-                    storage_value = -1
-            check = self.ask(PR3_STO_CHECK % (storage_value), yn=True)
-            print()
-            if check == "Y":
-                self.set_cmp_service_config(
-                    dict_get(metadata, "service_servinst.uuid"),
-                    "dbinstance.AllocatedStorage",
-                    str(storage_value),
-                )
-                self.set_cmp_resource_config(
-                    dict_get(metadata, "provider_sqlstack.id"),
-                    "allocated_storage",
-                    str(storage_value),
-                )
-
-    def manage_interactions(self, database, metadata):
+    def manage_interactions(self, compute, metadata):
         """
         Manage user interactions in order to force volume mapping.
         """
@@ -408,27 +317,23 @@ tagged as backup.
             + self.styler.underline("A")
             + "dd cmp metadata volumes, change "
             + self.styler.underline("T")
-            + "ag cmp metadata volumes, disable "
-            + self.styler.underline("Q")
-            + "uotas, set overall "
-            + self.styler.underline("S")
-            + "torage, or e"
+            + "ag cmp metadata volumes or e"
             + self.styler.underline("X")
             + "it"
         )
-        allowed = ("R", "U", "D", "A", "T", "Q", "S", "X")
-        PROMPT_1 = f"Reload, Update, Delete, Add, Tags, Quotas, Storage, or eXit [{'/'.join(allowed)}]? "
+        allowed = ("R", "U", "D", "A", "T", "X")
+        PROMPT_1 = f"Reload, Update, Delete, Add, Tags, or eXit [{'/'.join(allowed)}]? "
         _, tab_cmp, tab_hyp = self.show_metadata(metadata)
         # change volume metadata using hypervisor data
         check = ""
         while check != "X":
-            print("\n" + PROMPT_0)
+            print(PROMPT_0)
             check = self.ask(PROMPT_1, yn=False, allowed=allowed)
             if check == "R":
                 try:
                     print()
                     print(self.styler.clear_line() + "Collecting Metadata", end="...", flush=True)
-                    metadata = self.get_metadata(database)
+                    metadata = self.get_metadata(compute)
                 except AdminError as e:
                     print(self.styler.error(data=str(e)))
                 _, tab_cmp, tab_hyp = self.show_metadata(metadata)
@@ -440,22 +345,7 @@ tagged as backup.
                 self.manage_interactive_import(metadata)
             elif check == "T":
                 self.manage_interactive_tags(tab_cmp)
-            elif check == "Q":
-                self.manage_interactive_quotas(tab_cmp)
-            elif check == "S":
-                self.manage_interactive_storage(metadata)
             elif check == "X":
                 print("\n\n", "Bye", sep="")
-
-    def _import_volume_resource(self, container_name, vol_hyp, physical_vol_template, metadata, container):
-        serpr_uuid = super()._import_volume_resource(
-            container_name, vol_hyp, physical_vol_template, metadata, container
-        )
-        self.reset_cmp_cache_resource(dict_get(metadata, "provider_sqlstack.id", default=serpr_uuid))
-
-    def remove_volume_metadata(self, volc: int, metadata: dict):
-        """
-        Remove volume metadata.
-        """
-        r_id = super().remove_volume_metadata(volc, metadata)
-        self.reset_cmp_cache_resource(dict_get(metadata, "provider_sqlstack.id", default=r_id))
+            if check in ("D", "L"):
+                self.align_service_to_resource(metadata)

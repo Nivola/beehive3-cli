@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from beecell.types.type_dict import dict_get
@@ -311,6 +311,13 @@ class ResourceCustomizePlugin(CustomizePlugin):
                     {"flavor": obj},
                     "Add provider flavor: %s" % name,
                 )
+            else:
+                flavors = [x for x in obj.get("flavors", [])]
+                self.cmp_put(
+                    OBJ_URI,
+                    {"flavor": {"flavors": flavors}},
+                    "Update provider flavor: %s" % name,
+                )
 
     def __create_provider_volumeflavors(self, configs):
         if self.has_config(configs, "resource.provider.volumeflavors") is False:
@@ -357,8 +364,10 @@ class ResourceCustomizePlugin(CustomizePlugin):
                     "Add provider image: %s" % name,
                 )
             else:
+                # update only image templates
                 data = {"templates": obj.get("templates", [])}
                 self.cmp_put(OBJ_URI, {"image": data}, msg="Update image %s" % name)
+            print("---")
 
     def __create_provider_customizations(self, configs):
         if self.has_config(configs, "resource.provider.customizations") is False:
@@ -368,8 +377,9 @@ class ResourceCustomizePlugin(CustomizePlugin):
         BASE_URI = "/v1.0/nrs/provider/customizations"
 
         for obj in dict_get(configs, "resource.provider.customizations"):
-            OBJ_URI = "%s/%s" % (BASE_URI, obj["name"])
             name = obj["name"]
+            print("customization name: %s" % name)
+            OBJ_URI = "%s/%s" % (BASE_URI, name)
             exists = self.cmp_exists(OBJ_URI, "Provider customization %s already exists" % name)
 
             if exists is False:
@@ -379,14 +389,11 @@ class ResourceCustomizePlugin(CustomizePlugin):
                     "Add provider customization: %s" % name,
                 )
             else:
-                data = {"templates": obj.get("templates", [])}
-                self.cmp_put(
-                    OBJ_URI,
-                    {"customization": data},
-                    msg="Update customization %s" % name,
-                )
+                data = {"awx_project": obj.get("awx_project", {})}
+                self.cmp_put(OBJ_URI, {"customization": data}, msg="Update customization %s" % name)
+            print("---")
 
-    def run(self, configs):
+    def run(self, configs, dry=False):
         self.__create_tags(configs)
         self.__create_containers(configs)
         self.__sync_containers(configs)

@@ -1,25 +1,21 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger, DEBUG
 from os import listdir
 from re import findall, search
 from sys import path
-from base64 import b64decode
 from datetime import datetime
 from time import time, sleep
 from requests import get
 from yaml import full_load
-import sh
 from cement import ex
 from beecell.logger import LoggerHelper
-from beecell.paramiko_shell.shell import ParamikoShell, Rsync
 from beecell.types.type_string import str2bool, truncate
 from beecell.types.type_dict import dict_get
 from beecell.types.type_date import format_date
 from beecell.simple import dynamic_import
-from beehive.common.helper import BeehiveHelper
 from beehive3_cli.core.controller import BaseController, PAGINATION_ARGS, ARGS
 from beehive3_cli.core.util import load_config, load_environment_config
 from beehive3_cli.plugins.platform.controllers import ChildPlatformController
@@ -274,6 +270,15 @@ class CmpTestController(ChildPlatformController):
                         "default": 2,
                     },
                 ),
+                (
+                    ["-failfast"],
+                    {
+                        "help": "specify failfast [default=False]",
+                        "action": "store",
+                        "type": str,
+                        "default": False,
+                    },
+                ),
             ],
         ),
     )
@@ -289,6 +294,11 @@ class CmpTestController(ChildPlatformController):
         user = self.app.pargs.user
         max = self.app.pargs.concurrency
 
+        failfast = self.app.pargs.failfast
+        from beecell.types.type_string import str2bool
+
+        b_failfast = str2bool(failfast)
+
         if config is None:
             config = "%s/beehive-tests/beehive_tests/configs/test/beehive.yml" % self.app.config.get(
                 "beehive", "local_package_path"
@@ -300,6 +310,7 @@ class CmpTestController(ChildPlatformController):
             "validate": validate,
             "user": user,
             "max": int(max),
+            "failfast": b_failfast,
         }
 
         prj = package.replace("_", "-")
@@ -394,14 +405,9 @@ class CmpSubsystemController(BaseK8sController):
             data = data.replace(i, value)
         return data
 
-    def __get_ssh_client(self):
-        keystring = b64decode(dict_get(self.conf, "ssh.sshkey", ""))
-        user = dict_get(self.conf, "ssh.user", "")
-        host = dict_get(self.conf, "hosts.0", "")
-        client = ParamikoShell(host, user, keystring=keystring)
-        return client
-
     def __sync(self, pkgs, base_remote_package_path):
+        from beecell.paramiko_shell.shell import Rsync
+
         if pkgs == "all":
             pkgs = self._meta.available_packages
         else:
@@ -426,6 +432,8 @@ class CmpSubsystemController(BaseK8sController):
             print("sync package %s to %s" % (pkg, remote_package_path))
 
     def __create_subsystem(self, update=False):
+        from beehive.common.helper import BeehiveHelper
+
         # self.disable_progress()
         subsystem = self.app.pargs.subsystem
         file_name = self.app.pargs.file
@@ -476,6 +484,8 @@ class CmpSubsystemController(BaseK8sController):
         ),
     )
     def get(self):
+        import sh
+
         oid = self.app.pargs.id
         info_path = "%s/k8s/cmp" % self.ansible_path
 
@@ -629,7 +639,7 @@ class CmpSubsystemController(BaseK8sController):
                 "status.container_statuses.0.image",
                 "status.start_time",
             ]
-            self.app.render(pods, headers=headers, fields=fields, maxsize=40)
+            self.app.render(pods, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="ping cmp subsystems",
@@ -800,6 +810,7 @@ class CmpSubsystemController(BaseK8sController):
     @ex(
         help="get cmp instance openapi spec",
         description="get cmp instance openapi spec",
+        example="beehive platform cmp subsystems runtime-api-spec service -e <env> -f;beehive platform cmp subsystems runtime-api-spec service -e <env> -f json",
         arguments=ARGS(
             [
                 (
@@ -851,6 +862,7 @@ class CmpSubsystemController(BaseK8sController):
     @ex(
         help="get cmp instance swagger web interface",
         description="get cmp instance swagger web interface",
+        example="beehive platform cmp subsystems runtime-apidocs resource -e <env>;beehive platform cmp subsystems runtime-apidocs service -e <env>",
         arguments=ARGS(
             [
                 (
@@ -936,6 +948,7 @@ class CmpSubsystemController(BaseK8sController):
     @ex(
         help="get cmp instance versions",
         description="get cmp instance versions",
+        example="beehive platform cmp subsystems runtime-version ;beehive platform cmp subsystems runtime-version service",
         arguments=ARGS(
             [
                 (
@@ -953,24 +966,33 @@ class CmpSubsystemController(BaseK8sController):
     def runtime_version(self):
         oid = self.app.pargs.id
         namespace = self.default_namespace
+        self.app.pargs.notruncate = True
 
         services = self.list_service(namespace, name="uwsgi-%s" % oid)
         if len(services) < 1:
             # raise Exception('no service found for subsystem %s and role %s' % (oid, role))
             raise Exception("no service found for subsystem %s" % (oid))
         service = services[0]
+        # print("service: %s" % service)
 
-        items = []
+        packages = []
+        image_info = {}
         for k8s_host in self.k8s_hosts:
             port = service.spec.ports[0].node_port
             ping = self.send_api_ping(k8s_host, port, oid)
             if ping is True:
                 api = self._meta.available_subsytems_api.get(oid)
-                res = self.send_api_request(k8s_host, port, "%s/versions" % api).get("packages", [])
+                # print("api: %s" % api)
+                res = self.send_api_request(k8s_host, port, "%s/versions" % api)
+                packages = res.get("packages", [])
+                image_info = res.get("image_info", {})
                 break
 
-        headers = ["name", "version"]
-        self.app.render(res, headers=headers)
+        headers = ["name", "version", "git_last_commit"]
+        self.app.render(packages, headers=headers)
+
+        self.c("\nimage", "underline")
+        self.app.render(image_info, details=True)
 
     @ex(
         help="get cmp subsystem pod log",
@@ -1216,6 +1238,142 @@ class CmpSubsystemController(BaseK8sController):
             self.deploy_application(subsystem, namespace)
         else:
             raise Exception("subsystem can be one of %s" % self._meta.available_subsytems)
+
+    @ex(
+        help="maintenance get",
+        description="maintenance get",
+        arguments=ARGS(
+            [
+                (
+                    ["subsystem"],
+                    {
+                        "help": "subsystem. Ex. resource, service",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def maintenance_get(self):
+        subsystem = self.app.pargs.subsystem
+        namespace = self.default_namespace
+
+        api = self._meta.available_subsytems_api.get(subsystem)
+        if api is None:
+            print(self.app.colored_text.output("ERROR: subsystem '%s' not found" % subsystem, "RED"))
+            return
+
+        services = self.list_service(namespace, name="clusterip")
+        items = []
+        for service in services:
+            for k8s_host in self.k8s_hosts:
+                item = {
+                    "kind": service.kind,
+                    "name": service.metadata.name,
+                    "namespace": service.metadata.namespace,
+                    "type": service.spec.type,
+                    "cluster_ip": service.spec.cluster_ip,
+                    "k8s_host": k8s_host,
+                    "node_port": service.spec.ports[0].node_port,
+                    "target_port": service.spec.ports[0].target_port,
+                    "creation_date": format_date(service.metadata.creation_timestamp),
+                }
+                # print("item: %s" % item)
+                items.append(item)
+
+        for item in items:
+            port = item.get("node_port")
+            host = item.get("k8s_host")
+            name = item.get("name").replace("-clusterip", "").replace("uwsgi-", "")
+
+            if name == subsystem:
+                api = self._meta.available_subsytems_api.get(name)
+                url = "http://%s:%s%s/cmp_maintenance" % (host, port, api)
+                self.app.log.debug(url)
+
+                http = get(url)
+                response = http.json()
+                self.app.log.debug("maintenance_get %s: %s" % (url, response))
+                self.app.render(response.get("methods"), headers=["method", "enabled"])
+
+    @ex(
+        help="maintenance set",
+        description="maintenance set",
+        arguments=ARGS(
+            [
+                (
+                    ["subsystem"],
+                    {
+                        "help": "subsystem. Ex. resource, service",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["method"],
+                    {
+                        "help": "http method: get, post, put, delete",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["enabled"],
+                    {
+                        "help": "enabled True/False",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def maintenance_set(self):
+        subsystem = self.app.pargs.subsystem
+        method = self.app.pargs.method
+        enabled = self.app.pargs.enabled
+        # namespace = self.default_namespace
+        # print("subsystem: %s" % subsystem)
+
+        api = self._meta.available_subsytems_api.get(subsystem)
+        if api is None:
+            print(self.app.colored_text.output("ERROR: subsystem '%s' not found" % subsystem, "RED"))
+            return
+
+        methods = ["get", "post", "put", "delete"]
+        if method not in methods:
+            print(self.app.colored_text.output("ERROR: method '%s' incorrect" % method, "RED"))
+            return
+
+        from beecell.types.type_string import str2bool
+
+        if str2bool(enabled) is None:
+            print(self.app.colored_text.output("ERROR: enabled value '%s' incorrect" % enabled, "RED"))
+            return
+
+        methods = {
+            "method": method,
+            "enabled": enabled,
+        }
+        data_methods = {"methods": methods}
+
+        self._meta.cmp = {"baseuri": "%s" % api, "subsystem": "%s" % subsystem}
+        self.configure_cmp_api_client()
+
+        uri = "%s/cmp_maintenance" % self.baseuri
+        self.app.log.debug(uri)
+        res = self.cmp_post(uri, data=data_methods, timeout=600)
+        self.app.log.debug("res: %s" % res)
+
+        MaintenanceSetResponse = res["MaintenanceSetResponse"]
+        ok = MaintenanceSetResponse["ok"]
+        if ok == True:
+            print("set method '%s' enabled '%s'" % (method, enabled))
 
 
 # class CmpInstanceController(ChildPlatformController):
@@ -1467,6 +1625,7 @@ class CmpPostInstallController(BaseController):
     @ex(
         help="get post install available configurations",
         description="get post install available configurations",
+        example="beehive platform cmp post-install get;beehive platform cmp post-install get",
         arguments=ARGS(),
     )
     def get(self):
@@ -1475,8 +1634,9 @@ class CmpPostInstallController(BaseController):
         self.app.render(res, headers=["name", "type"])
 
     @ex(
-        help="get post install available configurations",
-        description="get post install available configurations",
+        help="show post install available configurations",
+        description="show post install available configurations",
+        example="beehive platform cmp post-install show prod/resource/provider/network/rupar74;beehive platform cmp post-install show prod/business/ente_cloud/rupar74",
         arguments=ARGS(
             [
                 (["config"], {"help": "config file", "action": "store", "type": str}),
@@ -1508,6 +1668,7 @@ class CmpPostInstallController(BaseController):
     @ex(
         help="run post install. This command can be used many times to add new items",
         description="run post install. This command can be used many times to add new items",
+        example="beehive platform cmp post-install run prod/resource/provider/network/rupar70;beehive platform cmp post-install run prod/business/catalogs",
         arguments=ARGS(
             [
                 (["config"], {"help": "config file", "action": "store", "type": str}),
@@ -1559,6 +1720,7 @@ class CmpCustomizeController(BaseController):
     @ex(
         help="get available configurations",
         description="get available configurations",
+        example="beehive platform cmp customize get -e <env>",
         arguments=ARGS(),
     )
     def get(self):
@@ -1569,6 +1731,7 @@ class CmpCustomizeController(BaseController):
     @ex(
         help="show configuration",
         description="show configuration",
+        example="beehive platform cmp customize show prod/business/vm.m16.large;beehive platform cmp customize show prod/business/db-engines-felice",
         arguments=ARGS(
             [
                 (["config"], {"help": "config file", "action": "store", "type": str}),
@@ -1600,6 +1763,7 @@ class CmpCustomizeController(BaseController):
     @ex(
         help="run customization. This command can be used many times to add new items",
         description="run customization. This command can be used many times to add new items",
+        example="beehive platform cmp customize run prod/resource/provider/image1 -e <env>;beehive platform cmp customize run prod/resource/provider/image1 -e <env>",
         arguments=ARGS(
             [
                 (["config"], {"help": "config file", "action": "store", "type": str}),
@@ -1621,6 +1785,15 @@ class CmpCustomizeController(BaseController):
                         "default": None,
                     },
                 ),
+                (
+                    ["-dry"],
+                    {
+                        "help": "if True no changes were written (where managed!)",
+                        "action": "store",
+                        "type": bool,
+                        "default": False,
+                    },
+                ),
             ]
         ),
     )
@@ -1628,11 +1801,12 @@ class CmpCustomizeController(BaseController):
         config = self.app.pargs.config
         config_filter = self.app.pargs.filter
         sections = self.app.pargs.sections
+        dry = self.app.pargs.dry
         manager = CostomizeManager(self)
         manager.load_configs(config)
         if config_filter is not None:
             manager.apply_filter(config_filter)
-        manager.run(sections)
+        manager.run(sections, dry)
 
 
 class CmpLog2Controller(ChildPlatformController):
@@ -1728,6 +1902,7 @@ class CmpLog2Controller(ChildPlatformController):
     @ex(
         help="show log for cmp engine",
         description="show log for cmp engine",
+        example="beehive platform cmp logs engine -pod resource-app-78dc4b74ff-f989q -size 500;beehive platform cmp logs engine -pod resource-app-78dc4b74ff-f989q -size 500 -e <env>",
         arguments=ARGS(
             PAGINATION_ARGS,
             [
@@ -1944,6 +2119,7 @@ class CmpLog2Controller(ChildPlatformController):
     @ex(
         help="get api request received",
         description="get api request received",
+        example="beehive platform cmp logs api -e <env>;beehive platform cmp logs api -e <env>",
         arguments=ARGS(
             PAGINATION_ARGS,
             [

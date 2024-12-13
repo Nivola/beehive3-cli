@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from datetime import datetime
@@ -309,7 +309,10 @@ class TrilioPlatformController(BaseController):
             work["snap_status"] = dict_get(work, "snaps.-1.status")
             work["snap_date"] = dict_get(work, "snaps.-1.created_at")
             work["snap_type"] = dict_get(work, "snaps.-1.snapshot_type")
-            work["project_name"] = projects_idx[work["project_id"]]["name"]
+            try:
+                work["project_name"] = projects_idx[work["project_id"]]["name"]
+            except:
+                work["project_name"] = None
 
         headers = [
             "id",
@@ -415,7 +418,7 @@ class TrilioPlatformController(BaseController):
                 headers.extend(["job_enabled", "job_start"])
             else:
                 res = workloads
-            self.app.render(res, headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="add a workload. Project with -P must be specified",

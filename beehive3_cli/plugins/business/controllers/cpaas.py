@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from re import match
 from urllib.parse import urlencode
 from cement import ex
 from beecell.password import random_password
@@ -14,6 +13,9 @@ from beehive3_cli.core.util import load_config
 from beehive3_cli.plugins.business.controllers.business import BusinessControllerChild
 
 
+CONTINUE_NOTICE = "to continue use this command specify --continues argument"
+
+
 class CPaaServiceController(BusinessControllerChild):
     class Meta:
         label = "cpaas"
@@ -22,7 +24,12 @@ class CPaaServiceController(BusinessControllerChild):
 
     @ex(
         help="get compute service info",
-        description="get compute service info",
+        description="""\
+This CLI command retrieves compute service information for the specified account id. \
+The account id argument is required to identify which account's compute service info should be retrieved. \
+This command will display basic info about the compute service configuration and resources for the given account.\
+""",
+        example="beehive bu cpaas info ####;beehive bu cpaas info <uuid>",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -33,17 +40,22 @@ class CPaaServiceController(BusinessControllerChild):
         account = self.app.pargs.account
         account = self.get_account(account).get("uuid")
         data = {"owner-id": account}
-        uri = "%s/computeservices" % self.baseuri
+        uri = f"{self.baseuri}/computeservices"
         res = self.cmp_get(uri, data=data)
         res = dict_get(res, "DescribeComputeResponse.computeSet.0")
-        # limits = res.pop('limits')
         self.app.render(res, details=True, maxsize=100)
+        # limits = res.pop('limits')
         # self.output('Limits:')
         # self.app.render(limits, headers=['quota', 'value', 'allocated', 'unit'], maxsize=40)
 
     @ex(
         help="get compute service quotas",
-        description="get compute service quotas",
+        description="""\
+This command is used to retrieve compute service quotas for a given account id. \
+The account id is a required argument that must be provided to get the quotas information. \
+This command will return the quotas configured for the specified account for compute services.\
+""",
+        example="beehive bu cpaas quotas <uuid>",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -54,7 +66,7 @@ class CPaaServiceController(BusinessControllerChild):
         account = self.app.pargs.account
         account = self.get_account(account).get("uuid")
         data = {"owner-id": account}
-        uri = "%s/computeservices/describeaccountattributes" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/describeaccountattributes"
         res = self.cmp_get(uri, data=data)
         res = dict_get(res, "DescribeAccountAttributesResponse.accountAttributeSet")
         headers = ["name", "value", "used"]
@@ -67,7 +79,11 @@ class CPaaServiceController(BusinessControllerChild):
 
     @ex(
         help="get compute service availibility zones",
-        description="get compute service availibility zones",
+        description="""\
+This command retrieves the available compute service availability zones for a given account. \
+The account ID is required as it will return the availability zones accessible to that specific account.\
+""",
+        example="beehive bu cpaas availability-zones xxxxx;beehive bu cpaas availability-zones xxxxx",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -78,7 +94,7 @@ class CPaaServiceController(BusinessControllerChild):
         account = self.app.pargs.account
         account = self.get_account(account).get("uuid")
         data = {"owner-id": account}
-        uri = "%s/computeservices/describeavailabilityzones" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/describeavailabilityzones"
         res = self.cmp_get(uri, data=data)
         res = dict_get(res, "DescribeAvailabilityZonesResponse.availabilityZoneInfo")
         headers = ["name", "state", "region", "message"]
@@ -96,7 +112,12 @@ class ImageServiceController(BusinessControllerChild):
 
     @ex(
         help="list images",
-        description="list images",
+        description="""\
+This command lists all the available images in the Cement Platform as a Service (CPaaS) image registry. \
+Images are templates that can be used to deploy applications and workloads on CPaaS. \
+Listing images allows a user to see what options are available to choose from when deploying or launching new instances.\
+""",
+        example="beehive bu cpaas images list 16 -e <env>;beehive bu cpaas images list -account xxxxx",
         arguments=ARGS(
             [
                 (
@@ -163,33 +184,48 @@ class ImageServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = "%s/computeservices/image/describeimages" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeImagesResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("imagesSet")),
-            "page": page,
-            "total": res.get("nvl-imageTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("imagesSet"),
-        }
+        uri = f"{self.baseuri}/computeservices/image/describeimages"
 
-        headers = ["id", "name", "state", "type", "account", "platform", "hypervisor"]
-        fields = [
-            "imageId",
-            "name",
-            "imageState",
-            "imageType",
-            "imageOwnerAlias",
-            "platform",
-            "hypervisor",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeImagesResponse")
+            resp = {
+                "count": len(res.get("imagesSet")),
+                "page": page,
+                "total": res.get("nvl-imageTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("imagesSet"),
+            }
+
+            headers = ["id", "name", "state", "type", "account", "platform", "hypervisor"]
+            fields = [
+                "imageId",
+                "name",
+                "imageState",
+                "imageType",
+                "imageOwnerAlias",
+                "platform",
+                "hypervisor",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=100,
+            key_total_name="DescribeImagesResponse.nvl-imageTotal",
+            key_list_name="DescribeImagesResponse.imagesSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get image",
-        description="get image",
+        description="""\
+This command retrieves the details of a specific image by providing its image id as an argument. \
+The image id is a required argument for this command to work. \
+It helps the user to get details of a particular image stored in the system by its unique identifier.\
+""",
+        example="beehive bu cpaas images get <uuid>",
         arguments=ARGS(
             [
                 (["image"], {"help": "image id", "action": "store", "type": str}),
@@ -203,7 +239,7 @@ class ImageServiceController(BusinessControllerChild):
         elif self.is_name(image_id):
             data = {"name.N": [image_id]}
 
-        uri = "%s/computeservices/image/describeimages" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/image/describeimages"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeImagesResponse.imagesSet", default={})
         if len(res) > 0:
@@ -213,11 +249,16 @@ class ImageServiceController(BusinessControllerChild):
             # else:
             self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception("image %s was not found" % image_id)
+            raise Exception(f"image {image_id} was not found")
 
     @ex(
         help="get image templates",
-        description="get image templates",
+        description="""\
+This command retrieves the available image templates that can be used to deploy applications on Nivola CMP CPAAS. \
+Image templates define the base operating system, runtime and dependencies required by applications. \
+They help standardize application deployments and ensure consistency across environments like development, test and production.\
+""",
+        example="beehive bu cpaas images types <uuid>",
         arguments=ARGS(
             [
                 (
@@ -246,7 +287,12 @@ class ImageServiceController(BusinessControllerChild):
 
     @ex(
         help="create an image",
-        description="create an image",
+        description="""\
+This command creates an image in the Nivola CMP CPAAS platform. \
+It requires the image name, parent account id, description and type as required arguments to \
+uniquely identify and describe the new image being created.\
+""",
+        example="beehive bu cpaas images addImgname <uuid> name name",
         arguments=ARGS(
             [
                 (["name"], {"help": "image name", "action": "store", "type": str}),
@@ -258,7 +304,7 @@ class ImageServiceController(BusinessControllerChild):
                     ["desc"],
                     {"help": "image description", "action": "store", "type": str},
                 ),
-                (["type"], {"help": "image type", "action": "store", "type": str}),
+                (["type"], {"help": "image type (definition)", "action": "store", "type": str}),
             ]
         ),
     )
@@ -274,14 +320,19 @@ class ImageServiceController(BusinessControllerChild):
             "ImageDescription": desc,
             "ImageType": itype,
         }
-        uri = "%s/computeservices/image/createimage" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/image/createimage"
         res = self.cmp_post(uri, data={"image": data}, timeout=600)
         res = dict_get(res, "CreateImageResponse.imageId")
-        self.app.render({"msg": "add image: %s" % res})
+        self.app.render({"msg": f"add image: {res}"})
 
     @ex(
         help="delete an image",
-        description="delete an image",
+        description="""\
+This command deletes an image with the provided image id from the Nivola CMP CPAAS. \
+The image id is a required argument for this command to identify the image to delete. \
+An environment can also be optionally specified with the -e <env> to target a non-default environment.\
+""",
+        example="beehive bu cpaas images delete <uuid> -e <env>",
         arguments=ARGS(
             [
                 (["image"], {"help": "image id", "action": "store", "type": str}),
@@ -293,16 +344,15 @@ class ImageServiceController(BusinessControllerChild):
 
         # check type
         version = "v2.0"
-        uri = "/%s/nws/serviceinsts/%s" % (version, oid)
+        uri = f"/{version}/nws/serviceinsts/{oid}"
         res = self.cmp_get(uri).get("serviceinst")
         plugintype = res["plugintype"]
-        name = res["name"]
         if plugintype != "ComputeImage":
             print("Instance is not a ComputeImage")
         else:
             data = {"force": False, "propagate": True}
-            uri = "/v2.0/nws/serviceinsts/%s" % oid
-            self.cmp_delete(uri, data=data, timeout=180, entity="image %s" % oid)
+            uri = f"/v2.0/nws/serviceinsts/{oid}"
+            self.cmp_delete(uri, data=data, timeout=180, entity=f"image {oid}")
 
 
 class VolumeServiceController(BusinessControllerChild):
@@ -317,7 +367,12 @@ class VolumeServiceController(BusinessControllerChild):
 
     @ex(
         help="load volumes from resources",
-        description="load volumes from resources",
+        description="""\
+This CLI command loads volumes from resources. \
+It retrieves volume information from the configured resources and loads them into the platform \
+so they can be used to provision applications and services. \
+No required arguments as the volumes will be loaded based on the configured resources.\
+""",
         arguments=ARGS(
             [
                 (
@@ -365,11 +420,15 @@ class VolumeServiceController(BusinessControllerChild):
         }
         uri = "/v2.0/nws/serviceinsts/import"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "import service plugin instance %s" % name})
+        self.app.render({"msg": f"import service plugin instance {name}"})
 
     @ex(
         help="list volumes",
-        description="list volumes",
+        description="""\
+This command lists all the volumes for the specified account. \
+If no account is specified, it will list volumes for the current account.\
+""",
+        example="beehive bu cpaas volumes list -accounts xxxx",
         arguments=ARGS(
             [
                 (
@@ -436,45 +495,60 @@ class VolumeServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = "%s/computeservices/volume/describevolumes" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeVolumesResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("volumesSet")),
-            "page": page,
-            "total": res.get("nvl-volumeTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "volumes": res.get("volumesSet"),
-        }
+        uri = f"{self.baseuri}/computeservices/volume/describevolumes"
 
-        headers = [
-            "id",
-            "name",
-            "state",
-            "size",
-            "type",
-            "account",
-            "platform",
-            "creation",
-            "instance",
-        ]
-        fields = [
-            "volumeId",
-            "nvl-name",
-            "status",
-            "size",
-            "volumeType",
-            "nvl-volumeOwnerAlias",
-            "nvl-hypervisor",
-            "createTime",
-            "attachmentSet.0.instanceId",
-        ]
-        self.app.render(resp, key="volumes", headers=headers, fields=fields, maxsize=40)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeVolumesResponse")
+            resp = {
+                "count": len(res.get("volumesSet")),
+                "page": page,
+                "total": res.get("nvl-volumeTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "volumes": res.get("volumesSet"),
+            }
+
+            headers = [
+                "id",
+                "name",
+                "state",
+                "size",
+                "type",
+                "account",
+                "platform",
+                "creation",
+                "instance",
+            ]
+            fields = [
+                "volumeId",
+                "nvl-name",
+                "status",
+                "size",
+                "volumeType",
+                "nvl-volumeOwnerAlias",
+                "nvl-hypervisor",
+                "createTime",
+                "attachmentSet.0.instanceId",
+            ]
+            self.app.render(resp, key="volumes", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeVolumesResponse.nvl-volumeTotal",
+            key_list_name="DescribeVolumesResponse.volumesSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get volume",
-        description="get volume",
+        description="""\
+This command retrieves information about a specific volume by specifying its ID. \
+It requires the volume ID as the only required argument. \
+The command will return details of the requested volume such as its ID, name, size, etc.\
+""",
+        example="beehive bu cpaas volumes get <uuid>",
         arguments=ARGS(
             [
                 (["volume"], {"help": "volume id", "action": "store", "type": str}),
@@ -488,7 +562,7 @@ class VolumeServiceController(BusinessControllerChild):
         elif self.is_name(volume_id):
             data = {"Nvl_Name.N": [volume_id]}
 
-        uri = "%s/computeservices/volume/describevolumes" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/volume/describevolumes"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeVolumesResponse.volumesSet", default={})
         if len(res) > 0:
@@ -498,11 +572,18 @@ class VolumeServiceController(BusinessControllerChild):
             # else:
             self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception("volume %s was not found" % volume_id)
+            raise Exception(f"volume {volume_id} was not found")
 
     @ex(
         help="get volumes types",
-        description="get volumes types",
+        description="""\
+This command is used to retrieve the available volume types that can be used when provisioning volumes on the Nivola \
+CMP CPAAS platform. Volume types determine things like the size of the volume, the type of storage (SSD, HDD etc.), \
+and other performance characteristics. \
+The command does not require any arguments as it simply lists out the available volume types without filtering or \
+operating on a specific volume.\
+""",
+        example="beehive bu cpaas volumes types <uuid>",
         arguments=ARGS(
             [
                 (
@@ -559,7 +640,11 @@ class VolumeServiceController(BusinessControllerChild):
 
     @ex(
         help="create a volume",
-        description="create a volume",
+        description="""
+This command creates a volume with the specified name, account id, availability zone, type and size. \
+The required arguments are the volume name, parent account id, availability zone, type and size.\
+""",
+        example="beehive bu cpaas volumes add xxxxx aaaaa azazZ <vol_type> ##",
         arguments=ARGS(
             [
                 (["name"], {"help": "volume name", "action": "store", "type": str}),
@@ -576,7 +661,7 @@ class VolumeServiceController(BusinessControllerChild):
                     },
                 ),
                 (["type"], {"help": "volume type", "action": "store", "type": str}),
-                (["size"], {"help": "volume sise", "action": "store", "type": str}),
+                (["size"], {"help": "volume size", "action": "store", "type": str}),
                 (
                     ["-iops"],
                     {
@@ -587,21 +672,12 @@ class VolumeServiceController(BusinessControllerChild):
                     },
                 ),
                 (
-                    ["-snapshot"],
-                    {
-                        "help": "volume snapshot",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
                     ["-hypervisor"],
                     {
-                        "help": "volume hypervisor. Can be: openstack or vsphere [default=openstack]",
+                        "help": "volume hypervisor. Can be: openstack or vsphere [default=vsphere]",
                         "action": "store",
                         "type": str,
-                        "default": "openstack",
+                        "default": "vsphere",
                     },
                 ),
             ]
@@ -611,7 +687,6 @@ class VolumeServiceController(BusinessControllerChild):
         name = self.app.pargs.name
         account = self.get_account(self.app.pargs.account).get("uuid")
         itype = self.get_service_definition(self.app.pargs.type)
-        snapshot = self.app.pargs.snapshot
         size = self.app.pargs.size
         iops = self.app.pargs.iops
         zone = self.app.pargs.availability_zone
@@ -620,7 +695,6 @@ class VolumeServiceController(BusinessControllerChild):
         data = {
             "Nvl_Name": name,
             "owner-id": account,
-            # 'SnapshotId': snapshot,
             "VolumeType": itype,
             "Size": size,
             "Iops": iops,
@@ -629,35 +703,19 @@ class VolumeServiceController(BusinessControllerChild):
             "Encrypted": False,
             "Nvl_Hypervisor": hypervisor,
         }
-        uri = "%s/computeservices/volume/createvolume" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/volume/createvolume"
         res = self.cmp_post(uri, data={"volume": data}, timeout=600)
         res = dict_get(res, "CreateVolumeResponse.volumeId")
         self.wait_for_service(res)
-        self.app.render({"msg": "add volume: %s" % res})
-
-    # @ex(
-    #     help='update a volume',
-    #     description='update a volume',
-    #     arguments=ARGS([
-    #         (['vm'], {'help': 'volume id', 'action': 'store', 'type': str}),
-    #         (['-type'], {'help': 'volume type', 'action': 'store', 'type': str, 'default': None}),
-    #     ])
-    # )
-    # def update(self):
-    #     value = self.app.pargs.vm
-    #     vmtype = self.app.pargs.type
-    #     data = {
-    #         'InstanceId': value,
-    #         'InstanceType': vmtype,
-    #     }
-    #     data = {'instance': data}
-    #     uri = '%s/computeservices/instance/modifyinstanceattribute' % self.baseuri
-    #     res = self.cmp_put(uri, data=data, timeout=600).get('ModifyInstanceAttributeResponse')
-    #     self.app.render('update volume %s' % value)
+        self.app.render({"msg": f"add volume: {res}"})
 
     @ex(
         help="delete a volume",
-        description="delete a volume",
+        description="""\
+This command deletes a volume by specifying its id. The volume id is a required argument for this command to identify \
+the volume to be deleted. An optional -y flag can also be provided to skip confirmation prompt for deleting the volume.\
+""",
+        example="beehive bu cpaas volumes delete <uuid>",
         arguments=ARGS(
             [
                 (["volume"], {"help": "volume id", "action": "store", "type": str}),
@@ -669,13 +727,19 @@ class VolumeServiceController(BusinessControllerChild):
         if self.is_name(volume_id):
             raise Exception("only volume id is supported")
         data = {"VolumeId": volume_id}
-        uri = "%s/computeservices/volume/deletevolume" % self.baseuri
-        self.cmp_delete(uri, data=data, timeout=600, entity="volume %s" % volume_id)
+        uri = f"{self.baseuri}/computeservices/volume/deletevolume"
+        self.cmp_delete(uri, data=data, timeout=600, entity=f"volume {volume_id}")
         self.wait_for_service(volume_id, accepted_state="DELETED")
 
     @ex(
         help="attach a volume to an instance",
-        description="attach a volume to an instance",
+        description="""\
+This command attaches a volume to an instance. \
+It requires the volume ID and instance ID as arguments to identify the specific volume and instance to attach.\
+""",
+        example="""\
+beehive bu cpaas volumes attach <uuid> <uuid>\
+""",
         arguments=ARGS(
             [
                 (["volume"], {"help": "volume id", "action": "store", "type": str}),
@@ -687,14 +751,20 @@ class VolumeServiceController(BusinessControllerChild):
         volume = self.app.pargs.volume
         instance = self.app.pargs.instance
         data = {"InstanceId": instance, "VolumeId": volume, "Device": "/dev/sda"}
-        uri = "%s/computeservices/volume/attachvolume" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/volume/attachvolume"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(volume)
-        self.app.render({"msg": "attach volume %s to instance %s" % (volume, instance)})
+        self.app.render({"msg": f"attach volume {volume} to instance {instance}"})
 
     @ex(
         help="detach a volume to an instance",
-        description="detach a volume to an instance",
+        description="""
+This command detaches a volume from an instance. \
+It requires the volume ID and instance ID as arguments to identify the specific volume and instance to detach.\
+""",
+        example="""\
+beehive bu cpaas volumes detach <uuid> <uuid>\
+""",
         arguments=ARGS(
             [
                 (["volume"], {"help": "volume id", "action": "store", "type": str}),
@@ -706,10 +776,10 @@ class VolumeServiceController(BusinessControllerChild):
         volume = self.app.pargs.volume
         instance = self.app.pargs.instance
         data = {"InstanceId": instance, "VolumeId": volume, "Device": "/dev/sda"}
-        uri = "%s/computeservices/volume/detachvolume" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/volume/detachvolume"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(volume)
-        self.app.render({"msg": "detach volume %s to instance %s" % (volume, instance)})
+        self.app.render({"msg": f"detach volume {volume} to instance {instance}"})
 
 
 class VmServiceController(BusinessControllerChild):
@@ -725,8 +795,256 @@ class VmServiceController(BusinessControllerChild):
         cmp = {"baseuri": "/v2.0/nws", "subsystem": "service"}
 
     @ex(
-        help="list all the virtual machines",
-        description="list all the virtual machines",
+        help="List virtual machine",
+        description="""\
+This command lists the virtual machines under the specified account. No arguments are required. \
+The -accounts flag can be used to filter the VMs by a specific account. \
+The -e <env> filters VMs by environment like pod, region etc.\
+""",
+        example="beehive bu cpaas vms list -accounts xxxxx",
+        arguments=ARGS(
+            [
+                (
+                    ["-accounts"],
+                    {
+                        "help": "list of account id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ids"],
+                    {
+                        "help": "list of vm id comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "vm name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-names"],
+                    {
+                        "help": "vm name pattern",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-types"],
+                    {
+                        "help": "list of type comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-launch_time"],
+                    {
+                        "help": "launch time interval e.g. 2021-01-30T:2021-01-31T",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": "list of tag comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-states"],
+                    {
+                        "help": "list of instance state comma separated",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-sg"],
+                    {
+                        "help": "list of security group id comma separated e.g. pending, running, error",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-page"],
+                    {
+                        "help": "list page [default=0]",
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": "list page size [default=20]",
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+                (
+                    ["-services"],
+                    {
+                        "help": "print instance service enabling e.g. backup, monitoring",
+                        "action": "store_true",
+                    },
+                ),
+            ]
+        ),
+    )
+    def list(self):
+        services = self.app.pargs.services
+        params = [
+            "accounts",
+            "ids",
+            "types",
+            "tags",
+            "sg",
+            "name",
+            "names",
+            "launch_time",
+            "states",
+        ]
+        mappings = {
+            "accounts": self.get_account_ids,
+            "tags": lambda x: x.split(","),
+            "types": lambda x: x.split(","),
+            "ids": lambda x: x.split(","),
+            "name": lambda x: x.split(","),
+            "names": lambda x: "%" + x + "%",
+            "sg": lambda x: x.split(","),
+            "launch_time": lambda x: x.split(","),
+            "states": lambda x: x.split(","),
+        }
+        aliases = {
+            "accounts": "owner-id.N",
+            "ids": "instance-id.N",
+            "types": "instance-type.N",
+            "name": "name.N",
+            "names": "name-pattern",
+            "tags": "tag-key.N",
+            "sg": "instance.group-id.N",
+            "launch_time": "launch-time.N",
+            "states": "instance-state-name.N",
+            "size": "MaxResults",
+            "page": "NextToken",
+        }
+        data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
+        uri = f"{self.baseuri}/computeservices/instance/describeinstances"
+
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeInstancesResponse")
+            res = res.get("reservationSet")[0]
+            resp = {
+                "count": len(res.get("instancesSet")),
+                "page": page,
+                "total": res.get("nvl-instanceTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("instancesSet"),
+            }
+
+            headers = [
+                "id",
+                "name",
+                "account",
+                "type",
+                "state",
+                "availabilityZone",
+                "privateIp",
+                "image",
+                "subnet",
+                "sg",
+                "hypervisor",
+                "launchTime",
+            ]
+            fields = [
+                "instanceId",
+                "nvl-name",
+                "nvl-ownerAlias",
+                "instanceType",
+                "instanceState.name",
+                "placement.availabilityZone",
+                "privateIpAddress",
+                "nvl-imageName",
+                "nvl-subnetName",
+                "groupSet.0.groupId",
+                "hypervisor",
+                "launchTime",
+            ]
+            if services is True:
+                headers = [
+                    "id",
+                    "name",
+                    "account",
+                    "state",
+                    "availabilityZone",
+                    "privateIp",
+                    "backup",
+                    "monitoring",
+                    "logging",
+                    "target_groups",
+                ]
+                fields = [
+                    "instanceId",
+                    "nvl-name",
+                    "nvl-ownerAlias",
+                    "instanceState.name",
+                    "placement.availabilityZone",
+                    "privateIpAddress",
+                    "nvl-BackupEnabled",
+                    "nvl-MonitoringEnabled",
+                    "nvl-LoggingEnabled",
+                    "nvl-targetGroups",
+                ]
+
+            transform = {"instanceState.name": self.color_error}
+            self.app.render(
+                resp,
+                key="instances",
+                headers=headers,
+                fields=fields,
+                transform=transform,
+                maxsize=40,
+            )
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeInstancesResponse.reservationSet.0.nvl-instanceTotal",
+            key_list_name="DescribeInstancesResponse.reservationSet.0.instancesSet",
+            fn_render=render,
+        )
+
+    @ex(
+        help="list all virtual machines",
+        description="""\
+This command lists all virtual machines between the start and end range provided as required arguments. \
+The start and end arguments specify the lower and upper bounds of the vm range to list respectively.\
+""",
+        example="beehive bu cpaas vms list-all",
         arguments=ARGS(
             [
                 (
@@ -749,10 +1067,10 @@ class VmServiceController(BusinessControllerChild):
         ),
     )
     def list_all(self):
-        account_d = dict()
+        account_d = {}
 
         def get_account(account_uuid):
-            uri = "%s/accounts/%s" % (self.baseuri, account_uuid)
+            uri = f"{self.baseuri}/accounts/{account_uuid}"
             res = self.cmp_get(uri)
             res = res.get("account")
             account_name = res.get("name")
@@ -760,7 +1078,7 @@ class VmServiceController(BusinessControllerChild):
             return account_name, div_uuid
 
         def get_division(div_uuid):
-            uri = "/v1.0/nws/divisions/%s" % div_uuid
+            uri = f"/v1.0/nws/divisions/{div_uuid}"
             res = self.cmp_get(uri)
             res = res.get("division")
             div_name = res.get("name")
@@ -768,7 +1086,7 @@ class VmServiceController(BusinessControllerChild):
             return div_name, org_uuid
 
         def get_organization(org_uuid):
-            uri = "/v1.0/nws/organizations/%s" % org_uuid
+            uri = f"/v1.0/nws/organizations/{org_uuid}"
             res = self.cmp_get(uri)
             res = res.get("organization")
             org_name = res.get("name")
@@ -776,7 +1094,7 @@ class VmServiceController(BusinessControllerChild):
 
         def get_instance(page, size):
             data = {"MaxResults": size, "NextToken": page}
-            uri = "%s/computeservices/instance/describeinstances" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/instance/describeinstances"
             res = self.cmp_get(uri, data=urlencode(data, doseq=True))
             res = res.get("DescribeInstancesResponse").get("reservationSet")[0]
             total = res.get("nvl-instanceTotal")
@@ -787,17 +1105,17 @@ class VmServiceController(BusinessControllerChild):
                 item["vcpus"] = instance_type.get("vcpus")
                 item["memory"] = instance_type.get("memory")
                 item["disk"] = sum(dict_get(b, "ebs.volumeSize") for b in block_devices)
-                # build account hierarchy i.e. org.div.account
+                # get account triplet, i.e. org.div.account
                 account_uuid = item.get("nvl-ownerId")
                 if account_uuid in account_d:
-                    account_triplette = account_d[account_uuid]
+                    account_triplet = account_d[account_uuid]
                 else:
                     account_name, div_uuid = get_account(account_uuid)
                     div_name, org_uuid = get_division(div_uuid)
                     org_name = get_organization(org_uuid)
-                    account_triplette = "%s.%s.%s" % (org_name, div_name, account_name)
-                    account_d[account_uuid] = account_triplette
-                item["nvl-ownerAlias"] = account_triplette
+                    account_triplet = f"{org_name}.{div_name}.{account_name}"
+                    account_d[account_uuid] = account_triplet
+                item["nvl-ownerAlias"] = account_triplet
 
             return res, total
 
@@ -852,255 +1170,30 @@ class VmServiceController(BusinessControllerChild):
             "launchTime",
         ]
         resp = []
-        format = self.format
+        out_format = self.format
         for page in range(first_page, last_page):
-            print("getting vms from %s to %s ..." % (page * size + 1, (page + 1) * size))
+            print(f"getting vms from {page * size + 1} to {(page + 1) * size} ...")
             try:
                 chunk_resp = get_instance(page, size)[0]
-                if format == "text":
+                if out_format == "text":
                     self.app.render(chunk_resp, headers=headers, fields=fields)
                 else:
                     resp += chunk_resp
-                print("got vms from %s to %s" % (page * size + 1, (page + 1) * size))
+                print(f"got vms from {page * size + 1} to {(page + 1) * size}")
                 # time.sleep(secs)
             except Exception as exc:
                 print(exc)
                 break
-        if format == "json":
+        if out_format == "json":
             self.app.render(resp, headers=headers, fields=fields)
 
     @ex(
         help="get virtual machine",
-        description="get virtual machine",
-        arguments=ARGS(
-            [
-                (
-                    ["-accounts"],
-                    {
-                        "help": "list of account id comma separated",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-ids"],
-                    {
-                        "help": "list of vm id comma separated",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-name"],
-                    {
-                        "help": "vm name",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-names"],
-                    {
-                        "help": "vm name pattern",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-types"],
-                    {
-                        "help": "list of type comma separated",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-launch_time"],
-                    {
-                        "help": "launch time interval. Ex. 2021-01-30T:2021-01-31T",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-tags"],
-                    {
-                        "help": "list of tag comma separated",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-states"],
-                    {
-                        "help": "list of instance state comma separated",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-sg"],
-                    {
-                        "help": "list of security group id comma separated. Ex. pending, running, error",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-page"],
-                    {
-                        "help": "list page [default=0]",
-                        "action": "store",
-                        "type": int,
-                        "default": 0,
-                    },
-                ),
-                (
-                    ["-size"],
-                    {
-                        "help": "list page size [default=20]",
-                        "action": "store",
-                        "type": int,
-                        "default": 20,
-                    },
-                ),
-                (
-                    ["-services"],
-                    {
-                        "help": "print instance service enabling. Ex. backup, monitoring",
-                        "action": "store_true",
-                    },
-                ),
-            ]
-        ),
-    )
-    def list(self):
-        services = self.app.pargs.services
-        params = [
-            "accounts",
-            "ids",
-            "types",
-            "tags",
-            "sg",
-            "name",
-            "names",
-            "launch_time",
-            "states",
-        ]
-        mappings = {
-            "accounts": self.get_account_ids,
-            "tags": lambda x: x.split(","),
-            "types": lambda x: x.split(","),
-            "ids": lambda x: x.split(","),
-            "name": lambda x: x.split(","),
-            "names": lambda x: "%" + x + "%",
-            "sg": lambda x: x.split(","),
-            "launch_time": lambda x: x.split(","),
-            "states": lambda x: x.split(","),
-        }
-        aliases = {
-            "accounts": "owner-id.N",
-            "ids": "instance-id.N",
-            "types": "instance-type.N",
-            "name": "name.N",
-            "names": "name-pattern",
-            "tags": "tag-key.N",
-            "sg": "instance.group-id.N",
-            "launch_time": "launch-time.N",
-            "states": "instance-state-name.N",
-            "size": "MaxResults",
-            "page": "NextToken",
-        }
-        data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeInstancesResponse")
-        page = self.app.pargs.page
-        res = res.get("reservationSet")[0]
-        resp = {
-            "count": len(res.get("instancesSet")),
-            "page": page,
-            "total": res.get("nvl-instanceTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("instancesSet"),
-        }
-
-        headers = [
-            "id",
-            "name",
-            "account",
-            "type",
-            "state",
-            "availabilityZone",
-            "privateIp",
-            "image",
-            "subnet",
-            "sg",
-            "hypervisor",
-            "launchTime",
-        ]
-        fields = [
-            "instanceId",
-            "nvl-name",
-            "nvl-ownerAlias",
-            "instanceType",
-            "instanceState.name",
-            "placement.availabilityZone",
-            "privateIpAddress",
-            "nvl-imageName",
-            "nvl-subnetName",
-            "groupSet.0.groupId",
-            "hypervisor",
-            "launchTime",
-        ]
-        if services is True:
-            headers = [
-                "id",
-                "name",
-                "account",
-                "state",
-                "availabilityZone",
-                "privateIp",
-                "backup",
-                "monitoring",
-                "logging",
-                "target_groups",
-            ]
-            fields = [
-                "instanceId",
-                "nvl-name",
-                "nvl-ownerAlias",
-                "instanceState.name",
-                "placement.availabilityZone",
-                "privateIpAddress",
-                "nvl-BackupEnabled",
-                "nvl-MonitoringEnabled",
-                "nvl-LoggingEnabled",
-                "nvl-targetGroups",
-            ]
-
-        transform = {"instanceState.name": self.color_error}
-        self.app.render(
-            resp,
-            key="instances",
-            headers=headers,
-            fields=fields,
-            transform=transform,
-            maxsize=40,
-        )
-
-    @ex(
-        help="get virtual machine",
-        description="get virtual machine",
+        description="""\
+This command retrieves information about a specific virtual machine instance from the Nivola CMP CPAAS VMS service \
+by its ID. The 'vm' argument is required and should contain the ID of the virtual machine to fetch details for.\
+""",
+        example="beehive bu cpaas vms get <uuid>",
         arguments=ARGS(
             [
                 (
@@ -1117,7 +1210,7 @@ class VmServiceController(BusinessControllerChild):
         elif self.is_name(vm_id):
             data = {"name.N": [vm_id]}
 
-        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/describeinstances"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet", default={})
         if len(res) > 0:
@@ -1131,14 +1224,9 @@ class VmServiceController(BusinessControllerChild):
                     "name": res.pop("nvl-imageName", None),
                 }
                 network["ip_address"] = res.pop("privateIpAddress", None)
-                network["subnet"] = "%s - %s" % (
-                    res.pop("subnetId", None),
-                    res.pop("nvl-subnetName", None),
-                )
-                network["vpc"] = "%s - %s" % (
-                    res.pop("vpcId", None),
-                    res.pop("nvl-vpcName", None),
-                )
+                network["subnet"] = f'{res.pop("subnetId", None)} - {res.pop("nvl-subnetName", None)}'
+                network["vpc"] = f'{res.pop("vpcId", None)} - {res.pop("nvl-vpcName", None)}'
+                network["dns_name"] = res.pop("dnsName", None)
                 network["dns_name"] = res.pop("dnsName", None)
                 network["private_dns_name"] = res.pop("privateDnsName", None)
                 sgs = res.pop("groupSet", [])
@@ -1165,11 +1253,15 @@ class VmServiceController(BusinessControllerChild):
             else:
                 self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception("virtual machine %s was not found" % vm_id)
+            raise Exception(f"virtual machine {vm_id} was not found")
 
     @ex(
         help="get virtual machine console",
-        description="get virtual machine console",
+        description="""\
+This command gets the virtual machine console details by specifying the virtual machine id as an argument. \
+It retrieves the console details like console type, port etc of the specified virtual machine.\
+""",
+        example="beehive bu cpaas vms console-get <uuid>",
         arguments=ARGS(
             [
                 (
@@ -1187,9 +1279,48 @@ class VmServiceController(BusinessControllerChild):
         res = dict_get(res, "GetConsoleResponse.console", default={})
         self.app.render(res, details=True, maxsize=100)
 
+    def __populate_block(self, disk_opt, e, hypervisor):
+        ebs = {}
+        if disk_opt is None:
+            return {"Ebs": ebs}
+        # Format <size>:<volume_type> (for all) or <volume_id>:<volume_type> (for boot only)
+        disk_s = disk_opt.split(":")
+        if len(disk_s) > 2:
+            raise Exception(f"Disk invalid value {disk_opt}")
+        if len(disk_s) > 1:
+            # This might contain  <volume_type>
+            second_part_disk_opt = disk_s[1]
+            ebs = {"VolumeType": second_part_disk_opt}
+        # This must contain <size> or <volume_id>
+        first_part_disk_opt = disk_s[0]
+        if first_part_disk_opt.isdigit():
+            # Size
+            ebs["VolumeSize"] = int(first_part_disk_opt)
+        elif self.is_uuid(first_part_disk_opt):
+            # Uuid is valid for boot disk only
+            if e != 0:
+                raise Exception(f"Disk invalid value {disk_opt}; volume_id is allow for boot disk only.")
+            if hypervisor == "vsphere":
+                raise Exception(f"Disk invalid value {disk_opt}; volume_id is not supported by vsphere.")
+            # Volume Id
+            ebs["Nvl_VolumeId"] = first_part_disk_opt
+        else:
+            msg = f"Disk invalid value {disk_opt}; firts part must be a <size>"
+            if e == 0:
+                msg += " or <volume_id>"
+            raise Exception(msg)
+        return {"Ebs": ebs}
+
+    def __populate_blocks(self, boot_disk, disks, hypervisor):
+        all_disks_opt = [boot_disk] + (disks.split(",") if disks is not None else [])
+        return [self.__populate_block(disk_opt, e, hypervisor) for e, disk_opt in enumerate(all_disks_opt)]
+
     @ex(
         help="create a virtual machine",
-        description="create a virtual machine",
+        description="""\
+This command creates a virtual machine with the specified name, account, type, subnet, image and security group.\
+""",
+        example=" beehive bu cpaas vms add ap1 digifert vm.m1.medium SubnetWEB-xxxxx Ubuntu22 SG-xxxx -sshkey xxxx",
         arguments=ARGS(
             [
                 (
@@ -1249,9 +1380,12 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-main-disk"],
                     {
-                        "help": "optional main disk size configuration. Use <size> to set e default volume type."
-                        "- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle"
-                        "- Use <volume_id>:<volume_type> to set a volume to clone",
+                        "help": """\
+optional main disk size configuration. \
+Use <size> to set e default volume type e.g. "40". \
+Use <size>:<volume_type> to set a non default volume type e.g. "5:vol.oracle". \
+Use <volume_id>:<volume_type> to set a volume to clone e.g. "<uuid>:vol.gold".
+""",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1260,9 +1394,11 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-other-disk"],
                     {
-                        "help": "list of additional disk sizes comma separated. Use <size> to set e default "
-                        "volume type.Use <size>:<volume_type> to set a non default volume type. "
-                        "Ex. 5,10 or 5:vol.oracle,10",
+                        "help": """\
+list of additional disk sizes comma separated. \
+Use <size> to set the default volume type e.g. "40". \
+Use <size>:<volume_type> to set a non default volume type e.g. "5:10" or "5:vol.oracle,10"\
+""",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1271,16 +1407,16 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-hypervisor"],
                     {
-                        "help": "virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]",
+                        "help": "virtual machine hypervisor. Can be: openstack or vsphere [default=vsphere]",
                         "action": "store",
                         "type": str,
-                        "default": "openstack",
+                        "default": "vsphere",
                     },
                 ),
                 (
                     ["-host-group"],
                     {
-                        "help": "virtual machine host group. Ex. oracle",
+                        "help": "virtual machine host group e.g. oracle",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1308,9 +1444,18 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-skip-main-vol-size-check"],
                     {
-                        "help": "Use to skip check that main volume size is not smaller than the main volume of the template.",
+                        "help": "Skips checking if the main volume size is smaller than the template’s main volume.",
                         "action": "store_true",
                         "dest": "skip_main_vol_size_check",
+                    },
+                ),
+                (
+                    ["-private-ip"],
+                    {
+                        "help": "use to specify a value from the IPv4 address range of the subnet, ex. ###.###.###.###",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
                     },
                 ),
             ]
@@ -1332,6 +1477,7 @@ class VmServiceController(BusinessControllerChild):
         multi_avz = self.app.pargs.multi_avz
         meta = self.app.pargs.meta
         check_main_vol_size = not self.app.pargs.skip_main_vol_size_check
+        private_ip = self.app.pargs.private_ip
 
         if pwd is None:
             pwd = random_password(10)
@@ -1349,53 +1495,24 @@ class VmServiceController(BusinessControllerChild):
             "CheckMainVolSize": check_main_vol_size,
         }
 
-        # set disks
-        blocks = [{"Ebs": {}}]
-        if boot_disk is not None:
-            boot_disk = boot_disk.split(":")
-            # get obj by uuid
-            if match(
-                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-                boot_disk[0],
-            ):
-                ebs = {"Nvl_VolumeId": boot_disk[0]}
-            # get obj by id
-            elif match("^\d+$", boot_disk[0]):
-                ebs = {"VolumeSize": int(boot_disk[0])}
-            if len(boot_disk) == 2:
-                ebs["VolumeType"] = boot_disk[1]
-            blocks[0] = {"Ebs": ebs}
-        if disks is not None:
-            for disk in disks.split(","):
-                disk = disk.split(":")
-                # get obj by uuid
-                if match(
-                    "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-                    disk[0],
-                ):
-                    ebs = {"Nvl_VolumeId": disk[0]}
-                # get obj by id
-                elif match("^\d+$", disk[0]):
-                    ebs = {"VolumeSize": int(disk[0])}
-                if len(disk) == 2:
-                    ebs["VolumeType"] = disk[1]
-                blocks.append({"Ebs": ebs})
+        # set hypervisor
+        if hypervisor is not None:
+            if hypervisor not in ("openstack", "vsphere"):
+                raise Exception("Supported hypervisor are openstack and vsphere")
+            data["Nvl_Hypervisor"] = hypervisor
+
+        # set blocks
+        blocks = self.__populate_blocks(boot_disk, disks, hypervisor)
         data["BlockDeviceMapping.N"] = blocks
 
         # set sshkey
         if sshkey is not None:
             data["KeyName"] = sshkey
 
-        # set hypervisor
-        if hypervisor is not None:
-            if hypervisor not in ["openstack", "vsphere"]:
-                raise Exception("Supported hypervisor are openstack and vsphere")
-            data["Nvl_Hypervisor"] = hypervisor
-
         # set host_group
         if host_group is not None:
             if hypervisor == "vsphere" and host_group not in VmServiceController.host_groups:
-                raise Exception("Supported vsphere host group are {}".format(VmServiceController.host_groups))
+                raise Exception(f"Supported vsphere host groups are {VmServiceController.host_groups}")
             if hypervisor == "openstack" and host_group not in ["bck", "nobck"]:
                 raise Exception('Supported openstack host group are "bck" and "nobck"')
             data["Nvl_HostGroup"] = host_group
@@ -1408,11 +1525,14 @@ class VmServiceController(BusinessControllerChild):
                 k, v = kv.split(":")
                 data["Nvl_Metadata"][k] = v
 
-        uri = "%s/computeservices/instance/runinstances" % self.baseuri
+        if private_ip is not None:
+            data["PrivateIpAddress"] = private_ip
+
+        uri = f"{self.baseuri}/computeservices/instance/runinstances"
         res = self.cmp_post(uri, data={"instance": data}, timeout=600)
         uuid = dict_get(res, "RunInstanceResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "add virtual machine: %s" % uuid})
+        self.app.render({"msg": f"add virtual machine: {uuid}"})
 
     def _get_instance(self, vm_id):
         if self.is_uuid(vm_id):
@@ -1420,16 +1540,25 @@ class VmServiceController(BusinessControllerChild):
         elif self.is_name(vm_id):
             data = {"name.N": [vm_id]}
 
-        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/describeinstances"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet", default={})
         if len(res) != 1:
-            raise Exception("no valid vm found for id %s" % vm_id)
+            raise Exception(f"no valid vm found for id {vm_id}")
         return res[0]
 
     @ex(
         help="clone a virtual machine",
-        description="clone a virtual machine",
+        description="""\
+This command is used to clone an existing virtual machine. \
+It requires the name of the new cloned virtual machine and the ID of the virtual machine to clone. \
+Optional arguments can also be provided like the account, subnet, SSH key, password, security group and environment \
+to use for the cloned virtual machine.\
+""",
+        example="""\
+beehive bu cpaas vms clone new-cloned-vm <uuid> -e <env>; \
+beehive bu cpaas vms clone new-cloned-vm <uuid>  -account <uuid> -subnet <uuid> -sg <uuid> -e <env>\
+""",
         arguments=ARGS(
             [
                 (
@@ -1447,7 +1576,7 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-account"],
                     {
-                        "help": "parent account id",
+                        "help": "target account id for cloning (default is the same account of the vm to clone)",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1465,7 +1594,7 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-subnet"],
                     {
-                        "help": "virtual machine subnet id",
+                        "help": "virtual machine subnet id (this must exist in the target account)",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1474,7 +1603,7 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-sg"],
                     {
-                        "help": "virtual machine security group id",
+                        "help": "virtual machine security group id (this must exist in the target account)",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1483,7 +1612,7 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-sshkey"],
                     {
-                        "help": "virtual machine ssh key name",
+                        "help": "virtual machine ssh key name (this must exist in the target account)",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1492,7 +1621,7 @@ class VmServiceController(BusinessControllerChild):
                 (
                     ["-pwd"],
                     {
-                        "help": "virtual machine admin/root password",
+                        "help": "admin/root password of the virtual machine to clone (required for unmanaged accounts)",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1521,22 +1650,20 @@ class VmServiceController(BusinessControllerChild):
         ),
     )
     def clone(self):
-        name = self.app.pargs.name
-        vm_id = self.app.pargs.id
-        account = self.app.pargs.account
-        itype = self.app.pargs.type
-        subnet = self.app.pargs.subnet
-        sg = self.app.pargs.sg
-        sshkey = self.app.pargs.sshkey
-        pwd = self.app.pargs.pwd
-        multi_avz = self.app.pargs.multi_avz
-        meta = self.app.pargs.meta
+        pargs = self.app.pargs
+        vm_id = pargs.id
+        account = pargs.account
+        itype = pargs.type
+        subnet = pargs.subnet
+        sg = pargs.sg
+        sshkey = pargs.sshkey
+        meta = pargs.meta
 
         # get original vm
         vm = self._get_instance(vm_id)
-
         image_name = dict_get(vm, "nvl-imageName")
         hypervisor = dict_get(vm, "hypervisor")
+
         if account is None:
             account = dict_get(vm, "nvl-ownerId")
         else:
@@ -1550,39 +1677,41 @@ class VmServiceController(BusinessControllerChild):
             subnet = dict_get(vm, "subnetId")
         else:
             subnet = self.get_service_instance(subnet, account_id=account)
+
+        sgg = None
         if sg is None:
-            sg = dict_get(vm, "groupSet.0.groupId")
+            sgg = [a["groupId"] for a in vm.get("groupSet", [])]
         else:
-            sg = self.get_service_instance(sg, account_id=account)
+            sgg = [self.get_service_instance(sg, account_id=account)]
         if sshkey is None:
             sshkey = dict_get(vm, "keyName")
-
-        if pwd is None:
-            pwd = random_password(10)
 
         # set disks
         blocks = []
         for disk in vm.get("blockDeviceMapping", []):
             block = {
-                "Nvl_VolumeId": dict_get(disk, "ebs.volumeId"),
                 "VolumeSize": dict_get(disk, "ebs.volumeSize"),
             }
+            if hypervisor == "openstack":
+                # must be passed because openstack clones the volume
+                block["Nvl_VolumeId"] = dict_get(disk, "ebs.volumeId")
             blocks.append({"Ebs": block})
-
         data = {
-            "Name": name,
+            "Name": self.app.pargs.name,
+            "InstanceId": vm_id,
             "owner-id": account,
-            "AdditionalInfo": "",
             "SubnetId": subnet,
             "InstanceType": itype,
-            "AdminPassword": pwd,
+            "AdminPassword": self.app.pargs.pwd,
             "ImageId": image,
-            "SecurityGroupId.N": [sg],
-            "Nvl_MultiAvz": multi_avz,
+            "SecurityGroupId.N": sgg,
+            "Nvl_MultiAvz": pargs.multi_avz,
             "Nvl_Hypervisor": hypervisor,
             "BlockDeviceMapping.N": blocks,
-            "KeyName": sshkey,
         }
+
+        if sshkey is not None:
+            data["KeyName"] = sshkey
 
         # set meta
         if meta is not None:
@@ -1592,15 +1721,22 @@ class VmServiceController(BusinessControllerChild):
                 k, v = kv.split(":")
                 data["Nvl_Metadata"][k] = v
 
-        uri = "%s/computeservices/instance/runinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/cloneinstances"
         res = self.cmp_post(uri, data={"instance": data}, timeout=600)
-        uuid = dict_get(res, "RunInstanceResponse.instancesSet.0.instanceId")
+        uuid = dict_get(res, "CloneInstanceResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "add virtual machine: %s" % uuid})
+        self.app.render({"msg": f"add virtual machine: {uuid}"})
 
     @ex(
         help="import a virtual machine",
-        description="import a virtual machine",
+        description="""\
+This command imports a virtual machine into a specified container. \
+It requires the container ID, VM name, physical VM ID from the provider, provider image ID, \
+and VM password as required arguments.\
+""",
+        example="""\
+beehive bu cpaas vms load xxxxxx xxxxx vm-#### Ubuntu20 -sshkey xxxxx xxxxx xxxx\
+""",
         arguments=ARGS(
             [
                 (
@@ -1624,6 +1760,16 @@ class VmServiceController(BusinessControllerChild):
                     },
                 ),
                 (
+                    ["os"],
+                    {
+                        "metavar": "os",
+                        "help": "operative system of the virtual machine to import: win, linux",
+                        "action": "store",
+                        "type": str,
+                        "choices": ["win", "linux"],
+                    },
+                ),
+                (
                     ["image"],
                     {"help": "provider image id", "action": "store", "type": str},
                 ),
@@ -1636,15 +1782,6 @@ class VmServiceController(BusinessControllerChild):
                     },
                 ),
                 (
-                    ["-sshkey"],
-                    {
-                        "help": "virtual machine ssh key name",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
                     ["account"],
                     {
                         "help": "parent account id",
@@ -1653,16 +1790,6 @@ class VmServiceController(BusinessControllerChild):
                         "default": None,
                     },
                 ),
-                # (['-type'], {'help': 'virtual machine type', 'action': 'store', 'type': str, 'default': None}),
-                # (['-subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str, 'default': None}),
-                # (['-sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str, 'default': None}),
-                #
-                # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-                #             'default': None}),
-                # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-                #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-                #                   'default': True}),
-                # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
             ]
         ),
     )
@@ -1670,10 +1797,16 @@ class VmServiceController(BusinessControllerChild):
         container_id = self.app.pargs.container
         name = self.app.pargs.name
         ext_id = self.app.pargs.vm
+        os = self.app.pargs.os
         image_id = self.app.pargs.image
         pwd = self.app.pargs.pwd
-        sshkey = self.app.pargs.sshkey
-        account_id = self.get_account(self.app.pargs.account).get("uuid")
+        account = self.get_account(self.app.pargs.account)
+        account_id = account.get("uuid")
+        acronym = account.get("acronym")
+        if os == "linux" and acronym is not None and acronym != "":
+            hostname = f"{name}-{acronym}"
+        else:
+            hostname = name
 
         # register server as resource
         # - get container type
@@ -1687,7 +1820,7 @@ class VmServiceController(BusinessControllerChild):
         }
         resclass = resclasses.get(ctype, None)
         if resclass is not None:
-            print("importing physical entity %s as resource..." % resclass)
+            print(f"importing physical entity {resclass} as resource...")
             self.api.resource.container.synchronize(
                 container_id,
                 resclass,
@@ -1696,38 +1829,34 @@ class VmServiceController(BusinessControllerChild):
                 changed=False,
                 ext_id=ext_id,
             )
-            print("imported physical entity %s as resource" % resclass)
+            print(f"imported physical entity {resclass} as resource")
 
         resclasses = {"Openstack": "Openstack.Domain.Project.Volume", "Vsphere": None}
         resclass = resclasses.get(ctype, None)
         if resclass is not None:
-            print("importing physical entity %s as resource..." % resclass)
+            print(f"importing physical entity {resclass} as resource...")
             self.api.resource.container.synchronize(container_id, resclass, new=True, died=False, changed=False)
-            print("imported physical entity %s as resource" % resclass)
+            print(f"imported physical entity {resclass} as resource")
 
         # import physical resource ad provider resource
         # - get resource by ext_id
         physical_resource = self.api.resource.entity.list(ext_id=ext_id).get("resources")[0]["uuid"]
 
         # - patch resource
-        print("patch resource %s" % physical_resource)
+        print(f"patch resource {physical_resource}")
         self.api.resource.entity.patch(physical_resource)
 
         # - import physical resource as provider resource
-        res_name = "%s-%s" % (name, id_gen())
-        print("load resource instance res_name: %s" % res_name)
+        res_name = f"{name}-{id_gen()}"
+        print(f"load resource instance res_name: {res_name}")
         self.api.resource.provider.instance.load(
             "ResourceProvider01",
             res_name,
             physical_resource,
             pwd,
             image_id,
-            hostname=name,
+            hostname=hostname,
         )
-        resource = res_name
-
-        # res_name = 'adsspwd-47ef1b776f'
-
         # - get resource
         res = self.api.resource.provider.instance.get(res_name)
         flavor = dict_get(res, "flavor.name")
@@ -1742,7 +1871,7 @@ class VmServiceController(BusinessControllerChild):
         # cs = res.get('serviceinsts')[0]['uuid']
 
         # - import service instance
-        print("load service instance res_name: %s" % res_name)
+        print(f"load service instance res_name: {res_name}")
         res = self.api.business.service.instance.load(
             name,
             account_id,
@@ -1751,11 +1880,17 @@ class VmServiceController(BusinessControllerChild):
             resource_uuid,
             service_definition_id=flavor,
         )
-        print("import provider resource as compute instance %s" % res)
+        print(f"import provider resource as compute instance {res}")
 
     @ex(
         help="update a virtual machine",
-        description="update a virtual machine",
+        description="""\
+This CLI command updates a virtual machine on the Nivola Cloud platform. \
+The 'vm' argument is required and specifies the ID of the virtual machine to update.\
+""",
+        example="""\
+beehive bu cpaas vms update <uuid> vm.m4.2xlarge;beehive bu cpaas vms update\
+""",
         arguments=ARGS(
             [
                 (
@@ -1800,20 +1935,25 @@ class VmServiceController(BusinessControllerChild):
         sg = None
         data = {"InstanceId": uuid, "InstanceType": vmtype}
         if sg_add is not None:
-            sg = "%s:ADD" % sg_add
+            sg = f"{sg_add}:ADD"
             data["GroupId.N"] = [sg]
         elif sg_del is not None:
-            sg = "%s:DEL" % sg_del
+            sg = f"{sg_del}:DEL"
             data["GroupId.N"] = [sg]
         data = {"instance": data}
-        uri = "%s/computeservices/instance/modifyinstanceattribute" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/modifyinstanceattribute"
         self.cmp_put(uri, data=data, timeout=600).get("ModifyInstanceAttributeResponse")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "update virtual machine: %s" % uuid})
+        self.app.render({"msg": f"update virtual machine: {uuid}"})
 
     @ex(
         help="refresh virtual machine state",
-        description="refresh virtual machine state",
+        description="""\
+This command refreshes the state of a virtual machine managed by Nivola CMP CPaaS. \
+It requires the ID, UUID or name of the virtual machine as the only required argument. \
+By refreshing the state, it updates the VM's reported state in Nivola CMP CPaaS to match \
+the actual state on the hypervisor.\
+""",
         arguments=ARGS(
             [
                 (
@@ -1831,12 +1971,16 @@ class VmServiceController(BusinessControllerChild):
         oid = self.app.pargs.id
         res = self.api.business.cpaas.instance.get(oid)
         resource_uuid = res.get("nvl-resourceId")
-        res = self.api.resource.provider.instance.del_cache(resource_uuid)
-        print("state refreshed for virtual machine %s" % oid)
+        self.api.resource.provider.instance.del_cache(resource_uuid)
+        print(f"state refreshed for virtual machine {oid}")
 
     @ex(
         help="delete a virtual machine",
-        description="delete a virtual machine",
+        description="""\
+This command deletes a virtual machine. It requires the virtual machine id as the only required argument. \
+The virtual machine id uniquely identifies the vm to delete from the cpaas environment.\
+""",
+        example="beehive bu cpaas vms delete <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -1852,24 +1996,30 @@ class VmServiceController(BusinessControllerChild):
             data = {"instance-id.N": [vm_id]}
         elif self.is_name(vm_id):
             data = {"name.N": [vm_id]}
-        uri = "%s/computeservices/instance/describeinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/describeinstances"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeInstancesResponse.reservationSet.0.instancesSet")
         if len(res) == 0:
-            raise Exception("virtual machine %s was not found" % vm_id)
+            raise Exception(f"virtual machine {vm_id} was not found")
         uuid = res[0].get("instanceId")
 
         data = {"InstanceId.N": [uuid]}
-        uri = "%s/computeservices/instance/terminateinstances" % self.baseuri
-        entity = "instance %s" % vm_id
+        uri = f"{self.baseuri}/computeservices/instance/terminateinstances"
+        entity = f"instance {vm_id}"
         self.cmp_delete(uri, data=data, timeout=600, entity=entity, output=False)
         state = self.wait_for_service(uuid, accepted_state="DELETED")
         if state == "DELETED":
-            print("%s deleted" % entity)
+            print(f"{entity} deleted")
 
     @ex(
         help="start a virtual machine",
-        description="start a virtual machine",
+        description="""\
+This command starts a virtual machine that is currently stopped. \
+It requires the virtual machine ID as the only required argument to identify the specific virtual machine to start. \
+Starting a stopped virtual machine will allocate necessary resources like CPU, memory, disk, and network to power \
+it on and make it available.\
+""",
+        example="beehive bu cpaas vms start <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -1880,7 +2030,7 @@ class VmServiceController(BusinessControllerChild):
                     ["-schedule"],
                     {
                         "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        'e.g. {"type": "timedelta", "minutes": 1}',
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1896,14 +2046,20 @@ class VmServiceController(BusinessControllerChild):
         if schedule is not None:
             schedule = load_config(schedule)
             data["Schedule"] = schedule
-        uri = "%s/computeservices/instance/startinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/startinstances"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "start virtual machine %s" % vm_id})
+        self.app.render({"msg": f"start virtual machine {vm_id}"})
 
     @ex(
         help="stop a virtual machine",
-        description="stop a virtual machine",
+        description="""\
+This command stops a running virtual machine instance on the Nivola CMP Cloud Platform. \
+It requires the virtual machine ID as the only required argument. \
+Upon execution, it sends a signal to the hypervisor managing the specified VM to power it off \
+or shut it down gracefully.\
+""",
+        example="beehive bu cpaas vms stop <uuid>",
         arguments=ARGS(
             [
                 (
@@ -1914,7 +2070,7 @@ class VmServiceController(BusinessControllerChild):
                     ["-schedule"],
                     {
                         "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        'e.g. {"type": "timedelta", "minutes": 1}',
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1930,14 +2086,18 @@ class VmServiceController(BusinessControllerChild):
         if schedule is not None:
             schedule = load_config(schedule)
             data["Schedule"] = schedule
-        uri = "%s/computeservices/instance/stopinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/stopinstances"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "stop virtual machine %s" % vm_id})
+        self.app.render({"msg": f"stop virtual machine {vm_id}"})
 
     @ex(
         help="reboot a virtual machine",
-        description="reboot a virtual machine",
+        description="""\
+This command reboots a virtual machine. \
+It requires the virtual machine ID as the only required argument to identify the virtual machine to reboot.\
+""",
+        example="beehive bu cpaas vms reboot <uuid>",
         arguments=ARGS(
             [
                 (
@@ -1948,7 +2108,7 @@ class VmServiceController(BusinessControllerChild):
                     ["-schedule"],
                     {
                         "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        'e.g. {"type": "timedelta", "minutes": 1}',
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1964,14 +2124,19 @@ class VmServiceController(BusinessControllerChild):
         if schedule is not None:
             schedule = load_config(schedule)
             data["Schedule"] = schedule
-        uri = "%s/computeservices/instance/rebootinstances" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/rebootinstances"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "reboot virtual machine %s" % vm_id})
+        self.app.render({"msg": f"reboot virtual machine {vm_id}"})
 
     @ex(
         help="enable virtual machine monitoring",
-        description="enable virtual machine monitoring",
+        description="""\
+This command enables monitoring on the specified virtual machine. \
+It requires the virtual machine ID as the only required argument to identify the target virtual machine \
+for which monitoring needs to be enabled.\
+""",
+        example="beehive bu cpaas vms enable-monitoring <uuid>",
         arguments=ARGS(
             [
                 (
@@ -2003,20 +2168,22 @@ class VmServiceController(BusinessControllerChild):
         templates = self.app.pargs.templates
         if getattr(self.app.pargs, "continues", False) is False:
             self.app.render(
-                {
-                    "msg": 'deprecated command - use "beehive bu maas monitor-instances add" (to continue use this command specify --continues argument) '
-                }
+                {"msg": f'deprecated command - use "beehive bu maas monitor-instances add" ({CONTINUE_NOTICE})'}
             )
         else:
             data = {"InstanceId.N": [vm_id], "Nvl_Templates": templates}
-            uri = "%s/computeservices/instance/monitorinstances" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/instance/monitorinstances"
             self.cmp_put(uri, data=data, timeout=600)
             self.wait_for_service(vm_id)
-            self.app.render({"msg": "enable virtual machine %s monitoring" % vm_id})
+            self.app.render({"msg": f"enable virtual machine {vm_id} monitoring"})
 
     @ex(
         help="disable virtual machine monitoring",
-        description="disable virtual machine monitoring",
+        description="""\
+This command disables monitoring for the specified virtual machine. \
+Monitoring collects metrics like CPU and memory usage from the VM which are useful for troubleshooting \
+performance issues. By disabling monitoring, these metrics will no longer be collected for the VM.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2038,20 +2205,23 @@ class VmServiceController(BusinessControllerChild):
         vm_id = self.app.pargs.vm
         if getattr(self.app.pargs, "continues", False) is False:
             self.app.render(
-                {
-                    "msg": 'deprecated command - use "beehive bu maas monitor-instances delete" (to continue use this command specify --continues argument) '
-                }
+                {"msg": f'deprecated command - use "beehive bu maas monitor-instances delete" ({CONTINUE_NOTICE}) '}
             )
         else:
             data = {"InstanceId.N": [vm_id]}
-            uri = "%s/computeservices/instance/unmonitorinstances" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/instance/unmonitorinstances"
             self.cmp_put(uri, data=data, timeout=600)
             self.wait_for_service(vm_id)
-            self.app.render({"msg": "disable virtual machine %s monitoring" % vm_id})
+            self.app.render({"msg": f"disable virtual machine {vm_id} monitoring"})
 
     @ex(
         help="enable virtual machine logging",
-        description="enable virtual machine logging",
+        description="""\
+This command enables logging for the specified virtual machine. \
+It requires the virtual machine ID as the only required argument to identify the target virtual machine \
+for which logging needs to be enabled.\
+""",
+        example="beehive bu cpaas vms enable-logging xxxxx",
         arguments=ARGS(
             [
                 (
@@ -2092,21 +2262,23 @@ class VmServiceController(BusinessControllerChild):
         files = self.app.pargs.files
         pipeline = self.app.pargs.pipeline
         if getattr(self.app.pargs, "continues", False) is False:
-            self.app.render(
-                {
-                    "msg": 'deprecated command - use "beehive bu logaas instances add" (to continue use this command specify --continues argument) '
-                }
-            )
+            self.app.render({"msg": f'deprecated command - use "beehive bu logaas instances add" ({CONTINUE_NOTICE}) '})
         else:
             data = {"InstanceId.N": [vm_id], "Files": files, "Pipeline": pipeline}
-            uri = "%s/computeservices/instance/forwardloginstances" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/instance/forwardloginstances"
             self.cmp_put(uri, data=data, timeout=600)
             self.wait_for_service(vm_id)
-            self.app.render({"msg": "enable virtual machine %s logging" % vm_id})
+            self.app.render({"msg": f"enable virtual machine {vm_id} logging"})
 
     @ex(
         help="list virtual machine snapshots",
-        description="list virtual machine snapshots",
+        description="""\
+This command lists the snapshots of a virtual machine by its ID. \
+Snapshots capture the state of the virtual machine at a point in time and allow restoring the machine to that state. \
+The snapshots are listed with their ID, name, creation time and other metadata by default. \
+The --notruncate option prevents truncating of long values in the output for a more complete listing.\
+""",
+        example="beehive bu cpaas vms snapshot-get <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -2119,7 +2291,7 @@ class VmServiceController(BusinessControllerChild):
     def snapshot_get(self):
         vm_id = self.app.pargs.vm
         data = {"InstanceId.N": [vm_id]}
-        uri = "%s/computeservices/instance/describeinstancesnapshots" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/describeinstancesnapshots"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
         res = res.get("DescribeInstanceSnapshotsResponse")
         res = res.get("instancesSet")
@@ -2130,11 +2302,17 @@ class VmServiceController(BusinessControllerChild):
                 resp.append(snapshot)
         headers = ["id", "name", "status", "creation_date"]
         fields = ["snapshotId", "snapshotName", "snapshotStatus", "createTime"]
-        self.app.render(resp, headers=headers, fields=fields, maxsize=40)
+        self.app.render(resp, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="add virtual machine snapshot",
-        description="add virtual machine snapshot",
+        description="""\
+This command adds a snapshot of a virtual machine. \
+It requires the virtual machine ID as an argument to identify which VM to snapshot. \
+Additional optional arguments like the snapshot name and external parameters can also be provided. \
+Taking snapshots allows restoring VMs to previous points in time for backup/restore or testing purposes.\
+""",
+        example="beehive bu cpaas vms snapshot-add <uuid> xxxx -e <env>",
         arguments=ARGS(
             [
                 (
@@ -2157,14 +2335,18 @@ class VmServiceController(BusinessControllerChild):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
         data = {"InstanceId.N": [vm_id], "SnapshotName": snapshot}
-        uri = "%s/computeservices/instance/createinstancesnapshots" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/createinstancesnapshots"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "add snapshot %s of virtual machine %s" % (snapshot, vm_id)})
+        self.app.render({"msg": f"add snapshot {snapshot} of virtual machine {vm_id}"})
 
     @ex(
         help="add virtual machine snapshot",
-        description="add virtual machine snapshot",
+        description="""\
+This command deletes a snapshot of a virtual machine. \
+It requires the virtual machine ID as an argument to identify which machine's snapshot should be deleted.\
+""",
+        example="beehive bu cpaas vms snapshot-del <uuid>",
         arguments=ARGS(
             [
                 (
@@ -2187,14 +2369,20 @@ class VmServiceController(BusinessControllerChild):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
         data = {"InstanceId.N": [vm_id], "SnapshotId": snapshot}
-        uri = "%s/computeservices/instance/deleteinstancesnapshots" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/deleteinstancesnapshots"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "delete snapshot %s of virtual machine %s" % (snapshot, vm_id)})
+        self.app.render({"msg": f"delete snapshot {snapshot} of virtual machine {vm_id}"})
 
     @ex(
         help="revert virtual machine snapshot",
-        description="revert virtual machine snapshot",
+        description="""\
+This command reverts a virtual machine to a previous snapshot state by ID. \
+It requires the virtual machine ID as an argument.\
+""",
+        example="""\
+beehive bu cpaas vms snapshot-revert <uuid> <uuid>\
+""",
         arguments=ARGS(
             [
                 (
@@ -2217,24 +2405,28 @@ class VmServiceController(BusinessControllerChild):
         vm_id = self.app.pargs.vm
         snapshot = self.app.pargs.snapshot
         data = {"InstanceId.N": [vm_id], "SnapshotId": snapshot}
-        uri = "%s/computeservices/instance/revertinstancesnapshots" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/revertinstancesnapshots"
         self.cmp_put(uri, data=data, timeout=600)
         self.wait_for_service(vm_id)
-        self.app.render({"msg": "revert virtual machine %s to snapshot %s" % (vm_id, snapshot)})
+        self.app.render({"msg": f"revert virtual machine {vm_id} to snapshot {snapshot}"})
 
     def __user_action(self, uuid, action, **user_params):
         params = {"Nvl_Action": action}
         params.update(user_params)
         data = {"InstanceId": uuid, "Nvl_User": params}
         data = {"instance": data}
-        uri = "%s/computeservices/instance/modifyinstanceattribute" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/instance/modifyinstanceattribute"
         self.cmp_put(uri, data=data, timeout=600).get("ModifyInstanceAttributeResponse")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "update virtual machine: %s" % uuid})
+        self.app.render({"msg": f"update virtual machine: {uuid}"})
 
     @ex(
         help="add virtual machine user",
-        description="add virtual machine user",
+        description="""\
+This command adds a new user to a virtual machine. \
+It requires the virtual machine ID as an argument to specify which virtual machine the user will be added to. \
+Adding a user allows that user to login to the virtual machine via SSH and access it remotely.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2260,7 +2452,7 @@ class VmServiceController(BusinessControllerChild):
                     },
                 ),
                 (
-                    ["key"],
+                    ["ssh_key"],
                     {
                         "help": "ssh key id",
                         "action": "store",
@@ -2275,12 +2467,15 @@ class VmServiceController(BusinessControllerChild):
         uuid = self.app.pargs.vm
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
-        key = self.app.pargs.key
+        key = self.app.pargs.ssh_key
         self.__user_action(uuid, "add", Nvl_Name=name, Nvl_Password=pwd, Nvl_SshKey=key)
 
     @ex(
         help="delete virtual machine user",
-        description="delete virtual machine user",
+        description="""\
+This command deletes a user from a virtual machine. \
+It requires the virtual machine ID as an argument to identify which virtual machine's user should be deleted.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2306,7 +2501,11 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="set virtual machine user password",
-        description="set virtual machine user password",
+        description="""\
+This command sets the password for the user on the specified virtual machine. \
+It requires the virtual machine ID as the only required argument to identify the target virtual machine. \
+The password will be set for the default user on that virtual machine.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2341,8 +2540,13 @@ class VmServiceController(BusinessControllerChild):
         self.__user_action(uuid, "set-password", Nvl_Name=name, Nvl_Password=pwd)
 
     @ex(
-        help="get virtual machine types",
-        description="get virtual machine types",
+        help="get virtual machine types (flavor)",
+        description="""\
+This command is used to get virtual machine types (flavor) available in the cloud platform. \
+It lists out the different types of virtual machines that can be provisioned with varying configurations like \
+CPU, memory, storage etc. This helps the user to select the right type of VM depending on their workload requirements.\
+""",
+        example="beehive bu cpaas vms types get account -size -1;beehive bu cpaas vms types 16 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -2406,7 +2610,15 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="get backup job restore points",
-        description="get backup job restore points",
+        description="""\
+This command is used to get backup job restore points. \
+It requires the virtual machine id and backup job id as required arguments to retrieve the restore points \
+for a specific backup job of a virtual machine.\
+""",
+        example="""\
+beehive bu cpaas vms backup-restore-point-get <uuid> \
+-job <uuid> \
+""",
         arguments=ARGS(
             [
                 (
@@ -2474,12 +2686,12 @@ class VmServiceController(BusinessControllerChild):
         res = self.cmp_get(uri, data=data, timeout=600)
         if self.is_output_text():
             restore_points = dict_get(res, "DescribeBackupRestorePointsResponse.restorePointSet")
-            restorePointTotal = dict_get(res, "DescribeBackupRestorePointsResponse.restorePointTotal")
+            restore_point_total = dict_get(res, "DescribeBackupRestorePointsResponse.restorePointTotal")
 
             if self.app.pargs.restore_point is not None:
                 if len(restore_points) > 0:
                     res = restore_points[0]
-                    metadata = res.pop("metadata", [])
+                    res.pop("metadata", [])
                     instances = res.pop("instanceSet", [])
                     self.app.render(res, details=True)
 
@@ -2493,7 +2705,7 @@ class VmServiceController(BusinessControllerChild):
                 resp = {
                     "count": len(restore_points),
                     "page": 0,
-                    "total": restorePointTotal,
+                    "total": restore_point_total,
                     "sort": {"field": "creationDate", "order": "desc"},
                     "restore_points": restore_points,
                 }
@@ -2515,7 +2727,12 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="add backup job restore point",
-        description="add backup job restore point",
+        description="""\
+This command adds a restore point for a backup job. \
+A restore point represents a specific backup snapshot that can be used to restore data from. \
+The account ID is required to identify the backup job account.\
+""",
+        example="beehive bu cpaas vms backup-restore-point-add ",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -2569,14 +2786,17 @@ class VmServiceController(BusinessControllerChild):
         }
 
         uri = "/v1.0/nws/computeservices/instancebackup/createbackuprestorepoints"
-        res = self.cmp_post(uri, data=data, timeout=600)
+        self.cmp_post(uri, data=data, timeout=600)
         # uuid = dict_get(res, 'CreateBackupRestorePoints.instanceBackupSet.0.instanceId')
         # self.wait_for_service(uuid)
-        self.app.render({"msg": "create new backup job %s restore point" % job_id})
+        self.app.render({"msg": f"create new backup job {job_id} restore point"})
 
     @ex(
         help="delete backup job restore point",
-        description="delete backup job restore point",
+        description="""\
+This command deletes a specific restore point for a backup job. \
+It requires the account ID and restore point ID as required arguments to identify the restore point to delete.\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -2603,18 +2823,19 @@ class VmServiceController(BusinessControllerChild):
         }
 
         uri = "/v1.0/nws/computeservices/instancebackup/deletebackuprestorepoints"
-        res = self.cmp_delete(
-            uri,
-            data=data,
-            timeout=600,
-            entity="remove backup job %s restore point %s" % (job_id, restore_point_id),
+        self.cmp_delete(
+            uri, data=data, timeout=600, entity=f"remove backup job {job_id} restore point {restore_point_id}"
         )
         # uuid = dict_get(res, vm_id)
         # self.wait_for_service(uuid)
 
     @ex(
         help="get virtual machine backup restores",
-        description="get virtual machine backup restores",
+        description="""\
+This command is used to get the details of a specific virtual machine backup restore point. \
+It requires the virtual machine id and restore point id as required arguments to retrieve the restore details for \
+that particular VM and restore point.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2652,7 +2873,11 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="restore a virtual machine from backup",
-        description="restore a virtual machine from backup",
+        description="""\
+This command restores a virtual machine from backup. \
+It requires the restored virtual machine name, id of the virtual machine to clone from backup, \
+and id of the restore point to use for restoring the virtual machine state.\
+""",
         arguments=ARGS(
             [
                 (
@@ -2675,30 +2900,6 @@ class VmServiceController(BusinessControllerChild):
                     ["restore_point"],
                     {"help": "id of restore point", "action": "store", "type": str},
                 ),
-                # (['name'], {'help': 'virtual machine name', 'action': 'store', 'type': str}),
-                # (['account'], {'help': 'parent account id', 'action': 'store', 'type': str}),
-                # (['type'], {'help': 'virtual machine type', 'action': 'store', 'type': str}),
-                # (['subnet'], {'help': 'virtual machine subnet id', 'action': 'store', 'type': str}),
-                # (['image'], {'help': 'virtual machine image id', 'action': 'store', 'type': str}),
-                # (['sg'], {'help': 'virtual machine security group id', 'action': 'store', 'type': str}),
-                # (['-sshkey'], {'help': 'virtual machine ssh key name', 'action': 'store', 'type': str, 'default': None}),
-                # (['-pwd'], {'help': 'virtual machine admin/root password', 'action': 'store', 'type': str,
-                #             'default': None}),
-                # (['-main-disk'], {'help': 'optional main disk size configuration. Use <size> to set e default volume type.'
-                #                           '- Use <size>:<volume_type> to set a non default volume type. Ex. 5:vol.oracle'
-                #                           '- Use <volume_id>:<volume_type> to set a volume to clone',
-                #                   'action': 'store', 'type': str, 'default': None}),
-                # (['-other-disk'], {'help': 'list of additional disk sizes comma separated. Use <size> to set e default '
-                #                            'volume type.Use <size>:<volume_type> to set a non default volume type. '
-                #                            'Ex. 5,10 or 5:vol.oracle,10', 'action': 'store', 'type': str, 'default': None}),
-                # (['-hypervisor'], {'help': 'virtual machine hypervisor. Can be: openstack or vsphere [default=openstack]',
-                #                    'action': 'store', 'type': str, 'default': 'openstack'}),
-                # (['-host-group'], {'help': 'virtual machine host group. Ex. oracle', 'action': 'store', 'type': str,
-                #                    'default': None}),
-                # (['-multi-avz'], {'help': 'if set to False create vm to work only in the selected availability zone '
-                #                           '[default=True]. Use when subnet cidr is public', 'action': 'store', 'type': str,
-                #                   'default': True}),
-                # (['-meta'], {'help': 'virtual machine custom metadata', 'action': 'store', 'type': str, 'default': None}),
             ]
         ),
     )
@@ -2706,87 +2907,6 @@ class VmServiceController(BusinessControllerChild):
         name = self.app.pargs.name
         vm_id = self.app.pargs.id
         restore_point_id = self.app.pargs.restore_point
-
-        # name = self.app.pargs.name
-        # account = self.get_account(self.app.pargs.account).get('uuid')
-        # itype = self.get_service_definition(self.app.pargs.type)
-        # subnet = self.get_service_instance(self.app.pargs.subnet, account_id=account)
-        # image = self.get_service_instance(self.app.pargs.image, account_id=account)
-        # sg = self.get_service_instance(self.app.pargs.sg, account_id=account)
-        # sshkey = self.app.pargs.sshkey
-        # pwd = self.app.pargs.pwd
-        # boot_disk = self.app.pargs.main_disk
-        # disks = self.app.pargs.other_disk
-        # hypervisor = self.app.pargs.hypervisor
-        # host_group = self.app.pargs.host_group
-        # multi_avz = self.app.pargs.multi_avz
-        # meta = self.app.pargs.meta
-
-        # if pwd is None:
-        #     pwd = random_password(10)
-        #
-        # data = {
-        #     'Name': name,
-        #     'owner-id': account,
-        #     'AdditionalInfo': '',
-        #     'SubnetId': subnet,
-        #     'InstanceType': itype,
-        #     'AdminPassword': pwd,
-        #     'ImageId': image,
-        #     'SecurityGroupId.N': [sg],
-        #     'Nvl_MultiAvz': multi_avz
-        # }
-        #
-        # # set disks
-        # blocks = [{'Ebs': {}}]
-        # if boot_disk is not None:
-        #     boot_disk = boot_disk.split(':')
-        #     # get obj by uuid
-        #     if match('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', boot_disk[0]):
-        #         ebs = {'Nvl_VolumeId': boot_disk[0]}
-        #     # get obj by id
-        #     elif match('^\d+$', boot_disk[0]):
-        #         ebs = {'VolumeSize': int(boot_disk[0])}
-        #     if len(boot_disk) == 2:
-        #         ebs['VolumeType'] = boot_disk[1]
-        #     blocks[0] = {'Ebs': ebs}
-        # if disks is not None:
-        #     for disk in disks.split(','):
-        #         disk = disk.split(':')
-        #         # get obj by uuid
-        #         if match('[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', disk[0]):
-        #             ebs = {'Nvl_VolumeId': disk[0]}
-        #         # get obj by id
-        #         elif match('^\d+$', disk[0]):
-        #             ebs = {'VolumeSize': int(disk[0])}
-        #         if len(disk) == 2:
-        #             ebs['VolumeType'] = disk[1]
-        #         blocks.append({'Ebs': ebs})
-        # data['BlockDeviceMapping.N'] = blocks
-        #
-        # # set sshkey
-        # if sshkey is not None:
-        #     data['KeyName'] = sshkey
-        #
-        # # set hypervisor
-        # if hypervisor is not None:
-        #     if hypervisor not in ['openstack', 'vsphere']:
-        #         raise Exception('Supported hypervisor are openstack and vsphere')
-        #     data['Nvl_Hypervisor'] = hypervisor
-        #
-        # # set host_group
-        # if host_group is not None:
-        #     if host_group not in ['oracle']:
-        #         raise Exception('Supported host group are oracle')
-        #     data['Nvl_HostGroup'] = host_group
-        #
-        # # set meta
-        # if meta is not None:
-        #     data['Nvl_Metadata'] = {}
-        #     kvs = meta.split(',')
-        #     for kv in kvs:
-        #         k, v = kv.split(':')
-        #         data['Nvl_Metadata'][k] = v
 
         data = {
             "InstanceId": vm_id,
@@ -2798,18 +2918,128 @@ class VmServiceController(BusinessControllerChild):
         res = self.cmp_post(uri, data={"instance": data}, timeout=600)
         uuid = dict_get(res, "CreateBackupRestoreResponse.instancesSet.0.instanceId")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "restore virtual machine from backup: %s" % uuid})
+        self.app.render({"msg": f"restore virtual machine from backup: {uuid}"})
+
+    @ex(
+        help="get backup job name using naming convention",
+        description="""\
+This command gets the backup job name using the naming convention for a given account id. \
+The account id is a required argument to identify the account whose backup job name needs to be retrieved.\
+""",
+        arguments=ARGS(
+            [
+                (["account"], {"help": "account id", "action": "store", "type": str}),
+            ]
+        ),
+    )
+    def backup_job_name_get(self):
+        account_id = self.app.pargs.account
+        account = self.get_account(account_id)
+        account_uuid = account.get("uuid")
+        account_name = account.get("name")
+
+        data = {"account_id": account_uuid, "size": -1, "flag_container": True}
+        serviceinsts = self.cmp_get("/v2.0/nws/serviceinsts", data=data).get("serviceinsts")
+
+        core_service = serviceinsts[0]
+        resource_uuid = core_service["resource_uuid"]
+
+        uri = f"/v1.0/nrs/entities/{resource_uuid}"
+        resource = self.cmp_get(uri).get("resource")
+        compute_zone_name: str = resource["name"]
+        compute_zone_code = compute_zone_name.replace("ComputeService-", "")
+
+        job_name = f"BCK-{compute_zone_code}-{account_name}"
+        print(job_name)
+
+    @ex(
+        help="from backup job name get related account (using naming convention)",
+        description="""\
+This command checks the provided backup job name and retrieves the related account using a naming convention. \
+The backup job name is a required argument for this command to work.\
+""",
+        arguments=ARGS(
+            [
+                (["backup_job_name"], {"help": "backup job name", "action": "store", "type": str}),
+            ]
+        ),
+    )
+    def backup_job_name_check(self):
+        backup_job_name = self.app.pargs.backup_job_name
+        job_name = f"{backup_job_name}"
+
+        if job_name.find("BCK") == 0:
+            # replace "punto"
+            job_name = job_name.replace(".", "-")
+            # replace "spazio"
+            job_name = job_name.replace(" ", "-")
+            # replace "doppio trattino"
+            job_name = job_name.replace("--", "-")
+            # replace "BCK-ComputeService"
+            job_name = job_name.replace("BCK-ComputeService-", "BCK-")
+            # replace "BK-"
+            job_name = job_name.replace("BK-", "BCK-")
+
+            if job_name != backup_job_name:
+                print("job name does not respect naming convention. Trying to retrieve information...")
+
+            cz_id = job_name.split("-")[1]
+            compute_zone_name = f"ComputeService-{cz_id}"
+            uri = f"/v1.0/nrs/entities/{compute_zone_name}"
+            resource = self.cmp_get(uri).get("resource")
+            compute_zone_uuid: str = resource["uuid"]
+
+            data = {"resource_uuid": compute_zone_uuid, "size": -1, "flag_container": True}
+            serviceinsts = self.cmp_get("/v2.0/nws/serviceinsts", data=data).get("serviceinsts")
+            # print("serviceinsts: %s" % serviceinsts)
+
+            core_service = serviceinsts[0]
+            account = core_service["account"]
+            # print("account: %s" % account)
+            account_name = account["name"]
+            account_uuid = account["uuid"]
+            print(f"job name related to account {account_name} ({account_uuid})")
+
+            # get account
+            data = ""
+            uri_account = f"/v1.0/nws/accounts/{account_uuid}"
+            account = self.cmp_get(uri_account, data).get("account")
+            # account_name = account["name"]
+            division_id = account["division_id"]
+
+            # get division
+            uri_division = f"/v1.0/nws/divisions/{division_id}"
+            division = self.cmp_get(uri_division, data).get("division")
+            division_name = division["name"]
+            organization_id = division["organization_id"]
+
+            # get organization
+            uri_organization = f"/v1.0/nws/organizations/{organization_id}"
+            organization = self.cmp_get(uri_organization, data).get("organization")
+            organization_name = organization["name"]
+
+            print(f"full account name {organization_name}.{division_name}.{account_name}")
+
+        else:
+            print("job name is not related to an account")
 
     @ex(
         help="get account virtual machine backup jobs",
-        description="get account virtual machine backup jobs",
+        description="""\
+This command is used to retrieve the list of backup jobs for virtual machines associated with a given account on \
+the Nivola CMP CPAAS platform. \
+It requires the account ID as a required argument. \
+An optional '-hypervisor' argument can be provided to filter the results by a specific hypervisor like \
+OpenStack, vSphere, or return all hypervisor types.\
+""",
+        example="beehive bu cpaas vms backup-job-list sdo3liv",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
                 (
                     ["-hypervisor"],
                     {
-                        "help": "virtual machine hypervisor. Can be: openstack or vsphere",
+                        "help": "virtual machine hypervisor. Can be: openstack, vsphere, all (default)",
                         "action": "store",
                         "type": str,
                     },
@@ -2825,11 +3055,11 @@ class VmServiceController(BusinessControllerChild):
         }
 
         hypervisor = self.app.pargs.hypervisor
-        # if hypervisor is None:
-        #     hypervisor = "all"
 
         if hypervisor is not None:
             data.update({"hypervisor": hypervisor})
+        else:
+            data.update({"hypervisor": "all"})
 
         uri = "/v1.0/nws/computeservices/instancebackup/describebackupjobs"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True), timeout=600)
@@ -2858,7 +3088,12 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="get account virtual machine backup job",
-        description="get account virtual machine backup job",
+        description="""\
+This command is used to retrieve details of a specific backup job for a virtual machine backup. \
+It requires the account id and job id of the backup job as required arguments to uniquely identify \
+and get information of the particular backup job.\
+""",
+        example="beehive bu cpaas vms backup-job-get cloudcmmi trilio_710_<uuid>",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -2881,7 +3116,13 @@ class VmServiceController(BusinessControllerChild):
 
     @ex(
         help="add account virtual machine backup job",
-        description="add account virtual machine backup job",
+        description="""\
+Add account virtual machine backup job. \
+This CLI command adds a backup job for virtual machines under a specific account. \
+It requires the job name, account id, availability zone where the job runs and a comma separated list of instance ids \
+to backup as required arguments. An optional description of the job can also be provided with the -desc argument.\
+""",
+        example="beehive bu cpaas vms backup-job-add provatrilio Acc_demo_nmsflike SiteTorino01  prova",
         arguments=ARGS(
             [
                 (["name"], {"help": "job name", "action": "store", "type": str}),
@@ -2945,11 +3186,16 @@ class VmServiceController(BusinessControllerChild):
         uri = "/v1.0/nws/computeservices/instancebackup/createbackupjob"
         res = self.cmp_post(uri, data=data, timeout=600)
         res = dict_get(res, "CreateBackupJob.jobsSet.0.jobId")
-        self.app.render({"msg": "add backup job %s" % res}, details=True)
+        self.app.render({"msg": f"add backup job {res}"}, details=True)
 
     @ex(
         help="update account virtual machine backup job",
-        description="update account virtual machine backup job",
+        description="""\
+This command updates an existing virtual machine backup job for the specified account. \
+It requires the account ID and job ID as required arguments. \
+The job can then be updated by passing additional arguments like -enabled to enable/disable the job.\
+""",
+        example="beehive bu cpaas vms backup-job-update elcap <uuid> -enabled=false",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -2995,11 +3241,14 @@ class VmServiceController(BusinessControllerChild):
         uri = "/v1.0/nws/computeservices/instancebackup/modifybackupjob"
         res = self.cmp_put(uri, data=data, timeout=600)
         res = dict_get(res, "ModifyBackupJob.jobsSet.0.jobId")
-        self.app.render({"msg": "update backup job %s" % res}, details=True)
+        self.app.render({"msg": f"update backup job {res}"}, details=True)
 
     @ex(
         help="delete account virtual machine backup job",
-        description="delete account virtual machine backup job",
+        description="""\
+This command deletes a backup job for a virtual machine belonging to an account. \
+It requires the account ID and job ID as required arguments to identify the specific backup job to delete.\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3013,11 +3262,15 @@ class VmServiceController(BusinessControllerChild):
         job_id = self.app.pargs.job
         data = {"owner-id": account_id, "JobId": job_id}
         uri = "/v1.0/nws/computeservices/instancebackup/deletebackupjob"
-        res = self.cmp_delete(uri, data=data, timeout=600, entity="delete backup job %s" % job_id)
+        self.cmp_delete(uri, data=data, timeout=600, entity=f"delete backup job {job_id}")
 
     @ex(
         help="add virtual machine to backup job",
-        description="add virtual machine to backup job",
+        description="""\
+This command adds a virtual machine instance to an existing backup job. \
+It requires the account id, job id and the instance id as required arguments to identify the backup job \
+and the instance to add to it.\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3043,13 +3296,20 @@ class VmServiceController(BusinessControllerChild):
         res = self.cmp_post(uri, data=data, timeout=600)
         res = dict_get(res, "AddBackupJobInstance.jobsSet.0.jobId")
         self.app.render(
-            {"msg": "add virtual machine %s to backup job %s" % (instance, job_id)},
+            {"msg": f"add virtual machine {instance} to backup job {job_id}"},
             details=True,
         )
 
     @ex(
         help="delete virtual machine from backup job",
-        description="delete virtual machine from backup job",
+        description="""\
+This command deletes a virtual machine instance from an existing backup job. \
+It requires the account id, job id and instance id as required arguments to identify the backup job and \
+virtual machine instance to remove from the job.\
+""",
+        example="""\
+beehive bu cpaas vms backup-job-instance-del notify 8c750fce-5400-47cf-adae-f7e5c1e83e1 dbs-notify-prd-002p\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3076,13 +3336,18 @@ class VmServiceController(BusinessControllerChild):
             uri,
             data=data,
             timeout=600,
-            entity="virtual machine %s from backup job %s" % (instance, job_id),
+            entity=f"virtual machine {instance} from backup job {job_id}",
         )
         res = dict_get(res, "DelBackupJobInstance.jobsSet.0.jobId")
 
     @ex(
         help="get account virtual machine backup job policies",
-        description="get account virtual machine backup policies",
+        description="""\
+This command is used to retrieve the backup job policies for virtual machines associated with a given account. \
+The 'account' argument is required and specifies the account id to get the backup job policies for. \
+The policies define how backups of the virtual machines are configured for that account.\
+""",
+        example="beehive bu cpaas vms backup-job-policies animm;beehive bu cpaas vms backup-job-policies ivar",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3128,8 +3393,13 @@ class KeyPairServiceController(BusinessControllerChild):
         help = "key pair management"
 
     @ex(
-        help="get key pairs",
-        description="get key pairs",
+        help="list key pairs",
+        description="""\
+This command retrieves the list of key pairs associated with the current Nivola CMP Cloud account. \
+Key pairs are used for SSH access to virtual machines and need to be created before launching instances \
+that require SSH access. The list operation returns basic information about each key pair such as name and fingerprint.\
+""",
+        example="beehive bu cpaas keypairs list -accounts CSI.Datacenter.test -e <env>",
         arguments=ARGS(
             [
                 (
@@ -3181,34 +3451,50 @@ class KeyPairServiceController(BusinessControllerChild):
         ),
     )
     def list(self):
-        params = ["accounts", "ids", "tags", "sg"]
-        mappings = {"accounts": self.get_account_ids, "names": lambda x: x.split(",")}
+        params = ["accounts", "name", "tags", "sg"]
+        mappings = {"accounts": self.get_account_ids, "name": lambda x: x.split(",")}
         aliases = {
             "accounts": "owner-id.N",
-            "names": "key-name.N",
+            "name": "key-name.N",
             "size": "Nvl-MaxResults",
             "page": "Nvl-NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = "%s/computeservices/keypair/describekeypairs" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeKeyPairsResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("keySet")),
-            "page": page,
-            "total": res.get("nvl-keyTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("keySet"),
-        }
+        uri = f"{self.baseuri}/computeservices/keypair/describekeypairs"
+        self.cmp_get(uri, data=data)
 
-        headers = ["id", "name", "account", "keyFingerprint"]
-        fields = ["nvl-keyId", "keyName", "nvl-ownerAlias", "keyFingerprint"]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeKeyPairsResponse")
+            resp = {
+                "count": len(res.get("keySet")),
+                "page": page,
+                "total": res.get("nvl-keyTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("keySet"),
+            }
+
+            headers = ["id", "name", "account", "keyFingerprint", "type", "bits"]
+            fields = ["nvl-keyId", "keyName", "nvl-ownerAlias", "keyFingerprint", "type", "bits"]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=75)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=100,
+            key_total_name="DescribeKeyPairsResponse.nvl-keyTotal",
+            key_list_name="DescribeKeyPairsResponse.keySet",
+            fn_render=render,
+        )
 
     @ex(
         help="get key pair",
-        description="get key pair",
+        description="""\
+This command retrieves the details of an existing key pair in your account. \
+You need to provide the name of the key pair as the required argument. \
+The key pair name uniquely identifies the key pair resource.\
+""",
+        example="beehive bu cpaas keypairs get davidino-key -e <env>",
         arguments=ARGS(
             [
                 (["name"], {"help": "keypair name", "action": "store", "type": str}),
@@ -3217,7 +3503,7 @@ class KeyPairServiceController(BusinessControllerChild):
     )
     def get(self):
         data = {"key-name.N": self.app.pargs.name}
-        uri = "%s/computeservices/keypair/describekeypairs" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/keypair/describekeypairs"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeKeyPairsResponse.keySet.0", default={})
         self.app.render(res, details=True, maxsize=100)
@@ -3238,7 +3524,11 @@ class KeyPairServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a key pair",
-        description="delete a key pair",
+        description="""\
+This command deletes a key pair from your Nivola CMP account. \
+You need to provide the name of the key pair as an argument to identify which key pair to delete from your account. \
+Deleting a key pair will remove the public/private key permanently.\
+""",
         arguments=ARGS(
             [
                 (["name"], {"help": "keypair name", "action": "store", "type": str}),
@@ -3248,12 +3538,16 @@ class KeyPairServiceController(BusinessControllerChild):
     def delete(self):
         name = self.app.pargs.name
         data = {"KeyName": name}
-        uri = "%s/computeservices/keypair/deletekeypair" % self.baseuri
-        res = self.cmp_delete(uri, data=data, timeout=600, entity="keypair %s" % name)
+        uri = f"{self.baseuri}/computeservices/keypair/deletekeypair"
+        self.cmp_delete(uri, data=data, timeout=600, entity=f"keypair {name}")
 
     @ex(
         help="add new RSA key pair",
-        description="add new RSA key pair",
+        description="""\
+This command adds a new RSA key pair to the specified account. \
+It requires the account ID, key pair name and key type (-type) as required arguments.\
+""",
+        example="beehive bu cpaas keypairs add -accounts felice",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3271,19 +3565,24 @@ class KeyPairServiceController(BusinessControllerChild):
             "KeyName": name,
             "Nvl-KeyPairType": key_type,
         }
-        uri = "%s/computeservices/keypair/createkeypair" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/keypair/createkeypair"
         res = self.cmp_post(uri, data={"keypair": data})
         res = res.get("CreateKeyPairResponse")
         headers = ["name", "fingerprint SHA1", "material PEM"]
         fields = ["keyName", "keyFingerprint", "keyMaterial"]
         self.app.render(res, key=None, headers=headers, fields=fields)
 
-        res = {"msg": "Add key pair %s" % name}
+        res = {"msg": f"Add key pair {name}"}
         self.app.render(res)
 
     @ex(
         help="import public RSA key",
-        description="import public RSA key",
+        description="""\
+This command imports a public RSA key into an account's key pair store. \
+It requires the account ID, key pair name, file containing the base64 encoded public key, \
+and key type (-type) as required arguments. \
+The public key will be associated with the specified key pair name in the given account.\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3313,7 +3612,7 @@ class KeyPairServiceController(BusinessControllerChild):
             "PublicKeyMaterial": file,
             "Nvl-KeyPairType": key_type,
         }
-        uri = "%s/computeservices/keypair/importkeypair" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/keypair/importkeypair"
         res = self.cmp_post(uri, data={"keypair": data})
         res = res.get("ImportKeyPairResponse")
 
@@ -3321,470 +3620,8 @@ class KeyPairServiceController(BusinessControllerChild):
         fields = ["keyName", "keyFingerprint"]
         self.app.render(res, key=None, headers=headers, fields=fields)
 
-        res = {"msg": "Import key pair %s" % name}
+        res = {"msg": f"Import key pair {name}"}
         self.app.render(res)
-
-
-# class VpcServiceController(BusinessControllerChild):
-#     class Meta:
-#         stacked_on = 'cpaas'
-#         stacked_type = 'nested'
-#         label = 'DEPRECATED-vpcs'
-#         description = "virtual private cloud network service management [DEPRECATED - moved in netaas]"
-#         help = "virtual private cloud network service management [DEPRECATED - moved in netaas]"
-#
-#     @ex(
-#         help='get private cloud networks',
-#         description='get private cloud networks',
-#         arguments=ARGS([
-#             (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-#                              'default': None}),
-#             (['-ids'], {'help': 'list of private cloud network id comma separated', 'action': 'store', 'type': str,
-#                         'default': None}),
-#             (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-#             (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-#             (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-#         ])
-#     )
-#     def list(self):
-#         params = ['accounts', 'ids', 'tags']
-#         mappings = {
-#             'accounts': self.get_account_ids,
-#             'tags': lambda x: x.split(','),
-#             'ids': lambda x: x.split(',')
-#         }
-#         aliases = {
-#             'accounts': 'owner-id.N',
-#             'ids': 'vpc-id.N',
-#             'tags': 'tag-value.N',
-#             'size': 'Nvl-MaxResults',
-#             'page': 'Nvl-NextToken'
-#         }
-#         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-#         uri = '%s/computeservices/vpc/describevpcs' % self.baseuri
-#         res = self.cmp_get(uri, data=data)
-#         res = res.get('DescribeVpcsResponse')
-#         page = self.app.pargs.page
-#         for item in res.get('vpcSet'):
-#             item['cidr'] = ['%s' % (i['cidrBlock']) for i in item['cidrBlockAssociationSet']]
-#             item['cidr'] = ', '.join(item['cidr'])
-#         resp = {
-#             'count': len(res.get('vpcSet')),
-#             'page': page,
-#             'total': res.get('nvl-vpcTotal'),
-#             'sort': {'field': 'id', 'order': 'asc'},
-#             'instances': res.get('vpcSet')
-#         }
-#
-#         headers = ['id', 'name', 'state',  'account', 'cidr']
-#         fields = ['vpcId', 'nvl-name', 'state', 'nvl-vpcOwnerAlias', 'cidr']
-#         self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=60)
-
-
-# class SubnetServiceController(BusinessControllerChild):
-#     class Meta:
-#         stacked_on = 'cpaas'
-#         stacked_type = 'nested'
-#         label = 'DEPRECATED-subnets'
-#         description = "vpc subnet service management [DEPRECATED - moved in netaas]"
-#         help = "vpc subnet service management [DEPRECATED - moved in netaas]"
-#
-#     @ex(
-#         help='get vpc subnets',
-#         description='get vpc subnets',
-#         arguments=ARGS([
-#             (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-#                              'default': None}),
-#             (['-ids'], {'help': 'list of subnet id comma separated', 'action': 'store', 'type': str,
-#                         'default': None}),
-#             (['-vpcs'], {'help': 'list of vpc id comma separated', 'action': 'store', 'type': str, 'default': None}),
-#             (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-#             (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-#         ])
-#     )
-#     def list(self):
-#         params = ['accounts', 'ids', 'tags', 'vpcs']
-#         mappings = {
-#             'accounts': self.get_account_ids,
-#             'tags': lambda x: x.split(','),
-#             'ids': lambda x: x.split(','),
-#             'vpcs': lambda x: x.split(',')
-#         }
-#         aliases = {
-#             'accounts': 'owner-id.N',
-#             'ids': 'subnet-id.N',
-#             'vpcs': 'vpc-id.N',
-#             'size': 'Nvl-MaxResults',
-#             'page': 'Nvl-NextToken'
-#         }
-#         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-#         uri = '%s/computeservices/subnet/describesubnets' % self.baseuri
-#         res = self.cmp_get(uri, data=data)
-#         res = res.get('DescribeSubnetsResponse')
-#         page = self.app.pargs.page
-#         resp = {
-#             'count': len(res.get('subnetSet')),
-#             'page': page,
-#             'total': res.get('nvl-subnetTotal'),
-#             'sort': {'field': 'id', 'order': 'asc'},
-#             'instances': res.get('subnetSet')
-#         }
-#
-#         headers = ['id', 'name', 'state',  'account', 'availabilityZone', 'vpc', 'cidr']
-#         fields = ['subnetId', 'nvl-name', 'state', 'nvl-subnetOwnerAlias', 'availabilityZone', 'nvl-vpcName',
-#                   'cidrBlock']
-#         self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=40)
-
-
-# class SecurityGroupServiceController(BusinessControllerChild):
-#     class Meta:
-#         stacked_on = 'cpaas'
-#         stacked_type = 'nested'
-#         label = 'DEPRECATED-securitygroups'
-#         description = "security groups service management [DEPRECATED - moved in netaas]"
-#         help = "security groups service management [DEPRECATED - moved in netaas]"
-#
-#     @ex(
-#         help='get security group templates',
-#         description='get security group templates',
-#         arguments=ARGS([
-#             (['account'], {'help': 'account id', 'action': 'store', 'type': str, 'default': None}),
-#             (['-id'], {'help': 'template id', 'action': 'store', 'type': str, 'default': None}),
-#         ])
-#     )
-#     def templates(self):
-#         account = self.get_account(self.app.pargs.account).get('uuid')
-#         template = self.app.pargs.id
-#         if template is None:
-#             data = {'plugintype': 'ComputeImage', 'size': -1}
-#             uri = '%s/accounts/%s/definitions' % ('/v2.0/nws', account)
-#             res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-#             headers = ['id', 'instance_type', 'desc', 'status', 'active', 'creation', 'is_default']
-#             fields = ['uuid', 'name', 'desc', 'status', 'active', 'date.creation', 'is_default']
-#             self.app.render(res, key='servicedefs', headers=headers, fields=fields)
-#         else:
-#             uri = '%s/servicedefs/%s' % (self.baseuri, template)
-#             res = self.cmp_get(uri).get('servicedef')
-#             res.pop('__meta__')
-#             res.pop('service_type_id')
-#             res.pop('id')
-#             res['id'] = res.pop('uuid')
-#             self.app.render(res, details=True)
-#
-#             # get rules
-#             uri = '%s/servicecfgs' % self.baseuri
-#             res = self.cmp_get(uri, data='service_definition_id=%s' % template).get('servicecfgs', [{}])[0]
-#             rules = res.pop('params', {}).get('rules')
-#             self.c('\ndefault rules', 'underline')
-#             self.app.render(rules, headers=['source', 'destination', 'service'], maxsize=200)
-#
-#     @ex(
-#         help='create a security group',
-#         description='create a security group',
-#         arguments=ARGS([
-#             (['name'], {'help': 'security group name', 'action': 'store', 'type': str}),
-#             (['vpc'], {'help': 'parent vpc', 'action': 'store', 'type': str}),
-#             (['-template'], {'help': 'template id', 'action': 'store', 'type': str}),
-#         ])
-#     )
-#     def add(self):
-#         data = {
-#             'GroupName': self.app.pargs.name,
-#             'VpcId': self.app.pargs.vpc
-#         }
-#         sg_type = self.app.pargs.template
-#         if sg_type is not None:
-#             data['GroupType'] = sg_type
-#         uri = '%s/computeservices/securitygroup/createsecuritygroup' % self.baseuri
-#         res = self.cmp_post(uri, data={'security_group': data}, timeout=600)
-#         res = dict_get(res, 'CreateSecurityGroupResponse.groupId')
-#         self.app.render({'msg': 'Add securitygroup %s' % res})
-#
-#     @ex(
-#         help='get security groups',
-#         description='get security groups',
-#         arguments=ARGS([
-#             (['-accounts'], {'help': 'list of account id comma separated', 'action': 'store', 'type': str,
-#                              'default': None}),
-#             (['-ids'], {'help': 'list of security group id comma separated', 'action': 'store', 'type': str,
-#                         'default': None}),
-#             (['-vpcs'], {'help': 'list of vpc id comma separated', 'action': 'store', 'type': str, 'default': None}),
-#             (['-tags'], {'help': 'list of tag comma separated', 'action': 'store', 'type': str, 'default': None}),
-#             (['-page'], {'help': 'list page [default=0]', 'action': 'store', 'type': int, 'default': 0}),
-#             (['-size'], {'help': 'list page size [default=20]', 'action': 'store', 'type': int, 'default': 20}),
-#         ])
-#     )
-#     def list(self):
-#         params = ['accounts', 'ids', 'tags', 'vpcs']
-#         mappings = {
-#             'accounts': self.get_account_ids,
-#             'tags': lambda x: x.split(','),
-#             'vpcs': lambda x: x.split(','),
-#             'ids': lambda x: x.split(',')
-#         }
-#         aliases = {
-#             'accounts': 'owner-id.N',
-#             'ids': 'group-id.N',
-#             'tags': 'tag-key.N',
-#             'vpcs': 'vpc-id.N',
-#             'size': 'MaxResults',
-#             'page': 'NextToken'
-#         }
-#         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-#         uri = '%s/computeservices/securitygroup/describesecuritygroups' % self.baseuri
-#         res = self.cmp_get(uri, data=data)
-#         res = res.get('DescribeSecurityGroupsResponse', {})
-#         page = self.app.pargs.page
-#
-#         for item in res.get('securityGroupInfo'):
-#             item['egress_rules'] = len(item['ipPermissionsEgress'])
-#             item['ingress_rules'] = len(item['ipPermissions'])
-#
-#         resp = {
-#             'count': len(res.get('securityGroupInfo')),
-#             'page': page,
-#             'total': res.get('nvl-securityGroupTotal'),
-#             'sort': {'field': 'id', 'order': 'asc'},
-#             'instances': res.get('securityGroupInfo')
-#         }
-#
-#         headers = ['id', 'name', 'state',  'account', 'vpc', 'egress_rules', 'ingress_rules']
-#         fields = ['groupId', 'groupName', 'nvl-state', 'nvl-sgOwnerAlias', 'nvl-vpcName', 'egress_rules',
-#                   'ingress_rules']
-#         self.app.render(resp, key='instances', headers=headers, fields=fields, maxsize=40)
-#
-#     def __format_rule(self, rules):
-#         for rule in rules:
-#             if rule['ipProtocol'] == '-1':
-#                 rule['ipProtocol'] = '*'
-#             if rule.get('fromPort', None) is None or rule['fromPort'] == '-1':
-#                 rule['fromPort'] = '*'
-#             if rule.get('toPort', None) is None or rule['toPort'] == '-1':
-#                 rule['toPort'] = '*'
-#             if len(rule.get('groups', None)) > 0:
-#                 group = rule['groups'][0]
-#                 rule['groups'] = '%s:%s [%s]' % (group.get('nvl-userName', None), group['groupName'], group['groupId'])
-#             else:
-#                 rule['groups'] = ''
-#             if len(rule.get('ipRanges', None)) > 0:
-#                 cidr = rule['ipRanges'][0]
-#                 rule['ipRanges'] = '%s' % cidr['cidrIp']
-#             else:
-#                 rule['ipRanges'] = ''
-#         return rules
-#
-#     @ex(
-#         help='get security group with rules',
-#         description='get security group with rules',
-#         arguments=ARGS([
-#             (['securitygroup'], {'help': 'securitygroup id', 'action': 'store', 'type': str}),
-#         ])
-#     )
-#     def get(self):
-#         securitygroup = self.app.pargs.securitygroup
-#         data = {'GroupName.N': [securitygroup]}
-#         uri = '%s/computeservices/securitygroup/describesecuritygroups' % self.baseuri
-#         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
-#         res = dict_get(res, 'DescribeSecurityGroupsResponse.securityGroupInfo', default={})
-#         if len(res) == 0:
-#             raise Exception('security group %s does not exist' % securitygroup)
-#         res = res[0]
-#         egress_rules = self.__format_rule(res.pop('ipPermissionsEgress'))
-#         ingress_rules = self.__format_rule(res.pop('ipPermissions'))
-#         fields = ['groups', 'ipRanges', 'ipProtocol', 'fromPort', 'toPort', 'nvl-reserved', 'nvl-state']
-#         self.app.render(res, details=True, maxsize=200)
-#         self.c('\negress rules', 'underline')
-#         headers = ['toSecuritygroup', 'toCidr', 'protocol', 'fromPort', 'toPort', 'reserved', 'state']
-#         self.app.render(egress_rules, headers=headers, fields=fields, maxsize=80)
-#         self.c('\nengress rules', 'underline')
-#         headers= ['fromSecuritygroup', 'fromCidr', 'protocol', 'fromPort', 'toPort', 'reserved', 'state']
-#         self.app.render(ingress_rules, headers=headers, fields=fields, maxsize=80)
-#
-#     @ex(
-#         help='patch a security group',
-#         description='patch a security group',
-#         arguments=ARGS([
-#             (['securitygroup'], {'help': 'securitygroup id', 'action': 'store', 'type': str}),
-#         ])
-#     )
-#     def patch(self):
-#         securitygroup = self.app.pargs.securitygroup
-#         data = {'GroupName': securitygroup}
-#         uri = '%s/computeservices/securitygroup/patchsecuritygroup' % self.baseuri
-#         res = self.cmp_patch(uri,  data={'security_group': data}, timeout=600)
-#         res = dict_get('PatchSecurityGroupResponse.instancesSet.0.groupId')
-#         self.app.render({'msg': 'Patch securitygroup %s' % res})
-#
-#     @ex(
-#         help='delete a security group',
-#         description='delete a security group',
-#         arguments=ARGS([
-#             (['securitygroup'], {'help': 'securitygroup id', 'action': 'store', 'type': str}),
-#         ])
-#     )
-#     def delete(self):
-#         oid = self.app.pargs.securitygroup
-#         data = {'GroupName': oid}
-#         uri = '%s/computeservices/securitygroup/deletesecuritygroup' % self.baseuri
-#         res = self.cmp_delete(uri, data={'security_group': data}, timeout=600, entity='securitygroup %s' % oid)
-#
-#     @ex(
-#         help='add a security group rule',
-#         description='add a security group rule',
-#         arguments=ARGS([
-#             (['type'], {'help': 'egress or ingress. For egress rule the destination. For ingress rule specify the '
-#                                 'source', 'action': 'store', 'type': str}),
-#             (['securitygroup'], {'help': 'securitygroup id', 'action': 'store', 'type': str}),
-#             (['-proto'], {'help': 'protocol. can be tcp, udp, icmp or -1 for all', 'action': 'store',
-#                           'type': str, 'default': None}),
-#             (['-port'], {'help': 'can be an integer between 0 and 65535 or a range with start and end in the same '
-#                                  'interval. Range format is <start>-<end>. Use -1 for all ports',
-#                          'action': 'store', 'type': str, 'default': None}),
-#             (['-dest'], {'help': 'rule destination. Syntax <type>:<value>. Destination type can be SG, CIDR. For SG '
-#                                  'value must be <sg_id>. For CIDR value should like 10.102.167.0/24.',
-#                          'action': 'store', 'type': str, 'default': None}),
-#             (['-source'], {'help': 'rule source. Syntax <type>:<value>. Source type can be SG, CIDR. For SG '
-#                                    'value must be <sg_id>. For CIDR value should like 10.102.167.0/24.',
-#                            'action': 'store', 'type': str, 'default': None}),
-#         ])
-#     )
-#     def add_rule(self):
-#         rule_type = self.app.pargs.type
-#         group_id = self.app.pargs.securitygroup
-#         dest = self.app.pargs.dest
-#         source = self.app.pargs.source
-#         port = self.app.pargs.port
-#         proto = self.app.pargs.proto
-#         from_port = -1
-#         to_port = -1
-#         if port is not None:
-#             port = str(port)
-#             port = port.split('-')
-#             if len(port) == 1:
-#                 from_port = to_port = port[0]
-#             else:
-#                 from_port, to_port = port
-#
-#         if proto is None:
-#             proto = '-1'
-#
-#         if rule_type not in ['ingress', 'egress']:
-#             raise Exception('rule type must be ingress or egress')
-#         if rule_type == 'ingress':
-#             if source is None:
-#                 raise Exception('ingress rule require source')
-#             dest = source.split(':')
-#         elif rule_type == 'egress':
-#             if dest is None:
-#                 raise Exception('egress rule require destination')
-#             dest = dest.split(':')
-#         if dest[0] not in ['SG', 'CIDR']:
-#             raise Exception('source/destination type must be SG or CIDR')
-#         data = {
-#             'GroupName': group_id,
-#             'IpPermissions.N': [
-#                 {
-#                     'FromPort': from_port,
-#                     'ToPort': to_port,
-#                     'IpProtocol': proto
-#                 }
-#             ]
-#         }
-#         if dest[0] == 'SG':
-#             data['IpPermissions.N'][0]['UserIdGroupPairs'] = [{
-#                 'GroupName': dest[1]
-#             }]
-#         elif dest[0] == 'CIDR':
-#             data['IpPermissions.N'][0]['IpRanges'] = [{
-#                 'CidrIp': dest[1]
-#             }]
-#         else:
-#             raise Exception('Wrong rule type')
-#
-#         if rule_type == 'egress':
-#             uri = '%s/computeservices/securitygroup/authorizesecuritygroupegress' % self.baseuri
-#             key = 'AuthorizeSecurityGroupEgressResponse'
-#         elif rule_type == 'ingress':
-#             uri = '%s/computeservices/securitygroup/authorizesecuritygroupingress' % self.baseuri
-#             key = 'AuthorizeSecurityGroupIngressResponse'
-#         res = self.cmp_post(uri, data={'rule': data}, timeout=600)
-#         res = res.get(key).get('Return')
-#         self.app.render('create securitygroup rule %s' % res)
-#
-#     @ex(
-#         help='delete a security group rule',
-#         description='delete a security group rule',
-#         arguments=ARGS([
-#             (['type'], {'help': 'egress or ingress. For egress rule the destination. For ingress rule specify the '
-#                                 'source', 'action': 'store', 'type': str}),
-#             (['securitygroup'], {'help': 'securitygroup id', 'action': 'store', 'type': str}),
-#             (['-proto'], {'help': 'protocol. can be tcp, udp, icmp or -1 for all', 'action': 'store',
-#                           'type': str, 'default': None}),
-#             (['-port'], {'help': 'can be an integer between 0 and 65535 or a range with start and end in the same '
-#                                  'interval. Range format is <start>-<end>. Use -1 for all ports',
-#                          'action': 'store', 'type': str, 'default': None}),
-#             (['-dest'], {'help': 'rule destination. Syntax <type>:<value>. Destination type can be SG, CIDR. For SG '
-#                                  'value must be <sg_id>. For CIDR value should like 10.102.167.0/24.',
-#                          'action': 'store', 'type': str, 'default': None}),
-#             (['-source'], {'help': 'rule source. Syntax <type>:<value>. Source type can be SG, CIDR. For SG '
-#                                    'value must be <sg_id>. For CIDR value should like 10.102.167.0/24.',
-#                            'action': 'store', 'type': str, 'default': None}),
-#         ])
-#     )
-#     def del_rule(self):
-#         rule_type = self.app.pargs.type
-#         group_id = self.app.pargs.securitygroup
-#         dest = self.app.pargs.dest
-#         source = self.app.pargs.source
-#         port = self.app.pargs.port
-#         proto = self.app.pargs.proto
-#         from_port = -1
-#         to_port = -1
-#         if port is not None:
-#             port = str(port)
-#             port = port.split('-')
-#             if len(port) == 1:
-#                 from_port = to_port = port[0]
-#             else:
-#                 from_port, to_port = port
-#
-#         if proto is None:
-#             proto = '-1'
-#
-#         if rule_type not in ['ingress', 'egress']:
-#             raise Exception('rule type must be ingress or egress')
-#         if rule_type == 'ingress':
-#             if source is None:
-#                 raise Exception('ingress rule require source')
-#             dest = source.split(':')
-#         elif rule_type == 'egress':
-#             if dest is None:
-#                 raise Exception('egress rule require destination')
-#             dest = dest.split(':')
-#         if dest[0] not in ['SG', 'CIDR']:
-#             raise Exception('source/destination type must be SG or CIDR')
-#         data = {
-#             'GroupName': group_id,
-#             'IpPermissions.N': [
-#                 {
-#                     'FromPort': from_port,
-#                     'ToPort': to_port,
-#                     'IpProtocol': proto
-#                 }
-#             ]
-#         }
-#         if dest[0] == 'SG':
-#             data['IpPermissions.N'][0]['UserIdGroupPairs'] = [{'GroupName': dest[1]}]
-#         elif dest[0] == 'CIDR':
-#             data['IpPermissions.N'][0]['IpRanges'] = [{'CidrIp': dest[1]}]
-#         else:
-#             raise Exception('wrong rule type')
-#
-#         if rule_type == 'egress':
-#             uri = '%s/computeservices/securitygroup/revokesecuritygroupegress' % self.baseuri
-#         elif rule_type == 'ingress':
-#             uri = '%s/computeservices/securitygroup/revokesecuritygroupingress' % self.baseuri
-#         res = self.cmp_delete(uri, data={'rule': data}, timeout=600, entity='securitygroup rule')
 
 
 class TagServiceController(BusinessControllerChild):
@@ -3797,7 +3634,14 @@ class TagServiceController(BusinessControllerChild):
 
     @ex(
         help="list resource by tags",
-        description="list resource by tags",
+        description="""\
+This command lists resources that are tagged with specific tags. \
+Tags are key-value pairs that are attached to supported cloud resources. \
+This allows you to categorize and search for these resources. \
+The list command will display the tagged resources without any additional parameters. \
+You can also filter the results by specifying tag keys or values using optional parameters like -key, -value etc.\
+""",
+        example="beehive bu cpaas compute-tags list -accounts CSI.Datacenter.test",
         arguments=ARGS(
             [
                 (
@@ -3874,24 +3718,37 @@ class TagServiceController(BusinessControllerChild):
             "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = "%s/computeservices/tag/describetags" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeTagsResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("tagSet")),
-            "page": page,
-            "total": res.get("nvl-tagTotal", 0),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("tagSet"),
-        }
-        headers = ["service-instance", "type", "tag"]
-        fields = ["resourceId", "resourceType", "key"]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+        uri = f"{self.baseuri}/computeservices/tag/describetags"
+
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeTagsResponse")
+            resp = {
+                "count": len(res.get("tagSet")),
+                "page": page,
+                "total": res.get("nvl-tagTotal", 0),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("tagSet"),
+            }
+            headers = ["service-instance", "type", "tag"]
+            fields = ["resourceId", "resourceType", "key"]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=100,
+            key_total_name="DescribeTagsResponse.nvl-tagTotal",
+            key_list_name="DescribeTagsResponse.tagSet",
+            fn_render=render,
+        )
 
     @ex(
         help="add tag to service instance",
-        description="add tag to service instance",
+        description="""\
+This command adds a tag to a service instance. \
+The required arguments are the account id, service instance id and the tag key to add.\
+""",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -3913,15 +3770,18 @@ class TagServiceController(BusinessControllerChild):
             "ResourceId.N": [service],
             "Tag.N": [{"Key": tag}],
         }
-        uri = "%s/computeservices/tag/createtags" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/tag/createtags"
         res = self.cmp_post(uri, data={"tags": data}, timeout=600)
         dict_get(res, "CreateTagsResponse.return")
-        res = {"msg": "add tag %s to %s" % (tag, service)}
+        res = {"msg": f"add tag {tag} to {service}"}
         self.app.render(res)
 
     @ex(
         help="delete tag from service instance",
-        description="delete tag from service instance",
+        description="""\
+This command deletes a tag from a CPAAS compute service instance. \
+The 'service' argument specifies the service instance ID and the 'tag' argument specifies the tag key to delete.\
+""",
         arguments=ARGS(
             [
                 (
@@ -3939,13 +3799,8 @@ class TagServiceController(BusinessControllerChild):
             "ResourceId.N": [service],
             "Tag.N": [{"Key": tag}],
         }
-        uri = "%s/computeservices/tag/deletetags" % self.baseuri
-        self.cmp_delete(
-            uri,
-            data={"tags": data},
-            timeout=600,
-            entity="service %s tag %s" % (service, tag),
-        )
+        uri = f"{self.baseuri}/computeservices/tag/deletetags"
+        self.cmp_delete(uri, data={"tags": data}, timeout=600, entity=f"service {service} tag {tag}")
 
 
 class CustomizationServiceController(BusinessControllerChild):
@@ -3958,7 +3813,12 @@ class CustomizationServiceController(BusinessControllerChild):
 
     @ex(
         help="get customizations types",
-        description="get customizations types",
+        description="""\
+This CLI command is used to get customizations types from Nivola CMP CPAAS. \
+It retrieves the available customization types without requiring any arguments. \
+The types returned can then be used as a reference for other CPAAS customization commands.\
+""",
+        example="beehive bu cpaas customizations types <uuid>",
         arguments=ARGS(
             [
                 (
@@ -4005,7 +3865,7 @@ class CustomizationServiceController(BusinessControllerChild):
         if oid is not None:
             account = self.get_account(self.app.pargs.account)["uuid"]
             data = urlencode({"CustomizationType": oid, "owner-id": account}, doseq=True)
-            uri = "%s/computeservices/customization/describecustomizationtypes" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/customization/describecustomizationtypes"
             res = self.cmp_get(uri, data=data)
             res = dict_get(res, "DescribeCustomizationTypesResponse.customizationTypesSet.0")
             params = res.pop("args")
@@ -4022,7 +3882,7 @@ class CustomizationServiceController(BusinessControllerChild):
             }
             aliases = {"account": "owner-id", "size": "MaxResults", "page": "NextToken"}
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-            uri = "%s/computeservices/customization/describecustomizationtypes" % self.baseuri
+            uri = f"{self.baseuri}/computeservices/customization/describecustomizationtypes"
             res = self.cmp_get(uri, data=data)
             res = res.get("DescribeCustomizationTypesResponse")
             page = self.app.pargs.page
@@ -4039,7 +3899,12 @@ class CustomizationServiceController(BusinessControllerChild):
 
     @ex(
         help="list customizations",
-        description="list customizations",
+        description="""\
+This command lists all the customizations that have been applied to the Nivola CMP CPAAS platform. \
+The customizations modify and extend the standard Nivola CMP platform functionality for a particular environment \
+like test, stage or production. No arguments are required to just get a list of all the customizations.\
+""",
+        example="beehive bu cpaas customizations list -env test;beehive bu cpaas customizations list -e <env>",
         arguments=ARGS(
             [
                 (
@@ -4106,32 +3971,47 @@ class CustomizationServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
 
-        uri = "%s/computeservices/customization/describecustomizations" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeCustomizationsResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("customizationsSet")),
-            "page": page,
-            "total": res.get("customizationTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "customizations": res.get("customizationsSet"),
-        }
+        uri = f"{self.baseuri}/computeservices/customization/describecustomizations"
 
-        headers = ["id", "name", "state", "type", "account", "creation"]
-        fields = [
-            "customizationId",
-            "customizationName",
-            "customizationState.name",
-            "customizationType",
-            "ownerAlias",
-            "launchTime",
-        ]
-        self.app.render(resp, key="customizations", headers=headers, fields=fields, maxsize=40)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeCustomizationsResponse")
+            resp = {
+                "count": len(res.get("customizationsSet")),
+                "page": page,
+                "total": res.get("customizationTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "customizations": res.get("customizationsSet"),
+            }
+
+            headers = ["id", "name", "state", "type", "account", "creation"]
+            fields = [
+                "customizationId",
+                "customizationName",
+                "customizationState.name",
+                "customizationType",
+                "ownerAlias",
+                "launchTime",
+            ]
+            self.app.render(resp, key="customizations", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeCustomizationsResponse.customizationTotal",
+            key_list_name="DescribeCustomizationsResponse.customizationsSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get customization",
-        description="get customization",
+        description="""\
+This CLI command is used to retrieve a specific customization configuration from Nivola CMP CPAAS platform. \
+The required 'customization' argument expects the customization id as input to fetch the details of \
+that particular customization.\
+""",
+        example="beehive bu cpaas customizations get serv-custom-01 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -4148,7 +4028,7 @@ class CustomizationServiceController(BusinessControllerChild):
         elif self.is_name(customization_id):
             data = {"customization-name.N": [customization_id]}
 
-        uri = "%s/computeservices/customization/describecustomizations" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/customization/describecustomizations"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
         res = dict_get(res, "DescribeCustomizationsResponse.customizationsSet", default={})
         if len(res) > 0:
@@ -4158,11 +4038,16 @@ class CustomizationServiceController(BusinessControllerChild):
             # else:
             self.app.render(res, details=True, maxsize=100)
         else:
-            raise Exception("customization %s was not found" % customization_id)
+            raise Exception(f"customization {customization_id} was not found")
 
     @ex(
         help="create a customization",
-        description="create a customization",
+        description="""\
+This command creates a customization with the given name, account, type and instances. \
+It takes the customization name, parent account id, type and comma separated list of compute instance ids \
+as required arguments. \
+It also takes an optional args argument to pass customization params in key-value pair format separated by commas.\
+""",
         arguments=ARGS(
             [
                 (
@@ -4215,15 +4100,18 @@ class CustomizationServiceController(BusinessControllerChild):
             "Instances": instances,
             "Args": params,
         }
-        uri = "%s/computeservices/customization/runcustomizations" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/customization/runcustomizations"
         res = self.cmp_post(uri, data={"customization": data}, timeout=600)
         uuid = dict_get(res, "RunCustomizationResponse.customizationId")
         self.wait_for_service(uuid)
-        self.app.render({"msg": "add customization: %s" % uuid})
+        self.app.render({"msg": f"add customization: {uuid}"})
 
     @ex(
         help="delete a customization",
-        description="delete a customization",
+        description="""\
+This command deletes a customization from the Nivola CMP CPAAS platform. \
+It requires the customization ID as a required argument to identify which customization to delete from the system.\
+""",
         arguments=ARGS(
             [
                 (
@@ -4238,20 +4126,24 @@ class CustomizationServiceController(BusinessControllerChild):
         if self.is_name(customization_id):
             raise Exception("only customization id is supported")
         data = {"CustomizationId": customization_id}
-        uri = "%s/computeservices/customization/terminatecustomizations" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/customization/terminatecustomizations"
         self.cmp_delete(
             uri,
             data=data,
             timeout=600,
             output=False,
-            entity="customization %s" % customization_id,
+            entity=f"customization {customization_id}",
         )
         self.wait_for_service(customization_id, accepted_state="DELETED")
-        self.app.render({"msg": "delete customization: %s" % customization_id})
+        self.app.render({"msg": f"delete customization: {customization_id}"})
 
     @ex(
         help="update a customization",
-        description="update a customization",
+        description="""\
+This command updates an existing customization in Nivola CMP CPaaS. \
+It requires the customization ID as the only required argument to identify which customization to update. \
+The customization object with the updated values is then sent to the Nivola CMP API to update the existing customization record.\
+""",
         arguments=ARGS(
             [
                 (
@@ -4266,7 +4158,7 @@ class CustomizationServiceController(BusinessControllerChild):
         if self.is_name(customization_id):
             raise Exception("only customization id is supported")
         data = {"CustomizationId": customization_id}
-        uri = "%s/computeservices/customization/updatecustomizations" % self.baseuri
+        uri = f"{self.baseuri}/computeservices/customization/updatecustomizations"
         self.cmp_put(uri, data=data, timeout=600).get("UpdateCustomizationResponse")
         self.wait_for_service(customization_id)
-        self.app.render({"msg": "update customization: %s" % customization_id})
+        self.app.render({"msg": f"update customization: {customization_id}"})

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.controller import PARGS, ARGS
@@ -26,7 +26,8 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="get organizations",
-        description="get organizations",
+        description="This command is used to retrieve organizations from the platform. It does not require any arguments. The organizations returned can optionally be filtered and paginated using optional arguments like -name, -size and -page.",
+        example="beehive bu orgs get -name AOU-Novara;beehive bu orgs get -size 40 -page 2",
         arguments=PARGS(
             [
                 (
@@ -203,7 +204,7 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="add organization",
-        description="add organization",
+        description="This command allows you to add a new organization to the Nivola CMP platform. You need to provide the name of the organization being added as well as the type of organization (e.g business, non-profit etc).",
         arguments=ARGS(
             [
                 (
@@ -320,7 +321,7 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="update organization",
-        description="update organization",
+        description="This command updates an existing organization in Nivola CMP. The required arguments are the name of the organization to update and the new organization type. The organization type can be one of 'customer', 'vendor' or 'partner'.",
         arguments=ARGS(
             [
                 (
@@ -426,7 +427,7 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="refresh organization",
-        description="refresh organization",
+        description="This command refreshes an organization by its uuid or name. It retrieves the latest details of the organization from the server and updates the local cache. The 'id' argument is required to identify the organization to refresh by its uuid or name.",
         arguments=ARGS(
             [
                 (
@@ -449,7 +450,7 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="delete organization",
-        description="delete organization",
+        description="This command deletes an organization from Nivola CMP. The organization to delete must be specified using either the uuid or name of the organization in the 'id' argument.",
         arguments=ARGS(
             [
                 (
@@ -470,7 +471,7 @@ class OrganizationController(AuthorityControllerChild):
 
     @ex(
         help="get organization active services info",
-        description="get organization active services info",
+        description="This command retrieves active services information for a specific organization. It requires the organization ID or name as the only required argument to identify which organization's active services to retrieve. The information returned would include details on all services that are currently active/running for the given organization.",
         arguments=ARGS(
             [
                 (
@@ -502,7 +503,8 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="get organization roles",
-        description="get organization roles",
+        description="This command gets the roles for a specific organization. The organization is identified by its UUID which must be provided as the required 'id' argument.",
+        example="beehive bu orgs-auth role-get 1",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -513,11 +515,12 @@ class OrganizationAuthController(AuthorityControllerChild):
         oid = self.app.pargs.id
         uri = "%s/organizations/%s/roles" % (self.baseuri, oid)
         res = self.cmp_get(uri)
-        self.app.render(res, key="roles", headers=["name", "desc"], maxsize=200)
+        self.app.render(res, key="roles", headers=["name", "desc", "role"], maxsize=200)
 
     @ex(
         help="get organization users",
-        description="get organization users",
+        description="This command gets the users of an organization. It requires the organization uuid as the only required argument identified as 'id'. This will retrieve the users that belong to the specified organization.",
+        example="beehive bu orgs-auth user-get 1",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -538,7 +541,7 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="add organization role to a user",
-        description="add organization role to a user",
+        description="This command adds an organization role to a user. It requires the organization UUID, the role to assign (e.g. member, admin etc.), and the user ID to assign the role to as required arguments.",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -564,7 +567,7 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove organization role from a user",
-        description="remove organization role from a user",
+        description="This command removes an organization role from a specific user. It requires the organization UUID, the role within the organization (e.g. member, admin etc.), and the username of the user to remove the role from.",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -590,7 +593,8 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="get organization groups",
-        description="get organization groups",
+        description="This command retrieves the groups associated with an organization. The organization is identified by its UUID which must be provided as the 'id' argument. This allows administrators to view the existing groups and their permissions within an organization.",
+        example="beehive bu orgs-auth group-get 1",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -611,7 +615,7 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="add organization role to a group",
-        description="add organization role to a group",
+        description="This command adds an organization role to an authorization group by specifying the organization UUID, role and group name. The organization UUID identifies the organization, the role specifies the level of access (e.g. admin, user) and the group name is the group to which the role is being assigned.",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),
@@ -637,7 +641,7 @@ class OrganizationAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove organization role from a group",
-        description="remove organization role from a group",
+        description="This command removes an organization role from an authorization group. It requires the organization UUID, role and group name as arguments to identify which role assignment to remove.",
         arguments=ARGS(
             [
                 (["id"], {"help": "organization uuid", "action": "store", "type": str}),

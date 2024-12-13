@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beecell.file import read_file
@@ -19,7 +19,8 @@ class AccountCapabilitiesController(AuthorityControllerChild):
 
     @ex(
         help="get capabilities",
-        description="get capabilities",
+        description="This command is used to retrieve the capabilities of a backend service. Capabilities define the actions or operations that a backend service can perform. By running this command without any arguments, it will return all the capabilities of all registered backend services. Specific capabilities of a backend service can also be retrieved by providing the backend service ID as an optional argument to this command.",
+        example="beehive bu capabilities get ;beehive bu capabilities get -id CsiCloud-ComputeService-backend",
         arguments=PARGS(
             [
                 (
@@ -52,8 +53,15 @@ class AccountCapabilitiesController(AuthorityControllerChild):
             if self.is_output_text():
                 params = res.pop("params", {})
                 services = params.get("services", [])
+                account_type = params.get("account_type", [])
+                pods = params.get("pods", [])
                 definitions = [{"name": d} for d in params.get("definitions", [])]
                 self.app.render(res, details=True)
+
+                if account_type and account_type.split():
+                    print("")
+                    self.app.render({"account_type": account_type, "pods": pods}, details=True)
+
                 print("\nservices:")
                 self.app.render(
                     services,
@@ -79,7 +87,8 @@ class AccountCapabilitiesController(AuthorityControllerChild):
 
     @ex(
         help="add capability",
-        description="add capability",
+        description="This command adds a capability to the system. The required 'config' argument specifies the capability configuration to add.",
+        example="beehive bu capabilities add config fsdfds -e <env>",
         arguments=ARGS(
             [
                 (
@@ -107,7 +116,7 @@ class AccountCapabilitiesController(AuthorityControllerChild):
 
     @ex(
         help="delete capability",
-        description="delete capability",
+        description="This command deletes a capability from a Nivola CMP backend by its UUID. The 'id' argument is required and specifies the UUID of the capability to delete.",
         arguments=ARGS(
             [
                 (["id"], {"help": "capability uuid", "action": "store", "type": str}),

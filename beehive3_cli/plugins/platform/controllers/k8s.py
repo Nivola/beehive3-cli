@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from json import loads
 from sys import stdin, stdout
@@ -9,9 +9,7 @@ from queue import Queue
 from io import StringIO
 from yaml import safe_load_all
 from six import ensure_text
-import sh
 from cement import ex
-from kubernetes.utils import FailToCreateError
 from beecell.simple import merge_list, str2bool, dict_get, format_date
 from beehive3_cli.core.controller import BASE_ARGS, StringAction
 from beehive3_cli.plugins.platform.controllers import ChildPlatformController
@@ -39,6 +37,9 @@ def K8S_ARGS(*list_args):
 
 class BaseK8sController(ChildPlatformController):
     def pre_command_run(self):
+        self.pre_command_run_inner()
+
+    def pre_command_run_inner(self, orch_label: str = None):
         super(BaseK8sController, self).pre_command_run()
         from kubernetes import client as k8s_client
 
@@ -47,14 +48,15 @@ class BaseK8sController(ChildPlatformController):
         orchestrators = self.config.get("orchestrators", {}).get("k8s", {})
         label = getattr(self.app.pargs, "cluster", None)
 
+        if label is None and orch_label is not None:
+            label = orch_label
+
         if label is None:
             keys = list(orchestrators.keys())
             if len(keys) > 0:
                 label = keys[0]
             else:
-                raise Exception(
-                    "No k8s default platform is available for this environment. Select " "another environment"
-                )
+                raise Exception("No k8s default platform is available for this environment. Select another environment")
 
         if label not in orchestrators:
             raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
@@ -218,6 +220,8 @@ class BaseK8sController(ChildPlatformController):
                         print(line)
 
     def get_yaml_document_all(self, deploy):
+        import sh
+
         try:
             deploy_path = "%s/%s/%s" % (self.k8s_deploy_config, deploy, self.env)
             buf = StringIO()
@@ -310,6 +314,7 @@ class BaseK8sController(ChildPlatformController):
 
     def show_application(self, app, namespace, kinds=None):
         from beehive3_cli.plugins.platform.util.k8s_util import list_from_dict
+        from kubernetes.utils import FailToCreateError
 
         yml_document_all = self.get_yaml_document_all(app)
 
@@ -331,7 +336,7 @@ class BaseK8sController(ChildPlatformController):
         return k8s_objects
 
     def deploy_application(self, app, namespace):
-        from kubernetes.utils import create_from_dict
+        from kubernetes.utils import create_from_dict, FailToCreateError
 
         yml_document_all = self.get_yaml_document_all(app)
 
@@ -355,6 +360,7 @@ class BaseK8sController(ChildPlatformController):
                 self.app.error(err)
 
     def undeploy_application(self, app, namespace):
+        from kubernetes.utils import FailToCreateError
         from beehive3_cli.plugins.platform.util.k8s_util import delete_from_dict
 
         yml_document_all = self.get_yaml_document_all(app)

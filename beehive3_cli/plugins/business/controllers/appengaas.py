@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
@@ -17,7 +17,7 @@ class AppEngineServiceController(BusinessControllerChild):
 
     @ex(
         help="get appengine service info",
-        description="get appengine service info",
+        description="This command is used to retrieve information about an App Engine service running on a Nivola account. It requires the account ID as the only required argument to identify the target account. The command will then return details about the App Engine service configuration and status for that account.",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -35,7 +35,7 @@ class AppEngineServiceController(BusinessControllerChild):
 
     @ex(
         help="get appengine service quotas",
-        description="get appengine service quotas",
+        description="This command gets the appengine service quotas for a given account id. The account id is a required argument to retrieve the quotas for that specific account.",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -66,7 +66,11 @@ class AppEngineInstanceController(BusinessControllerChild):
         description = "appengine instances service management"
         help = "appengine instances service management"
 
-    @ex(help="get appengine types", description="get appengine types", arguments=ARGS())
+    @ex(
+        help="get appengine types",
+        description="This command is used to retrieve the available types for App Engine applications instances. App Engine applications can run in flexible or standard environment and each environment supports different instance types. This command lists out all the supported instance types for better decision making on which type of instance is suitable for the App Engine application being developed or migrated.",
+        arguments=ARGS(),
+    )
     def types(self):
         data = {"plugintype": "AppEngineInstance", "page": 0, "size": 100}
         uri = "%s/srvcatalogs/all/defs" % self.baseuri
@@ -77,7 +81,7 @@ class AppEngineInstanceController(BusinessControllerChild):
 
     @ex(
         help="list app engine",
-        description="list app engine",
+        description="This command is used to list all the application instances running on App Engine. App Engine is a platform as a service that allows you to build and run applications on Google's infrastructure. The 'app-instances list' command retrieves information about all the instances of applications currently running on App Engine without needing any additional arguments.",
         arguments=ARGS(
             [
                 (
@@ -186,7 +190,7 @@ class AppEngineInstanceController(BusinessControllerChild):
 
     @ex(
         help="get appengine",
-        description="get appengine",
+        description="This command is used to retrieve information about application instances running in an App Engine application. It requires the App Engine ID as a required argument to identify the specific App Engine application to query. The command will return details about the running instances for the given App Engine application.",
         arguments=ARGS(
             [
                 (
@@ -214,7 +218,7 @@ class AppEngineInstanceController(BusinessControllerChild):
 
     @ex(
         help="create a share",
-        description="create a share",
+        description="This command adds an app instance to an existing appengine. The required arguments are the appengine name, parent account id, farm name, appengine type, subnet id and security group id.",
         arguments=ARGS(
             [
                 (["name"], {"help": "appengine name", "action": "store", "type": str}),
@@ -315,7 +319,7 @@ class AppEngineInstanceController(BusinessControllerChild):
 
     @ex(
         help="delete an appengine",
-        description="delete an appengine",
+        description="This command deletes an App Engine instance from Nivola Cloud. The appengine ID is required to identify which App Engine instance to delete from the cloud platform.",
         arguments=ARGS([(["appengine"], {"help": "appengine id", "action": "store", "type": str})]),
     )
     def delete(self):

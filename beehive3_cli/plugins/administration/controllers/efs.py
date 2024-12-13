@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from cement.ext.ext_argparse import ex
 from beehive3_cli.core.controller import BASE_ARGS
 from beecell.simple import merge_list

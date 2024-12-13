@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.controller import PARGS, ARGS
@@ -18,7 +18,8 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="get srvcatalogs",
-        description="get srvcatalogs",
+        description="This CLI command is used to retrieve the list of available service catalogs in the Nivola CMP platform. Service catalogs allow users to browse and provision different types of managed services offered by the platform. The 'get' subcommand fetches the catalog data without any additional parameters as no arguments are required according to the JSON. This provides administrators with an easy way to check the available service options through the CLI.",
+        example="beehive bu service-catalogs get ",
         arguments=PARGS(
             [
                 (
@@ -98,7 +99,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="add service catalog",
-        description="add service catalog",
+        description="This CLI command is used to add a new service catalog to the Nivola CMP platform. The 'name' argument is required and is used to specify the name of the service catalog being added.",
         arguments=ARGS(
             [
                 (
@@ -130,7 +131,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="update service catalog",
-        description="update service catalog",
+        description="This command updates an existing service catalog in Nivola CMP. It requires the ID of the service catalog to update as the only required argument. The ID is used to identify and retrieve the existing service catalog object from the database to then apply the update changes to and save it back.",
         arguments=ARGS(
             [
                 (
@@ -168,7 +169,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="refresh service catalog",
-        description="refresh service catalog",
+        description="This CLI command patches or refreshes an existing service catalog in Nivola CMP. It requires the service catalog ID as a required argument to identify which catalog needs to be refreshed. Refreshing a catalog updates it with any changes to the available services, plans or metadata from the upstream catalog provider.",
         arguments=ARGS(
             [
                 (
@@ -187,7 +188,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="delete service catalog",
-        description="delete service catalog",
+        description="This command deletes a service catalog from Nivola CMP. It requires the id of the service catalog to delete as a required argument. The id uniquely identifies the service catalog that is to be removed from the system.",
         arguments=ARGS(
             [
                 (
@@ -204,7 +205,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="delete service catalog service definition",
-        description="delete service catalog service definition",
+        description="This command adds service definitions to a service catalog. It requires the service catalog id and a comma separated list of definition ids to add to the catalog. This allows adding multiple preexisting definitions to a catalog in one command.",
         arguments=ARGS(
             [
                 (
@@ -232,7 +233,7 @@ class CatalogController(AuthorityControllerChild):
 
     @ex(
         help="delete service catalog service definition",
-        description="delete service catalog service definition",
+        description="This command adds service definitions to a service catalog. It requires the service catalog id and a comma separated list of definition ids to add to the catalog. This allows adding multiple preexisting definitions to a catalog in one command.",
         arguments=ARGS(
             [
                 (
@@ -269,7 +270,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="get service catalog  roles",
-        description="get service catalog  roles",
+        description="This command gets the roles associated with a service catalog. It requires the service catalog id as the only required argument to identify the catalog and retrieve its roles.",
         arguments=ARGS(
             [
                 (
@@ -287,7 +288,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="get service catalog  users",
-        description="get service catalog  users",
+        description="This command retrieves information about a specific user belonging to a service catalog. It requires the ID of the service catalog as a required argument to identify which catalog's users are being accessed. The command outputs details about the requested user, including their name, email and role within the specified service catalog.",
         arguments=ARGS(
             [
                 (
@@ -311,7 +312,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="add service catalog  role to a user",
-        description="add service catalog  role to a user",
+        description="This command adds a user to a service catalog role. It requires the service catalog id, role and user name as arguments to identify the service catalog, role and user respectively to add the authorization. This allows assigning access control permissions to users for service catalogs.",
         arguments=ARGS(
             [
                 (
@@ -340,7 +341,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove service catalog  role from a user",
-        description="remove service catalog  role from a user",
+        description="This command removes a user's authorization for a specific role from a service catalog. The service catalog is identified by its ID, the role is specified, and the user to remove authorization for is provided. This allows managing what users have access to perform certain operations on a given service catalog.",
         arguments=ARGS(
             [
                 (
@@ -369,7 +370,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="get service catalog  groups",
-        description="get service catalog  groups",
+        description="This command retrieves the groups associated with a specific service catalog. It requires the service catalog ID as the only required argument to identify the catalog. The groups returned would be those that have access to the resources provisioned by that catalog.",
         arguments=ARGS(
             [
                 (
@@ -393,7 +394,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="add service catalog  role to a group",
-        description="add service catalog  role to a group",
+        description="This command adds an authorization group to a service catalog role. The required arguments are the service catalog id, the role within the catalog (e.g. viewer or editor), and the name of the authorization group to add to that role.",
         arguments=ARGS(
             [
                 (
@@ -422,7 +423,7 @@ class CatalogAuthController(AuthorityControllerChild):
 
     @ex(
         help="remove service catalog  role from a group",
-        description="remove service catalog  role from a group",
+        description="This command removes a service catalog role from an authorization group. It requires the service catalog ID, role and group name as arguments to identify which role assignment to remove.",
         arguments=ARGS(
             [
                 (

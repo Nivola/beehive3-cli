@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-import sh
-from beecell.db import MysqlManager
 from beecell.types.type_string import truncate
 from beehive3_cli.core.controller import StringAction
 from beehive3_cli.core.util import load_environment_config
@@ -21,6 +19,8 @@ class MysqlBaseController(ChildPlatformController):
     TMPL_ROWS = "%s.rows-inc"
 
     def get_mysql_engine(self, host, port, user, db):
+        from beecell.db import MysqlManager
+
         db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % (
             user["name"],
             user["password"],
@@ -88,6 +88,7 @@ class MysqlController(MysqlBaseController):
         # if user not in users.keys():
         #     raise Exception('User %s is not available' % user)
         # pwd = users.get(user).get('pwd')
+        import sh
 
         hosts, user_data = self.get_mysql_hosts()
         user = "root"
@@ -135,6 +136,7 @@ class MysqlController(MysqlBaseController):
         #     if user not in users.keys():
         #         raise Exception('User %s is not available' % user)
         #     pwd = users.get(user).get('pwd')
+        import sh
 
         hosts, user_data = self.get_mysql_hosts()
         user = "root"
@@ -205,6 +207,7 @@ class MysqlController(MysqlBaseController):
     @ex(
         help="show mysql binary logs",
         description="show mysql binary logs",
+        example="beehive platform mysql binary-log-show -e <env>;beehive platform mysql binary-log-show -e <env>",
         arguments=PLATFORM_ARGS(
             [
                 (
@@ -237,6 +240,7 @@ class MysqlController(MysqlBaseController):
     @ex(
         help="purge mysql binary logs",
         description="purge mysql binary logs",
+        example="beehive platform mysql binary-log-purge -e <env>;beehive platform mysql binary-log-purge -e <env>",
         arguments=PLATFORM_ARGS(
             [
                 (
@@ -268,6 +272,7 @@ class MysqlController(MysqlBaseController):
     @ex(
         help="get mariadb galera cluster status",
         description="get mariadb galera cluster status",
+        example="beehive platform mysql galera-cluster-status -e <env>;beehive platform mysql galera-cluster-status -e <env>",
         arguments=PLATFORM_ARGS(
             [
                 (
@@ -916,6 +921,7 @@ class MysqlTableController(MysqlBaseController):
     @ex(
         help="get mysql table list",
         description="get mysql table list",
+        example="beehive platform mysql tables get;beehive platform mysql tables get db",
         arguments=PLATFORM_ARGS(
             [
                 (

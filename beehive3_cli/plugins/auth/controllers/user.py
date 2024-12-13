@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from re import match
@@ -22,6 +22,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="get users",
         description="get users",
+        example="beehive auth users get -group GR-xxxx;beehive auth users get -id <uuid>",
         arguments=PARGS(
             [
                 (
@@ -79,6 +80,24 @@ class AuthUserController(AuthChildController):
                     },
                 ),
                 (
+                    ["-taxcode"],
+                    {
+                        "help": "taxcode",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ldap"],
+                    {
+                        "help": "ldap address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
                     ["-expiry-date"],
                     {
                         "help": "expiry date. Syntax YYYY-MM-DD",
@@ -106,39 +125,48 @@ class AuthUserController(AuthChildController):
             res = self.cmp_get(uri)
 
             if self.is_output_text():
+                self.app.render(res, key="user", details=True)
+
                 # get roles
                 data = urlencode({"user": oid, "size": -1})
                 uri = "%s/roles" % self.baseuri
                 roles = self.cmp_get(uri, data).get("roles")
+                self.c("\nroles", "underline")
+                role_headers = [
+                    "uuid",
+                    "name",
+                    "alias",
+                    "active",
+                    "creation",
+                    "modified",
+                    "expiry user relation",
+                ]
+                self.app.render(
+                    roles,
+                    headers=role_headers,
+                    fields=self._meta.role_fields,
+                )
 
                 # get groups
                 data = urlencode({"user": oid, "size": -1})
                 uri = "%s/groups" % self.baseuri
                 groups = self.cmp_get(uri, data).get("groups")
-
-                # get attributes
-                uri = "%s/users/%s/attributes" % (self.baseuri, oid)
-                attribs = self.cmp_get(uri).get("user_attributes", [])
-
-                self.app.render(res, key="user", details=True)
-                self.c("\nroles", "underline")
-                self.app.render(
-                    roles,
-                    headers=self._meta.role_headers,
-                    fields=self._meta.role_fields,
-                )
                 self.c("\ngroups", "underline")
                 self.app.render(
                     groups,
                     headers=self._meta.group_headers,
                     fields=self._meta.group_fields,
                 )
+
+                # get attributes
+                uri = "%s/users/%s/attributes" % (self.baseuri, oid)
+                attribs = self.cmp_get(uri).get("user_attributes", [])
                 self.c("\nattributes", "underline")
                 self.app.render(attribs, headers=["name", "value", "desc"])
             else:
                 self.app.render(res, key="user", details=True)
         else:
-            params = ["role", "group", "name", "desc", "expiry-date", "email"]
+            params = ["role", "group", "name", "desc", "expiry-date", "email", "taxcode", "ldap"]
             mappings = {
                 "name": lambda n: "%" + n + "%",
                 "desc": lambda n: "%" + n + "%",
@@ -159,6 +187,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="add user",
         description="add user",
+        example="beehive auth users add abc.def@ghi.lmno -storetype LDAPUSER -email abc.def@ghi.lmno -desc 'Abc Def';beehive auth users add abc.def@ghi.lmno -storetype LDAPUSER -email abc.def@ghi.lmno -desc Abc_Def",
         arguments=ARGS(
             [
                 (["name"], {"help": "user name", "action": "store", "type": str}),
@@ -209,11 +238,33 @@ class AuthUserController(AuthChildController):
                         "default": None,
                     },
                 ),
+                (
+                    ["-taxcode"],
+                    {
+                        "help": "taxcode",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ldap"],
+                    {
+                        "help": "ldap address",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
     def add(self):
         name = self.app.pargs.name
+        email = self.app.pargs.email
+        taxcode = self.app.pargs.taxcode
+        ldap = self.app.pargs.ldap
+
         if name is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
             raise Exception("name is not correct. Name syntax is <name>@<domain>")
 
@@ -235,8 +286,20 @@ class AuthUserController(AuthChildController):
         }
         if self.app.pargs.password is not None:
             data["user"]["password"] = self.app.pargs.password
-        if self.app.pargs.email is not None:
-            data["user"]["email"] = self.app.pargs.email
+
+        if email is not None:
+            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
+                raise Exception("email is not correct. Email syntax is <name>@<domain>")
+            data["user"]["email"] = email
+
+        if taxcode is not None:
+            data["user"]["taxcode"] = taxcode
+
+        if ldap is not None:
+            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
+                raise Exception("ldap is not correct. Ldap syntax is <name>@<domain>")
+            data["user"]["ldap"] = ldap
+
         uri = "%s/users" % self.baseuri
         res = self.cmp_post(uri, data=data)
         self.app.render({"msg": "add user %s" % res["uuid"]})
@@ -343,24 +406,72 @@ class AuthUserController(AuthChildController):
                         "default": None,
                     },
                 ),
+                (
+                    ["-taxcode"],
+                    {
+                        "help": "taxcode (codice fiscale)",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ldap"],
+                    {
+                        "help": "ldap (servizi rete)",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
     def update(self):
         oid = self.app.pargs.id
+
         name = self.app.pargs.name
-        if name is not None and not match("[a-zA-z0-9]+@[a-zA-z0-9]+", name):
+        if name is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
             raise Exception("name is not correct. Name syntax is <name>@<domain>")
 
-        data = {
-            "user": {
-                "name": self.app.pargs.name,
-                "desc": self.app.pargs.desc,
-                "active": self.app.pargs.active,
-                "password": self.app.pargs.password,
-                "expiry_date": self.app.pargs.expirydate,
-            }
+        email = self.app.pargs.email
+        if email is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
+            raise Exception("email is not correct. Email syntax is <name>@<domain>")
+
+        taxcode = self.app.pargs.taxcode
+        ldap = self.app.pargs.ldap
+
+        data_user = {
+            "name": name,
+            "desc": self.app.pargs.desc,
+            "active": self.app.pargs.active,
+            "password": self.app.pargs.password,
+            "expiry_date": self.app.pargs.expirydate,
         }
+        if email is not None:
+            data_user.update(
+                {
+                    "email": email,
+                }
+            )
+
+        if taxcode is not None:
+            data_user.update(
+                {
+                    "taxcode": taxcode,
+                }
+            )
+
+        if ldap is not None:
+            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
+                raise Exception("ldap is not correct. Ldap syntax is <name>@<domain>")
+            data_user.update(
+                {
+                    "ldap": ldap,
+                }
+            )
+
+        data = {"user": data_user}
         uri = "%s/users/%s" % (self.baseuri, oid)
         self.cmp_put(uri, data=data)
         self.app.render({"msg": "update user %s" % oid})
@@ -368,6 +479,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="delete user",
         description="delete user",
+        example="beehive auth users delete <uuid>;beehive auth users delete abc.def@ghi.lmn ",
         arguments=ARGS(
             [
                 (["id"], {"help": "user uuid", "action": "store", "type": str}),
@@ -382,6 +494,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="get user secret",
         description="get user secret",
+        example="beehive auth users get-secret <uuid> -e <env> ",
         arguments=ARGS(
             [
                 (["id"], {"help": "user uuid", "action": "store", "type": str}),
@@ -502,6 +615,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="get permissions of user",
         description="get permissions of user",
+        example="beehive auth users get-perms client_abc.def@ghi.lmno;beehive auth users get-perms clientabc.def@ghi.lmno",
         arguments=PARGS(
             [
                 (["id"], {"help": "user uuid", "action": "store", "type": str}),
@@ -525,6 +639,7 @@ class AuthUserController(AuthChildController):
     @ex(
         help="add permissions to user",
         description="add permissions to user",
+        example="beehive auth users add-perms abc.def@ghi.lmno <uuid>",
         arguments=ARGS(
             [
                 (["id"], {"help": "user uuid", "action": "store", "type": str}),

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
 from beecell.simple import merge_list
@@ -243,18 +243,18 @@ class DnsPlatformController(BaseController):
     class DnsRecordAControllerChild(DnsControllerChild):
         baseuri = u'/v1.0/nrs'
         subsystem = u'resource'
-    
+
         class Meta:
             label = 'dns.recordas'
             aliases = ['recordas']
             aliases_only = True
             description = "Dns record A management"
-    
+
         @expose(aliases=[u'list [field=..]'], aliases_only=True)
         @check_error
         def list(self):
             """List all the dns recordas
-    
+
     fields:
       name                  host name [optional]
       ip_addr               ip address [optional]
@@ -274,12 +274,12 @@ class DnsPlatformController(BaseController):
             headers = [u'id', u'name', u'ip_address', u'state', u'zone', u'container', u'creation']
             fields = [u'uuid', u'name', u'ip_address', u'state', u'parent.name', u'container.name', u'date.creation']
             self.result(res, key=u'recordas', headers=headers, fields=fields)
-    
+
         @expose(aliases=[u'get <recorda>'], aliases_only=True)
         @check_error
         def get(self):
             """Get a dns recorda
-    
+
     fields:
       zone                  zone nome or uuid"""
             zone = self.get_arg(name=u'recorda')
@@ -292,12 +292,12 @@ class DnsPlatformController(BaseController):
                 self.result(resolution, headers=[u'start_nameserver', u'ip_address'], maxsize=200)
             else:
                 self.result(res, key=u'recorda', details=True, maxsize=200)
-    
+
         @expose(aliases=[u'add <ip-address> <host-name> <zone> [ttl=..]'], aliases_only=True)
         @check_error
         def add(self):
             """Create new record A (ip address -> hostname.zone)
-    
+
     fields:
       ip-address            ip address
       host-name             host name
@@ -307,11 +307,11 @@ class DnsPlatformController(BaseController):
             host_name = self.get_arg(name=u'host-name')
             zone = self.get_arg(name=u'zone')
             ttl = self.get_arg(name=u'ttl', keyvalue=True, default=86400)
-    
+
             # get zone
             uri = u'%s/dns/zones/%s' % (self.baseuri, zone)
             zone = self._call(uri, u'GET', data=u'').get(u'zone', {})
-    
+
             uri = u'%s/dns/recordas' % self.baseuri
             data = {
                 u'container': zone.get(u'container').get(u'uuid'),
@@ -323,12 +323,12 @@ class DnsPlatformController(BaseController):
             res = self._call(uri, u'POST', data={u'recorda': data})
             resp = {u'msg': u'Create new record A (%s, %s, %s)' % (ip_addr, host_name, zone.get(u'name'))}
             self.result(resp, headers=[u'msg'], maxsize=300)
-    
+
         @expose(aliases=[u'delete <record-id>'], aliases_only=True)
         @check_error
         def delete(self):
             """Delete an existing record A (ip address -> hostname.zone)
-    
+
     fields:
       record-id             dns record id"""
             record_id = self.get_arg(name=u'record-id')
@@ -336,23 +336,23 @@ class DnsPlatformController(BaseController):
             zone = self._call(uri, u'DELETE', data=u'')
             resp = {u'msg': u'Delete record A (%s, %s)' % (record_id, zone)}
             self.result(resp, headers=[u'msg'], maxsize=300)
-    
-    
+
+
     class DnsRecordCnameControllerChild(DnsControllerChild):
         baseuri = u'/v1.0/nrs'
         subsystem = u'resource'
-    
+
         class Meta:
             label = 'dns.recordcnames'
             aliases = ['recordcnames']
             aliases_only = True
             description = "Dns record A management"
-    
+
         @expose(aliases=[u'list [field=..]'], aliases_only=True)
         @check_error
         def list(self):
             """List all the dns recordcnames
-    
+
     fields:
       host_name                  host name [optional]
       name                  name [optional]
@@ -372,12 +372,12 @@ class DnsPlatformController(BaseController):
             headers = [u'id', u'name', u'host_name', u'state', u'zone', u'container', u'creation']
             fields = [u'uuid', u'name', u'host_name', u'state', u'parent.name', u'container.name', u'date.creation']
             self.result(res, key=u'record_cnames', headers=headers, fields=fields)
-    
+
         @expose(aliases=[u'get <recordcname>'], aliases_only=True)
         @check_error
         def get(self):
             """Get a dns recordcname
-    
+
     fields:
       zone                  zone nome or uuid"""
             zone = self.get_arg(name=u'recordcname')
@@ -390,12 +390,12 @@ class DnsPlatformController(BaseController):
                 self.result(resolution, headers=[u'start_nameserver', u'base_fqdn'], maxsize=200)
             else:
                 self.result(res, key=u'record_cname', details=True, maxsize=200)
-    
+
         @expose(aliases=[u'add <name> <host-name> <zone> [ttl=..]'], aliases_only=True)
         @check_error
         def add(self):
             """Create new record A (ip address -> hostname.zone)
-    
+
     fields:
       name                  alias to set
       host-name             host name
@@ -405,11 +405,11 @@ class DnsPlatformController(BaseController):
             host_name = self.get_arg(name=u'host-name')
             zone = self.get_arg(name=u'zone')
             ttl = self.get_arg(name=u'ttl', keyvalue=True, default=86400)
-    
+
             # get zone
             uri = u'%s/dns/zones/%s' % (self.baseuri, zone)
             zone = self._call(uri, u'GET', data=u'').get(u'zone', {})
-    
+
             uri = u'%s/dns/record_cnames' % self.baseuri
             data = {
                 u'container': zone.get(u'container').get(u'uuid'),
@@ -421,12 +421,12 @@ class DnsPlatformController(BaseController):
             res = self._call(uri, u'POST', data={u'record_cname': data})
             resp = {u'msg': u'Create new record cname (%s, %s, %s)' % (name, host_name, zone.get(u'name'))}
             self.result(resp, headers=[u'msg'], maxsize=300)
-    
+
         @expose(aliases=[u'delete <record-id>'], aliases_only=True)
         @check_error
         def delete(self):
             """Delete an existing record A (ip address -> hostname.zone)
-    
+
     fields:
       record-id             dns record id"""
             record_id = self.get_arg(name=u'record-id')

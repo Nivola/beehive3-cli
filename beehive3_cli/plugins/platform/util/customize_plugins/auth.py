@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.types.type_dict import dict_get
 from beehive3_cli.plugins.platform.util.customize_plugins import CustomizePlugin
@@ -125,7 +125,7 @@ class AuthCustomizePlugin(CustomizePlugin):
             if exists is False:
                 self.cmp_post("%s/clients" % BASE_URI, {"client": obj}, "Add client: %s" % name)
 
-    def run(self, configs):
+    def run(self, configs, dry=False):
         self.__create_roles(configs)
         self.__create_users(configs)
         self.__create_groups(configs)

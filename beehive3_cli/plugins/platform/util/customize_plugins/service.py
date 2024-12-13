@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.types.type_dict import dict_get
 from beehive3_cli.plugins.platform.util.customize_plugins import CustomizePlugin
@@ -28,7 +28,7 @@ class ServiceCustomizePlugin(CustomizePlugin):
             if exists is False:
                 self.cmp_post(BASE_URI, {"servicetype": obj}, "Add service type: %s" % name)
 
-    def __create_service_definitions(self, configs):
+    def __create_service_definitions(self, configs, dry=False):
         if self.has_config(configs, "service.definitions") is False:
             return None
 
@@ -36,24 +36,82 @@ class ServiceCustomizePlugin(CustomizePlugin):
         BASE_URI = "/v1.0/nws/servicedefs"
 
         for obj in dict_get(configs, "service.definitions"):
+            print("-----")
             OBJ_URI = "%s/%s" % (BASE_URI, obj["name"])
             name = obj["name"]
             def_configs = obj.pop("configs", {})
-            exists = self.cmp_exists(OBJ_URI, "Service definition %s already exists" % name)
 
+            msg = "Service definition '%s' already exists" % name
+            # exists = self.cmp_exists(OBJ_URI, msg)
+
+            exists = None
+            try:
+                res_servicedef = self.manager.controller.cmp_get(OBJ_URI, data="")
+                # print("res_servicedef: %s" % res_servicedef)
+                servicedef = res_servicedef.get("servicedef")
+                self.error(msg)
+                exists = True
+            except:
+                exists = False
+
+            # print("exists: %s" % exists)
             if exists is False:
-                res = self.cmp_post(BASE_URI, {"servicedef": obj}, "Add service definition: %s" % name)
+                if dry is False:
+                    res = self.cmp_post(BASE_URI, {"servicedef": obj}, "Add service definition: %s" % name)
 
-                data = {
-                    "name": "%s-config" % name,
-                    "desc": "%s-config" % name,
-                    "service_definition_id": res["uuid"],
-                    "params": def_configs,
-                    "params_type": "JSON",
-                    "version": obj.get("version"),
-                }
-                msg = "Add service definition config %s-config" % name
-                self.cmp_post("/v1.0/nws/servicecfgs", {"servicecfg": data}, msg)
+                    data = {
+                        "name": "%s-config" % name,
+                        "desc": "%s-config" % name,
+                        "service_definition_id": res["uuid"],
+                        "params": def_configs,
+                        "params_type": "JSON",
+                        "version": obj.get("version"),
+                    }
+                    msg = "Add service definition config %s-config" % name
+                    self.cmp_post("/v1.0/nws/servicecfgs", {"servicecfg": data}, msg)
+                else:
+                    "Service definition: %s to add" % name
+            else:
+                if dry is False:
+                    data = {"desc": obj["desc"], "status": "ACTIVE"}
+                    self.cmp_put(
+                        "/v1.0/nws/servicedefs/%s" % name, {"servicedef": data}, "Update service definition description"
+                    )
+
+                # get service definition config
+                id_servicedef = servicedef.get("id")
+                # print("id_servicedef: %s" % id_servicedef)
+
+                uri = "/v1.0/nws/servicecfgs"
+                res = self.cmp_get(uri, data="service_definition_id=%s" % id_servicedef).get("servicecfgs", [{}])[0]
+                id_servicecfg = res.pop("id")
+                params = res.pop("params")
+
+                # print("type params: \n%s" % type(params))
+                # print("type def_configs: \n%s" % type(def_configs))
+                if params == def_configs:
+                    print("Definition config %s-config not changed" % name)
+                else:
+                    print("Updating definition config %s-config..." % name)
+
+                    print("OLD params: \n%s" % (params))
+                    print("NEW def_configs: \n%s" % (def_configs))
+
+                    if dry is False:
+                        # update service definition config
+                        data_servicecfgs = {
+                            "name": "%s-config" % name,
+                            "desc": "%s-config" % name,
+                            "service_definition_id": servicedef["uuid"],
+                            "params": def_configs,
+                            "params_type": "JSON",
+                            "version": obj.get("version"),
+                        }
+                        # print("data_servicecfgs: %s" % data_servicecfgs)
+
+                        msg = "Update service definition config %s-config" % name
+                        # TODO: uncomment when "beehive-service" commit "fix UpdateServiceConfigParamRequestSchema will be in prod
+                        # self.cmp_put("/v1.0/nws/servicecfgs/%s" % id_servicecfg, {"servicecfg": data_servicecfgs}, msg)
 
     def __create_service_capabilities(self, configs):
         if self.has_config(configs, "service.capabilities") is False:
@@ -360,9 +418,9 @@ class ServiceCustomizePlugin(CustomizePlugin):
             if exists is False:
                 self.cmp_post(BASE_URI, {"job_schedule": obj}, "Add metric schedule: %s" % name)
 
-    def run(self, configs):
+    def run(self, configs, dry=False):
         self.__create_service_types(configs)
-        self.__create_service_definitions(configs)
+        self.__create_service_definitions(configs, dry)
         self.__create_service_capabilities(configs)
         self.__create_service_processes(configs)
         self.__create_service_tags(configs)

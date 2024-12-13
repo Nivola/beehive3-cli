@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.types.type_string import truncate
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
@@ -352,13 +352,16 @@ class OpenstackController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/projects" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="projects",
-                headers=self._meta.project_headers,
-                fields=self._meta.project_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="projects",
+                    headers=self._meta.project_headers,
+                    fields=self._meta.project_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="get project quotas",
@@ -391,8 +394,8 @@ class OpenstackController(BaseController):
         #         resp.append({'module': k, 'quota': k1, 'value': v1})
         # headers = ['module', 'quota', 'limit', 'reserved', 'in_use', 'allocated']
         # fields = ['module', 'quota', 'value.limit', 'value.reserved', 'value.in_use', 'value.allocated']
-        # self.app.render(resp, headers=headers, fields=fields, maxsize=40)
-        self.app.render(resp, details=True, maxsize=40)
+        # self.app.render(resp, headers=headers, fields=fields, maxsize=45)
+        self.app.render(resp, details=True, maxsize=45)
 
     @ex(
         help="get project default quotas",
@@ -431,7 +434,7 @@ class OpenstackController(BaseController):
             "value.in_use",
             "value.allocated",
         ]
-        self.app.render(resp, headers=headers, fields=fields, maxsize=40)
+        self.app.render(resp, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="set project quotas",
@@ -516,7 +519,7 @@ class OpenstackController(BaseController):
         res = res.get("members")
         headers = ["user_id", "user_name", "role_id", "role_name"]
         fields = ["user_id", "user_name", "role_id", "role_name"]
-        self.app.render(res, headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="set project member TODO",
@@ -1720,7 +1723,7 @@ class OpenstackController(BaseController):
             "created_at",
             "os-extended-snapshot-attributes:progress",
         ]
-        self.app.render(res, headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="add volume snapshot",
@@ -1924,7 +1927,7 @@ class OpenstackController(BaseController):
                     "resource_status_reason",
                     "event_time",
                 ]
-                self.app.render(res, headers=headers, fields=fields, maxsize=40)
+                self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
                 self.c("\ninternal resources", "underline")
                 uri1 = uri + "/internal_resources"
@@ -1938,7 +1941,7 @@ class OpenstackController(BaseController):
                     "creation_time",
                     "required_by",
                 ]
-                self.app.render(res, headers=headers, fields=fields, maxsize=40)
+                self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
                 self.c("\nresources", "underline")
                 uri1 = uri + "/resources"
@@ -1963,7 +1966,7 @@ class OpenstackController(BaseController):
                     "date.creation",
                     "ext_id",
                 ]
-                self.app.render(res, headers=headers, fields=fields, maxsize=40)
+                self.app.render(res, headers=headers, fields=fields, maxsize=45)
             else:
                 self.app.render(res, details=True)
         else:
@@ -2425,7 +2428,7 @@ class OpenstackController(BaseController):
                 (
                     ["access_to"],
                     {
-                        "help": "access to like 10.102.185.0/24 or admin/user",
+                        "help": "access to like ###.###.###.###/24 or admin/user",
                         "action": "store",
                         "type": str,
                         "default": None,

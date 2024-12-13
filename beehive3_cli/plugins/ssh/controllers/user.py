@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64decode
 from urllib.parse import urlencode
 from six import ensure_text
 from cement import ex
-from passlib.handlers.sha2_crypt import sha512_crypt
 from beecell.types.type_string import str2bool
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
@@ -47,6 +46,7 @@ class SshUserController(SshControllerChild):
     @ex(
         help="get node users",
         description="get node users",
+        example="beehive ssh node-users get -id <uuid>;beehive ssh node-users get-password <uuid> -e <env>",
         arguments=PARGS(
             [
                 (
@@ -154,6 +154,7 @@ class SshUserController(SshControllerChild):
     @ex(
         help="get node user password",
         description="get node user password",
+        example="beehive ssh node-users get-password <uuid>;beehive ssh node-users get-password filippo-win01.site01.nivolapiemonte.it -e <env> ",
         arguments=PARGS([(["id"], {"help": "user uuid", "action": "store", "type": str})]),
     )
     def get_password(self):
@@ -189,7 +190,6 @@ class SshUserController(SshControllerChild):
         user, node = self.__get_user_and_node(oid)
 
         # add user using paramiko
-        # enc_pwd = sha512_crypt.using(rounds=5000).hash(pwd)
         if propagate is True:
             res = self.run_cmd(
                 'echo -e "%s\n%s" | passwd %s' % (pwd, pwd, user["username"]),
@@ -197,48 +197,11 @@ class SshUserController(SshControllerChild):
             ).values()
             self.app.log.debug(res)
 
-        # ansible_pwd = sha512_crypt.using(rounds=5000).hash(pwd)
-        # self.ansible_user_change_password(user['username'], ansible_pwd, group=None, node=node['name'])
-
         # remove user via api
         data = {"user": {"password": pwd}}
         uri = "%s/users/%s" % (self.baseuri, oid)
         self.cmp_put(uri, data=data)
         self.app.render({"msg": "set node %s user %s password" % (node["uuid"], user["username"])})
-
-    # @ex(
-    #     help='add ssh key to user',
-    #     description='add ssh key to user',
-    #     arguments=ARGS([
-    #         (['id'], {'help': 'node uuid', 'action': 'store', 'type': str}),
-    #         (['key-file '], {'help': 'file that contains private ssh key', 'action': 'store', 'type': str}),
-    #     ])
-    # )
-    # def add_sshkey(self):
-    #     oid = self.app.pargs.id
-    #     key_file = self.app.pargs.key_file
-    #
-    #     user, node = self.__get_user_and_node(oid)
-    #
-    #     self.ansible_user_set_ssh_key(user['username'], key_file, node=node['name'])
-    #     self.app.render({'msg': 'Set node %s user %s ssh key' % (node['uuid'], user['username'])})
-    #
-    # @ex(
-    #     help='remove ssh key from user',
-    #     description='remove ssh key from user',
-    #     arguments=ARGS([
-    #         (['id'], {'help': 'user uuid', 'action': 'store', 'type': str}),
-    #         (['key-file '], {'help': 'file that contains private ssh key', 'action': 'store', 'type': str}),
-    #     ])
-    # )
-    # def del_sshkey(self):
-    #     oid = self.app.pargs.id
-    #     key_file = self.app.pargs.key_file
-    #
-    #     user, node = self.__get_user_and_node(oid)
-    #
-    #     self.ansible_user_unset_ssh_key(user['username'], key_file, node=node['name'])
-    #     self.app.render({'msg': 'Unset node %s user %s ssh key' % (node['uuid'], user['username'])})
 
     def __set_public_key(self, user, node, key_string):
         res = self.run_cmd(
@@ -250,6 +213,7 @@ class SshUserController(SshControllerChild):
     @ex(
         help="add new ssh user",
         description="add new ssh user",
+        example="beehive ssh node-users add root <uuid> -sshkey cmp-key;beehive ssh node-users add ansible <uuid> -sshkey cmp-key",
         arguments=PARGS(
             [
                 (["name"], {"help": "user name", "action": "store", "type": str}),
@@ -332,8 +296,8 @@ class SshUserController(SshControllerChild):
 
         # add user using ansible
         if propagate:
-            enc_pwd = sha512_crypt.using(rounds=5000).hash(password)
-            res = self.run_cmd("useradd -m -p '%s' -s /bin/bash %s" % (enc_pwd, name), node=node["id"]).values()
+            cmd = f"useradd -m -p $(echo '{password}' | openssl passwd -6 -stdin) -s /bin/bash {name}"
+            res = self.run_cmd(cmd, node=node["id"]).values()
             self.app.log.debug(res)
             res = self.run_cmd(
                 "mkdir -p /home/{name}/.ssh && chmod -R 700 /home/{name}/.ssh".format(name=name),
@@ -349,9 +313,6 @@ class SshUserController(SshControllerChild):
             self.app.log.debug(res)
             if key_id is not None and pub_key != "":
                 self.__set_public_key(name, node["id"], pub_key)
-
-            # ansible_pwd = sha512_crypt.using(rounds=5000).hash(password)
-            # self.ansible_user_create(name, desc, name, ansible_pwd, pub_key, group=None, node=node['name'])
 
         data = {
             "user": {
@@ -371,6 +332,7 @@ class SshUserController(SshControllerChild):
     @ex(
         help="delete node user",
         description="delete node user",
+        example="beehive ssh node-users delete <uuid>",
         arguments=PARGS(
             [
                 (

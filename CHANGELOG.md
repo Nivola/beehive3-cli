@@ -1,5 +1,27 @@
 # Changelog
 
+## Devel
+
+* Added ...
+    * mixed_output_handler
+    * if stdout not a tty, default to old (mostly no color) output handler
+    * bugfix ip_address column for platform vsphere server list missing in output
+    * dedicated command for account capabilities update
+* Updated ...
+    * make 'type' param mandatory in staas efs add command
+* Fixed ...
+    * correct command returning nsx edge load balancers configuration   
+
+## Version 1.16.0
+
+* Added ...
+    * Vsphere vms clone
+    * Account existence control
+    * CLI exit code
+    * Account add/update new fields: account_type, management_model, pods
+* Fixed ...
+    * fix creating sqlserver using storage param
+    * fix wait creating internet gateway
 
 ## Version 1.15.0
 
@@ -33,7 +55,6 @@
   * Ssh Gateway updates and reworks
   * list-all vm counter
   * minor fixes
-
 
 ## Version 1.13.0
 
@@ -84,8 +105,6 @@
   * Draft of network edge load balancer plugin vsphere cmds
   * Update nsx edge paltform commands
   * Update vsphere nsx edge load balancer platform cmds
-
-
 
 ## Version 1.11.0 (oct 11, 2022)
 * Added ...

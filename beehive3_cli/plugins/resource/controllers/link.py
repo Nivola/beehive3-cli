@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import set_request_params
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
@@ -49,6 +49,7 @@ class ResourceLinkController(BaseController):
     @ex(
         help="list resource links",
         description="list resource links",
+        example="beehive res links get 2143757;beehive res links get -id 2143757",
         arguments=PARGS(
             [
                 (
@@ -136,17 +137,21 @@ class ResourceLinkController(BaseController):
             uri = "%s/links" % self.baseuri
             res = self.cmp_get(uri, data=data)
 
+            transform = {"details.attributes.subnet": lambda x: x, "details.attributes.subnet.colortext": False}
+
             self.app.render(
                 res,
                 key="resourcelinks",
                 headers=self._meta.headers,
                 fields=self._meta.fields,
+                transform=transform,
                 maxsize=40,
             )
 
     @ex(
         help="add resource link",
         description="add resource link",
+        example="beehive res links add link-49186-747644 relation 49186 747644 -e <env>;beehive res links add link-52343-747563 relation 52343 747563 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -207,6 +212,7 @@ class ResourceLinkController(BaseController):
     @ex(
         help="update resource link",
         description="update resource link",
+        example="beehive res links update 2890463 -end_resource 17569 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -304,6 +310,7 @@ class ResourceLinkController(BaseController):
     @ex(
         help="delete resource links",
         description="delete resource links",
+        example="beehive res links delete #### -e <env>",
         arguments=ARGS(
             [
                 (

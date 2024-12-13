@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from datetime import datetime
 from time import sleep
-import sh
 from cement.ext.ext_argparse import ex
 from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_list import merge_list
 from beecell.types.type_date import format_date
 from beecell.types.type_dict import dict_get
-from beedrones.vsphere.client import VsphereManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, StringAction
 from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar
 
@@ -53,7 +51,7 @@ class VspherePlatformController(BaseController):
             "name",
             "os",
             "state",
-            "ipv4_address",
+            "ip_address",
             "hostname",
             "cpu",
             "ram",
@@ -151,6 +149,8 @@ class VspherePlatformController(BaseController):
         dlr_headers = ["objectId", "name", "value"]
 
     def pre_command_run(self):
+        from beedrones.vsphere.client import VsphereManager
+
         super(VspherePlatformController, self).pre_command_run()
 
         self.config = load_environment_config(self.app)
@@ -175,20 +175,14 @@ class VspherePlatformController(BaseController):
         conf.get("nsx")["pwd"] = str(conf.get("nsx")["pwd"])
 
         if self.app.config.get("log.clilog", "verbose_log"):
-            host_vcenter = conf.get("vcenter", None)
-            if host_vcenter:
-                host_vcenter = host_vcenter.get("host", None)
-            host_nsx = conf.get("nsx", None)
-            if host_nsx:
-                host_nsx = host_nsx.get("host", None)
-            transform = {"msg": lambda x: self.color_string(x, "YELLOW")}
-            self.app.render(
-                {"msg": "Using vsphere orchestrator: %s (vcenter: %s - nsx: %s)" % (label, host_vcenter, host_nsx)},
-                transform=transform,
+            host_vcenter = conf.get("vcenter", {}).get("host", None)
+            host_nsx = conf.get("nsx", {}).get("host", None)
+
+            # log to stdout and to logfile
+            self.app.print(
+                f"Using vsphere orchestrator: {label} (vcenter: {host_vcenter} - nsx: {host_nsx})", color="YELLOW"
             )
-            self.app.log.debug(
-                "Using vsphere orchestrator: %s (vcenter: %s - nsx: %s)" % (label, host_vcenter, host_nsx)
-            )
+            self.app.log.debug(f"Using vsphere orchestrator: {label} (vcenter: {host_vcenter} - nsx: {host_nsx})")
 
         self.client = VsphereManager(conf.get("vcenter"), conf.get("nsx"), key=self.key)
 
@@ -210,11 +204,21 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get vsphere version",
         description="get vsphere version",
+        example="beehive platform vsphere version;beehive platform vsphere version -e <env>",
         arguments=VSPHERE_ARGS(),
     )
     def version(self):
         res = self.client.version()
-        self.app.render({"version": res}, headers=["version"])
+        if self.is_output_text():
+            version_vcenter = res.get("vcenter")
+            version_nsx = res.get("nsx")
+            self.app.render(
+                [{"which": "vcenter", "version": version_vcenter}, {"which": "nsx", "version": version_nsx}],
+                headers=["", "version"],
+                fields=["which", "version"],
+            )
+        else:
+            self.app.render({"version": res}, headers=["version"])
 
     @ex(
         help="get vsphere nsx manager info",
@@ -328,6 +332,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get datacenters",
         description="get datacenters",
+        example="beehive platform vsphere datacenter-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -430,7 +435,10 @@ class VspherePlatformController(BaseController):
             res = []
             for o in objs:
                 res.append(self.client.cluster.info(o))
-            self.app.render(res, headers=self._meta.cluster_headers)
+            if self.is_output_text():
+                self.app.render(res, headers=self._meta.cluster_headers)
+            else:
+                self.app.render({"clusters": res}, details=True)
 
     @ex(
         help="get hosts",
@@ -471,8 +479,13 @@ class VspherePlatformController(BaseController):
             objs = self.client.cluster.host.list(**params)
             res = []
             for o in objs:
-                res.append(self.client.cluster.host.info(o))
-            self.app.render(res, headers=self._meta.host_headers)
+                d = self.client.cluster.host.info(o)
+                d["bootTime"] = str(d["bootTime"])
+                res.append(d)
+            if self.is_output_text():
+                self.app.render(res, headers=self._meta.host_headers)
+            else:
+                self.app.render({"hosts": res}, details=True)
 
     @ex(
         help="get resource pools",
@@ -576,6 +589,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get folders",
         description="get folders",
+        example="beehive platform vsphere folder-get -id group-v261 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -668,6 +682,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="update vsphere folder",
         description="update vsphere folder",
+        example="beehive platform vsphere folder-update group-xxxx -desc <description>.notifysan-preprod -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -755,6 +770,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get servers",
         description="get servers",
+        example="beehive platform vsphere server-get -id vm-xxxx -e <env> ;beehive platform vsphere server-get -names xxxxx-1 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -834,6 +850,7 @@ class VspherePlatformController(BaseController):
                 if res is None:
                     self.app.render(data, details=True)
                 else:
+                    self.app.pargs.notruncate = True
                     volumes = data.pop("volumes", [])
                     networks = data.pop("networks", [])
                     config_data = self.client.server.hardware.get_config_data(res)
@@ -951,8 +968,7 @@ class VspherePlatformController(BaseController):
                     info = self.client.server.info(o)
                     info["parent"] = folder_idx.get(info["parent"], info["parent"])
                     res.append(info)
-            transform = {"ipv4_address": lambda x: ",".join(x)}
-            self.app.render(res, headers=self._meta.server_headers, transform=transform, maxsize=30)
+            self.app.render(res, headers=self._meta.server_headers, maxsize=30)
 
     @ex(
         help="add vsphere server [todo:]",
@@ -1083,8 +1099,7 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         server = self.client.server.get_by_morid(oid)
         res = self.client.server.remote_console(server)
-        sh.firefox(res.get("url"))
-        sleep(30)
+        self.app.render(res, details=True)
 
     @ex(
         help="get vsphere server devices",
@@ -1191,7 +1206,7 @@ class VspherePlatformController(BaseController):
         params = " ".join(self.app.pargs.params.split("+"))
 
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_execute_command(
+        res = self.client.server.guest_utils.guest_execute_command(
             server,
             user,
             pwd,
@@ -1435,19 +1450,33 @@ class VspherePlatformController(BaseController):
         dns = " ".join(self.app.pargs.dns.split(","))
         dns_search = self.app.pargs.dns_search
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_setup_network2(
+        # res = self.client.server.guest_setup_network2(
+        #     server,
+        #     pwd,
+        #     ipaddr,
+        #     macaddr,
+        #     gw,
+        #     hostname,
+        #     dns,
+        #     dns_search,
+        #     conn_name="net01",
+        #     user=user,
+        #     prefix=prefix,
+        # )
+        res = self.client.server.guest_setup_network(
             server,
             pwd,
             ipaddr,
             macaddr,
             gw,
             hostname,
-            dns,
+            self.app.pargs.dns,
             dns_search,
             conn_name="net01",
             user=user,
             prefix=prefix,
         )
+
         self.app.render(res)
 
     @ex(
@@ -2116,6 +2145,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get securitygroups",
         description="get securitygroups",
+        example="beehive platform vsphere sg-get securitygroup-######;beehive platform vsphere sg-get securitygroup-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -2239,6 +2269,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="add vsphere securitygroup member",
         description="add vsphere securitygroup member",
+        example="beehive platform vsphere sg-member-add securitygroup-#### vm-#### -e <env>;beehive platform vsphere sg-member-add securitygroup-##### vm-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -2383,6 +2414,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get distributed firewall sections",
         description="get distributed firewall sections",
+        example="beehive platform vsphere dfw-section-get -e <env>;beehive platform vsphere dfw-section-get -id 1053 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -2631,7 +2663,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-sources"],
                     {
-                        "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                        "help": "rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2640,7 +2672,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dests"],
                     {
-                        "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                        "help": "rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2941,6 +2973,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get vsphere ippools",
         description="get ippools",
+        example="beehive platform vsphere ippool-get -e <env>;beehive platform vsphere ippool-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -3202,6 +3235,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get all allocated ippool ips",
         description="get all allocated ippool ips",
+        example="beehive platform vsphere ippool-ip-usage ipaddresspool-##### -e <env>;beehive platform vsphere ippool-ip-usage ipaddresspool-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -3235,6 +3269,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="assign ippool ip",
         description="assign ippool ip",
+        example="beehive platform vsphere ippool-ip-use ipaddresspool-##### -e <env>;beehive platform vsphere ippool-ip-use ipaddresspool-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -3268,6 +3303,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="release ippool ip",
         description="release ippool ip",
+        example="beehive platform vsphere ippool-ip-release ipaddresspool-##### ###.###.###.###;beehive platform vsphere ippool-ip-release ipaddresspool-##### ###.###.###.### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -3364,7 +3400,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "list of ip. Ex. 10.112.201.8-10.112.201.14 or cidr",
+                        "help": "list of ip. Ex. ###.###.###.###-###.###.###.### or cidr",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3429,6 +3465,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get vsphere edges",
         description="get vsphere edges",
+        example="beehive platform vsphere edge-get -e <env>;beehive platform vsphere edge-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -3758,8 +3795,9 @@ class VspherePlatformController(BaseController):
             )
 
     @ex(
-        help="get edge vinics",
-        description="get edge vinics",
+        help="get edge vnics",
+        description="get edge vnics",
+        example="beehive platform vsphere edge-vnic-get -id edge-##### -e <env>;beehive platform vsphere edge-vnic-get -id edge-##### -vnic 0 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -4001,6 +4039,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get edge firewall config",
         description="get edge firewall config",
+        example="beehive platform vsphere edge-fw-config edge-##### -e <env>;beehive platform vsphere edge-fw-config edge-##### --notruncate -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -4679,6 +4718,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get edge routing info",
         description="get edge routing info",
+        example="beehive platform vsphere edge-route-get -e <env>  edge-#####;beehive platform vsphere edge-route-get -e <env> -id edge-#####",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -4884,6 +4924,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="add edge syslog servers",
         description="add edge syslog servers",
+        example="beehive platform vsphere edge-syslog-add edge-##### ###.###.###.###:514 -e <env>;beehive platform vsphere edge-syslog-add edge-##### ###.###.###.###:514 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -4960,6 +5001,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get edge ssl vpn config",
         description="get edge ssl vpn config",
+        example="beehive platform vsphere edge-sslvpn-get edge-##### -e <env>;beehive platform vsphere edge-sslvpn-get <uuid>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5506,6 +5548,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="add edge ssl vpn user",
         description="add edge ssl vpn user",
+        example="beehive platform vsphere edge-sslvpn-user-add edge-##### abc abc abc def abc.def@ghi.lmno -password_never_expires false -change_password_on_next_login true ;beehive platform vsphere edge-sslvpn-user-add edge-##### #### xxxxx abc def abc_def ",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5590,9 +5633,44 @@ class VspherePlatformController(BaseController):
             change_password_on_next_login=change_password_on_next_login,
         )
 
+    """
+    # DANGEROUS
+    # uncomment to use
+
+    @ex(
+        help="change edge ssl vpn user password",
+        description="change edge ssl vpn user password",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "edge id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (["user_id"], {"help": "user id", "action": "store", "type": str}),
+                (
+                    ["password"],
+                    {"help": "user password", "action": "store", "type": str},
+                ),
+            ]
+        )
+    )
+    def edge_sslvpn_user_change_password(self):
+        oid = self.app.pargs.id
+        user_id = self.app.pargs.user_id
+        password = self.app.pargs.password
+
+        self.client.network.nsx.edge.sslvpn_user_modify(edge=oid,user_id=user_id,password=password)
+    """
+
     @ex(
         help="delete all the edge ssl vpn user",
         description="delete all the  edge ssl vpn user",
+        example="beehive platform vsphere edge-sslvpn-user-del edge-##### 73346;beehive platform vsphere edge-sslvpn-user-del edge-##### user-412 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5712,8 +5790,8 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="delete vsphere edge",
-        description="delete vsphere edge",
+        help="get edge dns config",
+        description="get edge dns config",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5739,8 +5817,8 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="delete vsphere edge",
-        description="delete vsphere edge",
+        help="get edge dhcp config",
+        description="get edge dhcp config",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5766,8 +5844,8 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="delete vsphere edge",
-        description="delete vsphere edge",
+        help="get edge ipsec config",
+        description="get edge ipsec config",
         arguments=VSPHERE_ARGS(
             [
                 (
@@ -5848,6 +5926,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get edge load balancer config",
         description="get edge load balancer config",
+        example="beehive platform vsphere edge-lb-config-get edge-##### -e <env>;beehive platform vsphere edge-lb-config-get edge-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (["edge"], {"help": "edge id", "action": "store", "type": str}),
@@ -6992,6 +7071,7 @@ class VspherePlatformController(BaseController):
     @ex(
         help="get edge load balancer application rules",
         description="get edge load balancer application rules",
+        example="beehive platform vsphere edge-lb-rule-get -e <env> -id edge-#####",
         arguments=VSPHERE_ARGS(
             [
                 (["edge"], {"help": "edge id", "action": "store", "type": str}),
@@ -7816,3 +7896,263 @@ class VspherePlatformController(BaseController):
         network = self.client.network.nsx.dlr.get(oid)
         res = self.client.network.nsx.dlr.detail(network)
         self.app.render(res, details=True)
+
+    @ex(
+        help="Clone Vsphere server",
+        description="Clone an Existing VSphere Virtual Machine",
+        example="beehive platform vsphere server-clone-v1 vm-##### -e <env>;beehive platform vsphere server-clone-v1 -id vm-##### -e <env>",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "Existing server id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["name"],
+                    {
+                        "help": "server clone name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["hostname"],
+                    {
+                        "help": "server hostname",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-domain"],
+                    {
+                        "help": "domain name of the site where to put the cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-destenv"],
+                    {
+                        "help": "destination environment where migrate the cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-folder"],
+                    {
+                        "help": "vsphere parent folder id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-datastore"],
+                    {
+                        "help": "datastore id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-cluster"],
+                    {
+                        "help": "cluster id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dvpg"],
+                    {
+                        "help": "dvportgroup",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-password"],
+                    {
+                        "help": "admin password for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-ipaddr"],
+                    {
+                        "help": "ip address for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-subnet"],
+                    {
+                        "help": "subnet mask for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-defaultgw"],
+                    {
+                        "help": "default gateway for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-httpproxy"],
+                    {
+                        "help": "http proxy ip_addr:port for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-httpsproxy"],
+                    {
+                        "help": "https proxy ip_addr:port for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dns1"],
+                    {
+                        "help": "primary dns server for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dns2"],
+                    {
+                        "help": "secondary dns server for the new cloned vm",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def server_clone(self):
+        from pyVmomi import vim
+        from beedrones.vsphere.client import VsphereManager
+
+        pargs = self.app.pargs
+        oid = pargs.id
+        dest_server_name = pargs.name
+        dest_cluster_id = pargs.cluster
+        dest_folder_id = pargs.folder
+        dest_datastore_id = pargs.datastore
+        dest_dvportgroup_id = pargs.dvpg
+        admin_password = pargs.password
+        hostname = pargs.hostname
+        ipaddr = pargs.ipaddr
+        subnet = pargs.subnet
+        defaultgw = pargs.defaultgw
+        httpproxy = pargs.httpproxy
+        httpsproxy = pargs.httpsproxy
+        primary_dns = pargs.dns1
+        secondary_dns = pargs.dns2
+        domain = pargs.domain
+        dest_env = pargs.destenv
+
+        if dest_env is not None:
+            config_dest = load_environment_config(self.app, env=dest_env)
+            orchestrators_dest = config_dest.get("orchestrators", {}).get("vsphere", {})
+            conf_dest = orchestrators_dest[dest_env]
+            client_dest = VsphereManager(conf_dest.get("vcenter"), conf_dest.get("nsx"), key=self.key)
+        else:
+            client_dest = self.client
+
+        server = self.client.server.get(oid)
+        if server is None:
+            raise Exception("Vsphere Server %s does not exist" % oid)
+
+        network = None
+        if dest_dvportgroup_id is not None:
+            network = client_dest.network.get_network(dest_dvportgroup_id)
+            if network is None:
+                raise Exception("Vsphere dvportgroup %s does not exist" % dest_dvportgroup_id)
+
+        dest_folder = None
+        if dest_folder_id is not None:
+            dest_folder = client_dest.folder.get(dest_folder_id)
+            if dest_folder is None:
+                raise Exception("Vsphere Folder %s does not exist" % dest_folder_id)
+
+        dest_datastore = None
+        if dest_datastore_id is not None:
+            dest_datastore = client_dest.datastore.get(dest_datastore_id)
+            if dest_datastore is None:
+                raise Exception("Vsphere Datastore %s does not exist" % dest_datastore_id)
+
+        dest_cluster = None
+        if dest_cluster_id is not None:
+            dest_cluster = client_dest.cluster.get(dest_cluster_id)
+            if dest_cluster is None:
+                raise Exception("Vsphere Cluster %s does not exist" % dest_cluster_id)
+
+        self.app.log.debug(
+            "Cloning Vsphere server %s into %s (cluster %s, datastore %s, folder %s, dvpg %s)"
+            % (oid, dest_server_name, dest_cluster_id, dest_datastore_id, dest_folder_id, dest_dvportgroup_id)
+        )
+
+        clone_task = self.client.server.create_clone(
+            server,
+            dest_server_name,
+            hostname,
+            domain,
+            client_dest,
+            dest_folder,
+            dest_datastore,
+            dest_cluster,
+            network,
+            admin_password,
+            ipaddr,
+            subnet,
+            defaultgw,
+            [primary_dns, secondary_dns],
+            httpproxy,
+            httpsproxy,
+        )
+        clone_result = self.client.wait_task(clone_task)
+        dest_vsphere_id = client_dest.vsphere_id
+        if clone_result == vim.TaskInfo.State.success:
+            cloned_vm_id = clone_task.info.result._moId
+            self.app.render(
+                {"msg": "Cloned vm %s into vm %s located on vcenter %s" % (oid, cloned_vm_id, dest_vsphere_id)}
+            )
+        else:
+            self.app.render({"msg": "Fail to clone to clone vm %s" % oid})
+            if (
+                clone_task.info is not None
+                and clone_task.info.error is not None
+                and len(clone_task.info.error.faultMessage) > 0
+            ):
+                self.app.render(clone_task.info.error.faultMessage[0].message)

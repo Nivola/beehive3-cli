@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 from time import time
@@ -889,16 +889,22 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v2.0/nrs/provider/site_networks"
-            res = self.cmp_get(uri, data=data)
-            transform = {"attributes.configs.subnets": lambda x: ",".join([s["cidr"] for s in x if x is not None])}
-            self.app.render(
-                res,
-                key="site_networks",
-                headers=self._meta.site_network_headers,
-                fields=self._meta.site_network_fields,
-                transform=transform,
-                maxsize=100,
-            )
+
+            def render(self, res, **kwargs):
+                transform = {
+                    "attributes.configs.subnets": lambda x: ",".join([s["cidr"] for s in x if x is not None]),
+                    "attributes.configs.subnets.colortext": True,
+                }
+                self.app.render(
+                    res,
+                    key="site_networks",
+                    headers=self._meta.site_network_headers,
+                    fields=self._meta.site_network_fields,
+                    transform=transform,
+                    maxsize=100,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
         help="add site network",
@@ -1076,11 +1082,11 @@ class ResourceProviderController(BaseController):
             data["gateway"] = gw
 
         """
-              - cidr: 10.103.52.0/24
+              - cidr: ###.###.###.###/24
                 allocation_pools:
                   openstack:
-                    - start: 10.103.52.2
-                      end: 10.103.52.253
+                    - start: ###.###.###.###
+                      end: ###.###.###.###
                 enable_dhcp: false
                 allocable: false
         """
@@ -1206,13 +1212,16 @@ class ResourceProviderController(BaseController):
             }
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/compute_zones" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="compute_zones",
-                headers=self._meta.compute_zones_headers,
-                fields=self._meta.compute_zones_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="compute_zones",
+                    headers=self._meta.compute_zones_headers,
+                    fields=self._meta.compute_zones_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="add compute zone",
@@ -1673,7 +1682,16 @@ class ResourceProviderController(BaseController):
 
     @ex(
         help="check provider computes zone quota",
-        description="check provider computes zone quota",
+        description="""
+        check provider computes zone quota.
+        The command will check whether it is possible to allocate 'value' amount of quota 'quota'
+        without reaching the currently set maximum value in cmp for that quota.
+        e.g. share.blocks set in cmp with max: 1024, current: 1000
+        if you try to check whether you can allocate 20, if will work, but if you try to allocate
+        30, you get a 'quota share.blocks exceeded' exception.
+        More in detail quota_to_allocate = cli command 'value' parameter + currently allocated
+        if quota_to_allocate > max -> exception.
+        """,
         arguments=ARGS(
             [
                 (
@@ -1708,10 +1726,10 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_quota_check(self):
         oid = self.app.pargs.id
-        quota = self.app.pargs.quota
+        quota = self.app.pargs.quotas
         value = self.app.pargs.value
         uri = self.baseuri + "/compute_zones/%s/quotas/check" % oid
-        res = self.cmp_put(uri, {"quotas": {quota: value}}).get("quotas", [])
+        res = self.cmp_put(uri, {"quotas": {quota: int(value)}}).get("quotas", [])
         self.app.render(res, headers=["quota", "default", "unit"], details=True)
 
     @ex(
@@ -2545,13 +2563,16 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v2.0/nrs/provider/vpcs"
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="vpcs",
-                headers=self._meta.vpc_headers,
-                fields=self._meta.vpc_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="vpcs",
+                    headers=self._meta.vpc_headers,
+                    fields=self._meta.vpc_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
         help="add vpc",
@@ -2974,15 +2995,18 @@ class ResourceProviderController(BaseController):
             aliases = {"parent": "parent_list"}
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
             uri = "%s/security_groups" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            transform = {"rules": lambda x: len(x)}
-            self.app.render(
-                res,
-                key="security_groups",
-                headers=self._meta.security_group_headers,
-                fields=self._meta.security_group_fields,
-                transform=transform,
-            )
+
+            def render(self, res, **kwargs):
+                transform = {"rules": lambda x: len(x)}
+                self.app.render(
+                    res,
+                    key="security_groups",
+                    headers=self._meta.security_group_headers,
+                    fields=self._meta.security_group_fields,
+                    transform=transform,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="check security groups contain ingress rule from zabbix proxy",
@@ -3391,13 +3415,16 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/rules" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="rules",
-                headers=self._meta.rule_headers,
-                fields=self._meta.rule_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="rules",
+                    headers=self._meta.rule_headers,
+                    fields=self._meta.rule_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="add rule",
@@ -3413,7 +3440,7 @@ class ResourceProviderController(BaseController):
                     ["source"],
                     {
                         "help": "rule source. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be "
-                        "security group id, cidr like 10.102.167.0/24",
+                        "security group id, cidr like ###.###.###.###/24",
                         "action": "store",
                         "type": str,
                     },
@@ -3422,7 +3449,7 @@ class ResourceProviderController(BaseController):
                     ["dest"],
                     {
                         "help": "rule destination. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be"
-                        " security group id, cidr like 10.102.167.0/24",
+                        " security group id, cidr like ###.###.###.###/24",
                         "action": "store",
                         "type": str,
                     },
@@ -4280,7 +4307,12 @@ class ResourceProviderController(BaseController):
                 )
 
                 self.c("\nAvailability zone", "underline")
-                self.app.render(avz, headers=["uuid", "name", "state"])
+                # print(avz)
+                from cement import App
+
+                app: App = self.app
+                app.render(avz, headers=["uuid", "name", "state"])
+
                 self.c("\nFlavor", "underline")
                 self.app.render(
                     flavor,
@@ -4334,47 +4366,50 @@ class ResourceProviderController(BaseController):
             }
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/instances" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            if self.is_output_text():
-                for item in res.get("instances"):
-                    image = item.get("image", {})
-                    item["os"] = "%s %s" % (
-                        image.get("os", ""),
-                        image.get("os_ver", ""),
-                    )
-                    block_device_mapping = item.get("block_device_mapping", [])
-                    item["volume"] = {"num": len(block_device_mapping)}
-                    if item["volume"]["num"] > 0:
-                        item["volume"]["size"] = sum([i.get("volume_size", None) for i in block_device_mapping])
 
-            headers = self._meta.instance_headers
-            fields = self._meta.instance_fields
-            if hostinfo is True:
-                fields = [
-                    "id",
-                    "parent",
-                    "name",
-                    "availability_zone.name",
-                    "hypervisor",
-                    "attributes.host",
-                    "attributes.host_group",
-                    "runstate",
-                    "os",
-                    "vpcs.0.fixed_ip.ip",
-                ]
-                headers = [
-                    "id",
-                    "parent",
-                    "name",
-                    "av_zone",
-                    "type",
-                    "host",
-                    "host_group",
-                    "runstate",
-                    "os",
-                    "ip",
-                ]
-            self.app.render(res, key="instances", headers=headers, fields=fields)
+            def render(self, res, **kwargs):
+                if self.is_output_text():
+                    for item in res.get("instances"):
+                        image = item.get("image", {})
+                        item["os"] = "%s %s" % (
+                            image.get("os", ""),
+                            image.get("os_ver", ""),
+                        )
+                        block_device_mapping = item.get("block_device_mapping", [])
+                        item["volume"] = {"num": len(block_device_mapping)}
+                        if item["volume"]["num"] > 0:
+                            item["volume"]["size"] = sum([i.get("volume_size", None) for i in block_device_mapping])
+
+                headers = self._meta.instance_headers
+                fields = self._meta.instance_fields
+                if hostinfo is True:
+                    fields = [
+                        "id",
+                        "parent",
+                        "name",
+                        "availability_zone.name",
+                        "hypervisor",
+                        "attributes.host",
+                        "attributes.host_group",
+                        "runstate",
+                        "os",
+                        "vpcs.0.fixed_ip.ip",
+                    ]
+                    headers = [
+                        "id",
+                        "parent",
+                        "name",
+                        "av_zone",
+                        "type",
+                        "host",
+                        "host_group",
+                        "runstate",
+                        "os",
+                        "ip",
+                    ]
+                self.app.render(res, key="instances", headers=headers, fields=fields)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=10)
 
     @ex(
         help="add instance",
@@ -4665,7 +4700,7 @@ class ResourceProviderController(BaseController):
                     },
                 ),
                 (
-                    ["key"],
+                    ["ssh_key"],
                     {
                         "help": "instance ssh key",
                         "action": "store",
@@ -4678,7 +4713,7 @@ class ResourceProviderController(BaseController):
     )
     def instance_manage(self):
         oid = self.app.pargs.id
-        key = self.app.pargs.key
+        key = self.app.pargs.ssh_key
 
         data = {"manage": {"key": key}}
         uri = "%s/instances/%s/manage" % (self.baseuri, oid)
@@ -4932,7 +4967,7 @@ class ResourceProviderController(BaseController):
                     },
                 ),
                 (
-                    ["key"],
+                    ["ssh_key"],
                     {
                         "help": "ssh key id",
                         "action": "store",
@@ -4947,7 +4982,7 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
-        key = self.app.pargs.key
+        key = self.app.pargs.ssh_key
         uri = "%s/instances/%s/actions" % (self.baseuri, oid)
         data = {"action": {"add_user": {"user_name": name, "user_pwd": pwd, "user_ssh_key": key}}}
         self.cmp_put(uri, data=data)
@@ -6064,13 +6099,16 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v1.0/nrs/provider/images"
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="images",
-                headers=self._meta.image_headers,
-                fields=self._meta.image_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="images",
+                    headers=self._meta.image_headers,
+                    fields=self._meta.image_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="add image",
@@ -6129,6 +6167,52 @@ class ResourceProviderController(BaseController):
         if force is True:
             uri += "?force=true"
         self.cmp_delete(uri, entity="image %s" % oid)
+
+    @ex(
+        help="prune image branches (Provider.Region.Site.AvailabilityZone.Image, Vsphere.DataCenter.Folder.Server, Openstack.Image)",
+        description="prune image branches (Provider.Region.Site.AvailabilityZone.Image, Vsphere.DataCenter.Folder.Server, Openstack.Image)",
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "image id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def image_avz_del(self):
+        oid = self.app.pargs.id
+        custom_baseuri = "/v1.0/nrs"
+        data = {}
+        uri = "%s/entities/%s/tree" % (custom_baseuri, oid)
+        res = self.cmp_get(uri, data=data).get("resourcetree", {})
+        # print("res: %s" % res)
+
+        for child in res.get("children", []):
+            type = child.get("type")
+            uuid = child.get("uuid")
+            id = child.get("id")
+            name = child.get("name")
+            if type == "Provider.Region.Site.AvailabilityZone.Image":
+                # print(uuid)
+
+                b_manually = False
+                for leaf in child.get("children", []):
+                    reuse = leaf.get("reuse")
+                    if reuse == "reuse=False":
+                        b_manually = True
+
+                if not b_manually:
+                    # print("delete %s - uuid: %s - id: %s" % (type, uuid, id))
+                    uri = "%s/entities/%s?" % (custom_baseuri, uuid)
+                    self.cmp_delete(uri, entity="AvailabilityZone.Image %s" % name)
+                else:
+                    print("delete tree image manually. Attention to links reuse=False")
 
     @ex(
         help="update image",
@@ -6268,14 +6352,17 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v1.0/nrs/provider/shares"
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="shares",
-                headers=self._meta.share_headers,
-                fields=self._meta.share_fields,
-                maxsize=200,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="shares",
+                    headers=self._meta.share_headers,
+                    fields=self._meta.share_fields,
+                    maxsize=200,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="add share",
@@ -6562,7 +6649,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["access_to"],
                     {
-                        "help": "access to like 10.102.185.0/24 or admin/user or TLS identity",
+                        "help": "access to like ###.###.###.###/24 or admin/user or TLS identity",
                         "action": "store",
                         "type": str,
                         "default": "RW",
@@ -6721,13 +6808,16 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v1.0/nrs/provider/volumes"
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="volumes",
-                headers=self._meta.volume_headers,
-                fields=self._meta.volume_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="volumes",
+                    headers=self._meta.volume_headers,
+                    fields=self._meta.volume_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="add volume",
@@ -7560,28 +7650,31 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v2.0/nrs/provider/stacks"
-            res = self.cmp_get(uri, data=data)
-            headers = [
-                "id",
-                "name",
-                "parent",
-                "state",
-                "type",
-                "actions",
-                "resources",
-                "creation",
-            ]
-            fields = [
-                "uuid",
-                "name",
-                "parent",
-                "state",
-                "attributes.stack_type",
-                "actions",
-                "resources",
-                "date.creation",
-            ]
-            self.app.render(res, key="stacks", headers=headers, fields=fields)
+
+            def render(self, res, **kwargs):
+                headers = [
+                    "id",
+                    "name",
+                    "parent",
+                    "state",
+                    "type",
+                    "actions",
+                    "resources",
+                    "creation",
+                ]
+                fields = [
+                    "uuid",
+                    "name",
+                    "parent",
+                    "state",
+                    "attributes.stack_type",
+                    "actions",
+                    "resources",
+                    "date.creation",
+                ]
+                self.app.render(res, key="stacks", headers=headers, fields=fields)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="get stack action",
@@ -7713,42 +7806,46 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v2.0/nrs/provider/sql_stacks"
-            res = self.cmp_get(uri, data=data)
-            headers = [
-                "id",
-                "name",
-                "parent",
-                "state",
-                "runstate",
-                "engine",
-                "version",
-                "storage",
-                "charset",
-                "timezone",
-                "license",
-                "listener",
-                "vpc",
-                "security_groups",
-                "date",
-            ]
-            fields = [
-                "id",
-                "name",
-                "parent",
-                "state",
-                "runstate",
-                "attributes.engine",
-                "attributes.version",
-                "allocated_storage",
-                "attributes.charset",
-                "attributes.timezone",
-                "attributes.license",
-                "listener",
-                "vpc.name",
-                "security_groups.0.name",
-                "date.creation",
-            ]
-            self.app.render(res, key="sql_stacks", headers=headers, fields=fields)
+
+            def render(self, res, **kwargs):
+                headers = [
+                    "id",
+                    "name",
+                    "parent",
+                    "state",
+                    "runstate",
+                    "engine",
+                    "version",
+                    "storage",
+                    "charset",
+                    "timezone",
+                    "license",
+                    "listener",
+                    "vpc",
+                    "security_groups",
+                    "date",
+                ]
+                fields = [
+                    "id",
+                    "name",
+                    "parent",
+                    "state",
+                    "runstate",
+                    "attributes.engine",
+                    "attributes.version",
+                    "allocated_storage",
+                    "attributes.charset",
+                    "attributes.timezone",
+                    "attributes.license",
+                    "listener",
+                    "vpc.name",
+                    "security_groups.0.name",
+                    "date.creation",
+                ]
+                transform = {"listener.colortext": False, "listener.address.colortext": False}
+                self.app.render(res, key="sql_stacks", headers=headers, fields=fields, transform=transform)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="import stack sql",
@@ -8254,28 +8351,31 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "/v1.0/nrs/provider/stacks"
-            res = self.cmp_get(uri, data=data)
-            headers = [
-                "id",
-                "name",
-                "parent",
-                "state",
-                "runstate",
-                "type",
-                "engine",
-                "creation",
-            ]
-            fields = [
-                "uuid",
-                "name",
-                "parent",
-                "state",
-                "runstate",
-                "attributes.stack_type",
-                "attributes.engine",
-                "date.creation",
-            ]
-            self.app.render(res, key="stacks", headers=headers, fields=fields)
+
+            def render(self, res, **kwargs):
+                headers = [
+                    "id",
+                    "name",
+                    "parent",
+                    "state",
+                    "runstate",
+                    "type",
+                    "engine",
+                    "creation",
+                ]
+                fields = [
+                    "uuid",
+                    "name",
+                    "parent",
+                    "state",
+                    "runstate",
+                    "attributes.stack_type",
+                    "attributes.engine",
+                    "date.creation",
+                ]
+                self.app.render(res, key="stacks", headers=headers, fields=fields)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="enable provider old stack management by ssh module",
@@ -8292,7 +8392,7 @@ class ResourceProviderController(BaseController):
                     },
                 ),
                 (
-                    ["key"],
+                    ["ssh_key"],
                     {
                         "help": "server stack ssh key",
                         "action": "store",
@@ -8306,7 +8406,7 @@ class ResourceProviderController(BaseController):
     def oldstack_manage(self):
         """Enable provider computes instance management by ssh module"""
         oid = self.app.pargs.id
-        key = self.app.pargs.key
+        key = self.app.pargs.ssh_key
 
         data = {"manage": {"key": key}}
         uri = "/v1.0/nrs/provider/stacks/%s/manage" % oid

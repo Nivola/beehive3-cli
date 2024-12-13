@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
@@ -19,6 +19,7 @@ class AuthRoleController(AuthChildController):
     @ex(
         help="get roles",
         description="get roles",
+        example="beehive auth roles get-perms <uuid>;beehive auth roles get -id <uuid>",
         arguments=PARGS(
             [
                 (
@@ -33,7 +34,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-user"],
                     {
-                        "help": "role uuid",
+                        "help": "user uuid",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -69,7 +70,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": "comma separated permission data (objtype,objdef,objid,objaction) Es. service,Organization.Division.Account,aaa//bbb//ccc,*",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -113,9 +114,16 @@ class AuthRoleController(AuthChildController):
         else:
             params = ["user", "group", "names", "alias"]
             data = self.format_paginated_query(params)
+
             if self.app.pargs.perms:
-                ndata = {"perms.N": self.app.pargs.perms.split(",")}
-                data += urlencode(ndata)
+                # ndata = {"perms.N": self.app.pargs.perms.split("|")}
+                # data += "&" + urlencode(ndata)
+                perms = self.app.pargs.perms.split("|")
+                for perm in perms:
+                    ndata = "&perms.N=%s" % perm
+                data += ndata
+
+            # print("data: %s" % data)
             uri = "%s/roles" % self.baseuri
             res = self.cmp_get(uri, data=data)
             self.app.render(
@@ -208,8 +216,33 @@ class AuthRoleController(AuthChildController):
         self.cmp_delete(uri, entity="role %s" % oid)
 
     @ex(
+        help="expire role",
+        description="expire role",
+        arguments=ARGS(
+            [
+                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (
+                    ["-days"],
+                    {
+                        "help": "role name",
+                        "action": "store",
+                        "type": str,
+                        "default": "0",
+                    },
+                ),
+            ]
+        ),
+    )
+    def expire(self):
+        oid = self.app.pargs.id
+        days = self.app.pargs.days
+        uri = "%s/roles/%s/expire/%s" % (self.baseuri, oid, days)
+        self.cmp_delete(uri, entity="role %s" % oid, output=False)
+
+    @ex(
         help="get permissions of role",
         description="get permissions of role",
+        example="beehive auth roles get-perms <uuid> -size 50;beehive auth roles get-perms <uuid>",
         arguments=PARGS(
             [
                 (["id"], {"help": "role uuid", "action": "store", "type": str}),

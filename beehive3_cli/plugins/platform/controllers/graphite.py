@@ -1,18 +1,33 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from json import loads
 from time import strftime, localtime
 from logging import getLogger
 from requests import get as req_get
-from yaml import load as yload
+from yaml import load as yload, FullLoader
 from texttable import Texttable
 from cement import ex
-from beehive3_cli.core.controller import ARGS
+from beehive3_cli.core.controller import BASE_ARGS, merge_list, ARGS
 from beehive3_cli.plugins.platform.controllers import ChildPlatformController
 
 logger = getLogger(__name__)
+
+
+def GRAPHITE_ARGS(*list_args):
+    orchestrator_args = [
+        (
+            ["-O", "--orchestrator"],
+            {
+                "action": "store",
+                "dest": "orchestrator",
+                "help": "graphite platform reference label",
+            },
+        )
+    ]
+    res = merge_list(BASE_ARGS, orchestrator_args, *list_args)
+    return res
 
 
 class GraphiteController(ChildPlatformController):
@@ -27,6 +42,42 @@ class GraphiteController(ChildPlatformController):
 
     def pre_command_run(self):
         super(GraphiteController, self).pre_command_run()
+
+        graphite_orchestrators = self.config.get("orchestrators", {}).get("graphite", {})
+        label = getattr(self.app.pargs, "orchestrator", None)
+
+        # backward compatibility. get config only if label is specified
+        # if not specified fallback to old behavior
+        if label is None:
+            if self.app.config.get("log.clilog", "verbose_log"):
+                # log to stdout and to logfile
+                self.app.print(
+                    f"Using graphite orchestrator (legacy version. specify -O in order to use config)", color="YELLOW"
+                )
+                self.app.log.debug(f"Using graphite orchestrator (legacy version. specify -O in order to use config)")
+            return
+
+        if label not in graphite_orchestrators:
+            raise Exception("Valid label are: %s" % ", ".join(graphite_orchestrators.keys()))
+
+        conf = graphite_orchestrators.get(label, {})
+
+        self.ip_address_graphite = conf.get("host")
+        self.metric_discover_query = conf.get("metric_discover_query")
+
+        if self.app.config.get("log.clilog", "verbose_log"):
+            # log to stdout and to logfile
+            self.app.print(
+                f"Using graphite orchestrator: {label} "
+                f"(host: {self.ip_address_graphite} - "
+                f"metric_discover_query: {self.metric_discover_query})",
+                color="YELLOW",
+            )
+            self.app.log.debug(
+                f"Using graphite orchestrator: {label} "
+                f"(host: {self.ip_address_graphite} - "
+                f"metric_discover_query: {self.metric_discover_query})"
+            )
 
     # get data from graphite
     def getdata_from_graphite(
@@ -122,7 +173,7 @@ class GraphiteController(ChildPlatformController):
         stringa_get = content.text
         len_stringa = len(stringa_get)
         stringa_get = stringa_get[1 : (len_stringa - 1)]
-        dict_get = yload(stringa_get)
+        dict_get = yload(stringa_get, Loader=FullLoader)
 
         target = dict_get["target"]
         stringa_datapoints = dict_get["datapoints"]
@@ -324,7 +375,7 @@ class GraphiteController(ChildPlatformController):
         period_b = self.app.pargs.period
         ask_what_kind_of_question_b = "highestMax"
 
-        # getdata_from_graphite('10.138.144.75','podto1.kvm','instance-00000010','disk.0','percentage','-30min')
+        # getdata_from_graphite('###.###.###.###','podto1.kvm','instance-00000010','disk.0','percentage','-30min')
         self.getdata_from_graphite(
             ip_address_graphite_b,
             pod_b,
@@ -396,7 +447,7 @@ class GraphiteController(ChildPlatformController):
         period_b = self.app.pargs.period
         ask_what_kind_of_question_b = "one"
 
-        # getdata_from_graphite('10.138.144.75','podto1.kvm','instance-00000010','disk.0','percentage','-30min')
+        # getdata_from_graphite('###.###.###.###','podto1.kvm','instance-00000010','disk.0','percentage','-30min')
         self.getdata_from_graphite(
             ip_address_graphite_b,
             pod_b,
@@ -406,3 +457,260 @@ class GraphiteController(ChildPlatformController):
             period_b,
             ask_what_kind_of_question_b,
         )
+
+    @ex(
+        help="get vm metrics",
+        description="get vm metrics",
+        arguments=GRAPHITE_ARGS(
+            [
+                (
+                    ["-host"],
+                    {
+                        "help": "ip address graphite",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pod"],
+                    {
+                        "help": "pod name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["vm"],
+                    {
+                        "help": "vm name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["metrics"],
+                    {"help": "metric", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["function"],
+                    {
+                        "help": "function",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["period"],
+                    {"help": "period", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
+    )
+    def vm_metric_v2(self):
+        # use if given, otherwise use ip from config
+        ip_address_graphite_b = self.app.pargs.host
+        if ip_address_graphite_b is None:
+            ip_address_graphite_b = self.ip_address_graphite
+        pod_b = self.app.pargs.pod
+        vm_b = self.app.pargs.vm
+        metrics_b = self.app.pargs.metrics
+        function_b = self.app.pargs.function
+        period_b = self.app.pargs.period
+        ask_what_kind_of_question_b = "coarse"
+
+        self.getdata_from_graphite(
+            ip_address_graphite_b,
+            pod_b,
+            vm_b,
+            metrics_b,
+            function_b,
+            period_b,
+            ask_what_kind_of_question_b,
+        )
+
+    @ex(
+        help="get vm highest metrics",
+        description="get vm highest metrics",
+        arguments=GRAPHITE_ARGS(
+            [
+                (
+                    ["-host"],
+                    {
+                        "help": "ip address graphite",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pod"],
+                    {
+                        "help": "pod name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["metrics"],
+                    {"help": "metric", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["function"],
+                    {
+                        "help": "function",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["period"],
+                    {"help": "period", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
+    )
+    def vm_metric_highest_v2(self):
+        # use if given, otherwise use ip from config
+        ip_address_graphite_b = self.app.pargs.host
+        if ip_address_graphite_b is None:
+            ip_address_graphite_b = self.ip_address_graphite
+        pod_b = self.app.pargs.pod
+        vm_b = "*"
+        metrics_b = self.app.pargs.metrics
+        function_b = self.app.pargs.function
+        period_b = self.app.pargs.period
+        ask_what_kind_of_question_b = "highestMax"
+
+        self.getdata_from_graphite(
+            ip_address_graphite_b,
+            pod_b,
+            vm_b,
+            metrics_b,
+            function_b,
+            period_b,
+            ask_what_kind_of_question_b,
+        )
+
+    @ex(
+        help="get vm one metric",
+        description="get vm one metric",
+        arguments=GRAPHITE_ARGS(
+            [
+                (
+                    ["-host"],
+                    {
+                        "help": "ip address graphite",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["pod"],
+                    {
+                        "help": "pod name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["vm"],
+                    {
+                        "help": "vm name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["metrics"],
+                    {"help": "metric", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["function"],
+                    {
+                        "help": "function",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["period"],
+                    {"help": "period", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
+    )
+    def vm_metric_one_v2(self):
+        # use if given, otherwise use ip from config
+        ip_address_graphite_b = self.app.pargs.host
+        if ip_address_graphite_b is None:
+            ip_address_graphite_b = self.ip_address_graphite
+        pod_b = self.app.pargs.pod
+        vm_b = self.app.pargs.vm
+        metrics_b = self.app.pargs.metrics
+        function_b = self.app.pargs.function
+        period_b = self.app.pargs.period
+        ask_what_kind_of_question_b = "one"
+
+        # getdata_from_graphite('###.###.###.###','podto1.kvm','instance-00000010','disk.0','percentage','-30min')
+        self.getdata_from_graphite(
+            ip_address_graphite_b,
+            pod_b,
+            vm_b,
+            metrics_b,
+            function_b,
+            period_b,
+            ask_what_kind_of_question_b,
+        )
+
+    @ex(
+        help="get vm one metric",
+        description="get vm one metric",
+        arguments=GRAPHITE_ARGS(
+            [
+                (
+                    ["-query"],
+                    {
+                        "help": "metric name pattern",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-period"],
+                    {"help": "period", "action": "store", "type": str, "default": "15min"},
+                ),
+            ]
+        ),
+    )
+    def find_metrics_v2(self):
+        query = self.app.pargs.query
+        if query is None:
+            query = self.metric_discover_query
+        tipodato = "json"
+        string_query = (
+            "http://"
+            + self.ip_address_graphite
+            + "/metrics/find?query="
+            + query
+            + "&from=-"
+            + self.app.pargs.period
+            + "&format="
+            + tipodato
+        )
+        res = req_get(string_query)
+        if res.status_code != 200 or len(res.text) <= 2:
+            raise Exception(f"code: {res.status_code} - text: {res.text}")
+        res = yload(res.text, Loader=FullLoader)
+
+        self.app.render(res, headers=["path", "is_leaf"])

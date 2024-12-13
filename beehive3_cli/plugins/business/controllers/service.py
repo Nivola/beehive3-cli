@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from json import loads
 from os import path
@@ -36,7 +36,8 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="get service type plugins",
-        description="get service type plugins",
+        description="This command is used to retrieve the available service type plugins that can be used to define services in Nivola CMP. Service type plugins define the schema and lifecycle of different types of services that can be created and managed in Nivola CMP. Executing this command without any arguments will return a list of all available service type plugins along with their description and metadata.",
+        example="beehive bu service-types plugin-get ;beehive bu service-types plugin-get ",
         arguments=PARGS([]),
     )
     def plugin_get(self):
@@ -50,7 +51,8 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="get service types",
-        description="get service types",
+        description="This command is used to retrieve all the available service types from the Nivola CMP platform. Service types are categories or types of services that can be provisioned through the platform, like compute, storage etc. Without any arguments, this command will return all the service types. Optionally an ID can be passed to get details of a specific service type.",
+        example="beehive bu service-types get -id 36;beehive bu service-types get ",
         arguments=PARGS(
             [
                 (
@@ -140,7 +142,7 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="add service type",
-        description="add service type",
+        description="This command allows you to add a new service type to the system by specifying its name and the Python class that implements it. The name argument is used to identify the service type in the system. The objclass argument specifies the full Python path to the class that implements this service type.",
         arguments=ARGS(
             [
                 (
@@ -204,7 +206,7 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="update service type",
-        description="update service type",
+        description="This command updates an existing service type in Nivola CMP. It requires the service type id, name and Python class full path as required arguments to identify and update the service type details.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service type id", "action": "store", "type": str}),
@@ -255,7 +257,7 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="delete service type",
-        description="delete service type",
+        description="This command deletes service type(s) from the Nivola CMP platform. The 'ids' argument is required and accepts one or more service type ids to delete as a space separated list.",
         arguments=ARGS(
             [
                 (["ids"], {"help": "service type id", "action": "store", "type": str}),
@@ -269,7 +271,7 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="get service type process",
-        description="get service type process",
+        description="This command retrieves the details of a specific service type process based on the provided service type id. It requires the id of the service type as the only required argument to uniquely identify and return the process details of that service type.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service type id", "action": "store", "type": str}),
@@ -295,7 +297,7 @@ class ServiceTypeController(ServiceControllerChild):
 
     @ex(
         help="set service type process",
-        description="set service type process",
+        description="This command sets the process method for a specific service type. It requires the service type id and process method name as required arguments to identify and update the correct service type record.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service type id", "action": "store", "type": str}),
@@ -408,8 +410,34 @@ class ServiceDefinitionController(ServiceControllerChild):
         help = "service definition management"
 
     @ex(
+        help="get product codes",
+        description="This command retrieves product codes",
+        example="beehive bu get-product-code STILO",
+        arguments=PARGS(
+            [
+                (
+                    ["filter_name"],
+                    {
+                        "help": "filter name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def get_product_code(self):
+        filter_name = getattr(self.app.pargs, "filter_name", None)
+        data = {"filter_name": filter_name}
+        uri = "%s/product_codes" % self.baseuri
+        res = self.cmp_get(uri, data=data)
+        print(res)
+
+    @ex(
         help="get service definitions",
-        description="get service definitions",
+        description="This command retrieves service definitions from the service registry. Service definitions describe the interfaces, endpoints and other metadata for microservices. By default, all definitions are returned. The -id option can be used to retrieve a single definition by ID.",
+        example="beehive bu service-defs get ;beehive bu service-defs get -id <uuid>",
         arguments=PARGS(
             [
                 (
@@ -516,7 +544,7 @@ class ServiceDefinitionController(ServiceControllerChild):
 
     @ex(
         help="add service definition",
-        description="add service definition",
+        description="This command adds a new service definition to Nivola CMP. It requires the name, type and params of the service definition to be provided as required arguments. The name is used to uniquely identify the service definition, type specifies the type of service (e.g. 'http') and params contains configuration parameters for the service in JSON format.",
         arguments=ARGS(
             [
                 (
@@ -612,7 +640,7 @@ class ServiceDefinitionController(ServiceControllerChild):
 
     @ex(
         help="update service definition",
-        description="update service definition",
+        description="This command updates an existing service definition in Nivola CMP. It requires the service definition id and name as required arguments to identify and update the correct definition. The updated definition data is passed via stdin in JSON format.",
         arguments=ARGS(
             [
                 (
@@ -664,7 +692,8 @@ class ServiceDefinitionController(ServiceControllerChild):
 
     @ex(
         help="delete service definition",
-        description="delete service definition",
+        description="This command deletes a service definition from the system by specifying its unique id. The service definition id is a required argument for this command to identify which existing service definition to delete from the system.",
+        example="beehive bu service-defs delete <uuid>;beehive bu service-defs delete <uuid>",
         arguments=ARGS(
             [
                 (
@@ -709,7 +738,8 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="get service instances",
-        description="get service instances",
+        description="This command gets service instances. It retrieves service instances without any filtering criteria.",
+        example="beehive bu service-insts get -id <uuid> -e <env>;beehive bu service-insts get -id <uuid>",
         arguments=ARGS(
             [
                 (
@@ -759,7 +789,8 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="get service instances",
-        description="get service instances",
+        description="This command gets service instances. It retrieves service instances without any filtering criteria.",
+        example="beehive bu service-insts get -id <uuid> -e <env>;beehive bu service-insts get -id <uuid>",
         arguments=PARGS(
             [
                 (
@@ -865,12 +896,22 @@ class ServiceInstanceController(ServiceControllerChild):
                         "default": "false",
                     },
                 ),
+                (
+                    ["-details"],
+                    {
+                        "help": "if False it does not show details (resource)",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         legacy = getattr(self.app.pargs, "legacy", False)
+        # details = str2bool(getattr(self.app.pargs, "details", True))
         if legacy:
             version = "v1.0"
         else:
@@ -953,6 +994,7 @@ class ServiceInstanceController(ServiceControllerChild):
                 "plugintype",
                 "tags",
                 "iscontainer",
+                "details",
             ]
             aliases = {
                 "account": "account_id",
@@ -964,43 +1006,48 @@ class ServiceInstanceController(ServiceControllerChild):
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
             # uri = '/v2.0/nws/serviceinsts'
             uri = "/%s/nws/serviceinsts" % version
-            res = self.cmp_get(uri, data=data)
-            transform = {"status": self.color_error}
-            fields = [
-                "uuid",
-                "name",
-                "plugintype",
-                "account.name",
-                "definition_name",
-                "status",
-                "resource_uuid",
-                "is_container",
-                "parent.name",
-                "date.creation",
-            ]
-            headers = [
-                "id",
-                "name",
-                "type",
-                "account",
-                "definition",
-                "status",
-                "resource",
-                "is_container",
-                "parent",
-                "creation",
-            ]
-            self.app.render(
-                res,
-                key="serviceinsts",
-                headers=headers,
-                fields=fields,
-                transform=transform,
+
+            def render(self, res, **kwargs):
+                transform = {"status": self.color_error}
+                fields = [
+                    "uuid",
+                    "name",
+                    "plugintype",
+                    "account.name",
+                    "definition_name",
+                    "status",
+                    "resource_uuid",
+                    "is_container",
+                    "parent.name",
+                    "date.creation",
+                ]
+                headers = [
+                    "id",
+                    "name",
+                    "type",
+                    "account",
+                    "definition",
+                    "status",
+                    "resource",
+                    "is_container",
+                    "parent",
+                    "creation",
+                ]
+                self.app.render(
+                    res,
+                    key="serviceinsts",
+                    headers=headers,
+                    fields=fields,
+                    transform=transform,
+                )
+
+            self.cmp_get_pages(
+                uri, data=data, pagesize=20, key_total_name="total", key_list_name="serviceinsts", fn_render=render
             )
 
     @ex(
         help="import service instance from resource",
-        description="import service instance from resource",
+        description="This command imports a service instance from a resource. It requires the service instance name, account id, plugin type of the service instance and plugin type of the container to be provided as required arguments.",
         arguments=ARGS(
             [
                 (
@@ -1072,10 +1119,10 @@ class ServiceInstanceController(ServiceControllerChild):
         - account: account_ale_gw2 (or id, or uuid)
         - plugintype: ComputeService
         - container_plugintype: ComputeService
-        - resource: 62b00250-5044-449d-b8db-80c92ce5e0dd
+        - resource: <uuid>
         [ optional
             - service_definition_id: 13
-            - parent: 174f039c-e0b1-46f1-9f4d-b479c87c370f
+            - parent: <uuid>
         ] optional
 
         creates service instance and service instance config for existing resource
@@ -1107,7 +1154,7 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="check service instance",
-        description="check service instance",
+        description="This command checks the status of service instances running on Nivola Cloud. It allows the user to verify if their services are running properly without having to log into the platform directly. The command does not require any arguments as it will check all service instances by default. The output provides the name, status and other details of each service instance so the user can easily monitor them.",
         arguments=PARGS(
             [
                 (
@@ -1130,7 +1177,7 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="update service instance",
-        description="update service instance",
+        description="This CLI command updates an existing service instance in Nivola Cloud. The service instance is identified by its name or ID. No arguments are required as the instance details will need to be provided via a configuration file or interactive prompts.",
         arguments=PARGS(
             [
                 (
@@ -1181,7 +1228,7 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="patch service instance",
-        description="patch service instance",
+        description="This CLI command patches or updates an existing service instance. Since there are no required arguments listed, it likely accepts the service instance ID or name as a parameter to identify which instance to update, along with other optional arguments to specify which attributes or fields of the instance should be modified.",
         arguments=PARGS(
             [
                 (
@@ -1204,8 +1251,8 @@ class ServiceInstanceController(ServiceControllerChild):
         self.app.render({"msg": "patch service plugin instance %s" % oid})
 
     @ex(
-        help="update service instance status",
-        description="update service instance status",
+        help="""update service instance forcing his status to "error" or "active" """,
+        description="""update service instance forcing his status to "error" or "active" """,
         arguments=PARGS(
             [
                 (
@@ -1220,7 +1267,7 @@ class ServiceInstanceController(ServiceControllerChild):
                 (
                     ["status"],
                     {
-                        "help": "service instance status",
+                        "help": """service instance status must be "active" or "error" """,
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1241,7 +1288,8 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="delete service instance",
-        description="delete service instance",
+        description="This command deletes a service instance. It requires the service instance ID as a parameter to identify which instance to delete. The command also supports optional flags to specify the environment (-e) of the instance and assume yes (-y) without confirmation.",
+        example="beehive bu service-insts delete <uuid> -e <env>;beehive bu service-insts delete <uuid> -e <env> -y",
         arguments=PARGS(
             [
                 (
@@ -1307,7 +1355,7 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="add tag to service instance",
-        description="add tag to service instance",
+        description="This command allows adding one or more tags to a service instance. The tags argument requires a comma separated list of tag names that will be added to the specified service instance. Tags can be used to logically group and filter service instances for management purposes.",
         arguments=PARGS(
             [
                 (
@@ -1339,8 +1387,45 @@ class ServiceInstanceController(ServiceControllerChild):
         self.app.render({"msg": "add tags %s to service instance %s" % (tags, value)})
 
     @ex(
+        help="add tag to account's service instances",
+        description="This command allows adding one or more tags to account's service instances. The tags argument requires a comma separated list of tag names that will be added to the specified service instance. Tags can be used to logically group and filter service instances for management purposes.",
+        arguments=PARGS(
+            [
+                (
+                    ["account_id"],
+                    {
+                        "help": "account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["tags"],
+                    {
+                        "help": "comma separated list of tags",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
+    )
+    def tag_add_account_insts(self):
+        account_id = self.app.pargs.account_id
+        account = self.get_account(account_id).get("uuid")
+        tags = self.app.pargs.tags.split(",")
+        data = {"serviceinst": {"tags": {"cmd": "add", "values": tags}}}
+        uri = "/v2.0/nws/serviceinsts/account/%s" % account
+        res = self.cmp_put(uri, data=data)
+        num_services = res["num_services"]
+        self.app.render(
+            {"msg": "added tags %s to %s service instances of account %s" % (tags, num_services, account_id)}
+        )
+
+    @ex(
         help="delete tag from service instance",
-        description="delete tag from service instance",
+        description="This command deletes one or more tags from a service instance. The tags argument requires a comma separated list of tag names to remove from the instance. This allows an operator to untag or remove labels from resources in the platform.",
         arguments=PARGS(
             [
                 (
@@ -1373,7 +1458,8 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="update resource entity config",
-        description="update resource entity config",
+        description="Update resource entity config",
+        example="beehive bu service-insts config-set <uuid> instance.ImageId -value <uuid>",
         arguments=ARGS(
             [
                 (
@@ -1381,7 +1467,7 @@ class ServiceInstanceController(ServiceControllerChild):
                     {"help": "resource entity id", "action": "store", "type": str},
                 ),
                 (
-                    ["key"],
+                    ["config_key"],
                     {
                         "help": "config key like config.key",
                         "action": "store",
@@ -1403,7 +1489,7 @@ class ServiceInstanceController(ServiceControllerChild):
     )
     def config_set(self):
         oid = self.app.pargs.id
-        key = self.app.pargs.key
+        key = self.app.pargs.config_key
         value = self.app.pargs.value
         uri = "/v2.0/nws/serviceinsts/%s/config" % oid
         self.cmp_put(uri, data={"config": {"key": key, "value": value}})
@@ -1411,7 +1497,8 @@ class ServiceInstanceController(ServiceControllerChild):
 
     @ex(
         help="get tag of service instance",
-        description="get tag of service instance",
+        description="This command retrieves the tag of a specific service instance by providing its id as a required argument. The service instance id is a unique identifier that can be used to fetch additional details like tags for that particular instance.",
+        example="beehive bu service-insts tag-get id 90;beehive bu service-insts tag-get",
         arguments=ARGS([(["id"], {"help": "service instance id", "action": "store", "type": str})]),
     )
     def tag_get(self):
@@ -1422,7 +1509,7 @@ class ServiceInstanceController(ServiceControllerChild):
 
         fields = ["id", "name"]
         headers = ["id", "name"]
-        self.app.render(res, key="tags", headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, key="tags", headers=headers, fields=fields, maxsize=45)
 
 
 class ServiceLinkController(ServiceControllerChild):
@@ -1455,7 +1542,8 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="list service links",
-        description="list service links",
+        description="This command lists all the service links in the platform. Service links are used to connect services together and allow them to communicate securely. Without any additional parameters, this command will display all service links. The -id parameter can be used to filter the output to just a single service link by its unique identifier.",
+        example="beehive bu service-links get -id <uuid> -e <env> ",
         arguments=PARGS(
             [
                 (
@@ -1553,7 +1641,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="add service link",
-        description="add service link",
+        description="This command adds a service link between two services by specifying the required arguments - service link name, account id, start service uuid and end service uuid. A service link defines the relationship between two services in an account and allows them to communicate with each other.",
         arguments=ARGS(
             [
                 (
@@ -1616,7 +1704,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="update service link",
-        description="update service link",
+        description="This command updates an existing service link. It requires the service link uuid as the id argument to identify which service link to update.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service link uuid", "action": "store", "type": str}),
@@ -1685,7 +1773,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="delete service links",
-        description="delete service links",
+        description="This command deletes service links by their UUIDs. The 'ids' argument requires a comma separated list of service link UUIDs to delete as input. This allows deleting multiple service links with a single command.",
         arguments=ARGS(
             [
                 (
@@ -1719,7 +1807,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="add tag to service link",
-        description="add tag to service link",
+        description="This command adds a tag to an existing service link. It requires the service link id and the tag name as required arguments. The tag will be added to the service link with the provided id.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service link id", "action": "store", "type": str}),
@@ -1737,7 +1825,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="delete tag from service link",
-        description="delete tag from service link",
+        description="This command deletes a specific tag from a service link. The service link id and tag name that needs to be deleted must be provided as required arguments. This allows removing tags from service links as needed.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service link id", "action": "store", "type": str}),
@@ -1755,7 +1843,7 @@ class ServiceLinkController(ServiceControllerChild):
 
     @ex(
         help="get tag of service link",
-        description="get tag of service link",
+        description="This command retrieves the tag of a service link by specifying its ID. The service link ID is a required argument for this command to work. It will return the tag associated with the given service link ID.",
         arguments=ARGS([(["id"], {"help": "service link id", "action": "store", "type": str})]),
     )
     def tag_get(self):
@@ -1766,7 +1854,7 @@ class ServiceLinkController(ServiceControllerChild):
 
         fields = ["id", "name"]
         headers = ["id", "name"]
-        self.app.render(res, key="tags", headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, key="tags", headers=headers, fields=fields, maxsize=45)
 
 
 class ServiceTagController(ServiceControllerChild):
@@ -1784,21 +1872,13 @@ class ServiceTagController(ServiceControllerChild):
             "services",
             "containers",
             "links",
+            "ownerAlias",
         ]
-        headers = [
-            "id",
-            "objid",
-            "name",
-            "creation",
-            "modified",
-            "services",
-            "containers",
-            "links",
-        ]
+        headers = ["id", "objid", "name", "creation", "modified", "services", "containers", "links", "account"]
 
     @ex(
         help="list service tags",
-        description="list service tags",
+        description="This command lists all the service tags configured in the Nivola CMP platform. Service tags are used to group services for organizational and access control purposes. Without any additional options, this command will display all service tags and their associated services in the Nivola CMP deployment.",
         arguments=PARGS(
             [
                 (
@@ -1828,6 +1908,15 @@ class ServiceTagController(ServiceControllerChild):
                         "default": None,
                     },
                 ),
+                (
+                    ["-account"],
+                    {
+                        "help": "account id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
@@ -1844,8 +1933,19 @@ class ServiceTagController(ServiceControllerChild):
                 self.app.render(res, key="servicetag", details=True)
         else:
             params = ["value", "service", "link"]
-            mappings = {"name": lambda n: "%" + n + "%"}
-            data = self.format_paginated_query(params, mappings=mappings)
+            mappings = {}  # {"name": lambda n: "%" + n + "%"}
+            data: str = self.format_paginated_query(params, mappings=mappings)
+
+            # account filter
+            account_id = self.app.pargs.account
+            if account_id is not None:
+                account = self.get_account(account_id)
+                meta = account["__meta__"]
+                objid_filter = meta["objid"] + "%"
+                data_obj = {}
+                data_obj["objid"] = objid_filter
+                data += "&" + urlencode(data_obj, doseq=True)
+
             uri = "%s/tags" % self.baseuri
             res = self.cmp_get(uri, data=data)
 
@@ -1859,7 +1959,7 @@ class ServiceTagController(ServiceControllerChild):
 
     @ex(
         help="add service tag",
-        description="add service tag",
+        description="This command adds a new service tag to an account. It requires the service tag value to be provided along with the account id to which the tag needs to be added.",
         arguments=ARGS(
             [
                 (
@@ -1881,7 +1981,7 @@ class ServiceTagController(ServiceControllerChild):
 
     @ex(
         help="update service tag",
-        description="update service tag",
+        description="This command updates an existing service tag. It requires the UUID of the service tag to update as the 'id' argument. The service tag details will be updated with any new information provided.",
         arguments=ARGS(
             [
                 (["id"], {"help": "service tag uuid", "action": "store", "type": str}),
@@ -1906,7 +2006,7 @@ class ServiceTagController(ServiceControllerChild):
 
     @ex(
         help="delete service tags",
-        description="delete service tags",
+        description="This command deletes service tags from the Nivola CMP platform. It requires a comma separated list of IDs of the service tags to delete as an argument. This allows administrators to remove unused or unnecessary service tags from the system.",
         arguments=ARGS(
             [
                 (
@@ -1947,7 +2047,7 @@ class ServiceMetricsController(ServiceControllerChild):
 
     @ex(
         help="list service metrics",
-        description="list service metrics",
+        description="This command is used to list the metrics collected for services running on Nivola Cloud. Some of the metrics that could be listed are CPU and memory usage, request counts, error rates etc. These metrics help monitor the performance and health of services.",
         arguments=PARGS(
             [
                 (
@@ -2050,11 +2150,11 @@ class ServiceMetricsController(ServiceControllerChild):
                 "service_instance_id",
                 "job_id",
             ]
-            self.app.render(res, key="metrics", headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, key="metrics", headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="list service metric types",
-        description="list service metric types",
+        description="This command lists the available service metric types that can be used to monitor services on Nivola Cloud. Service metrics are collected and stored to provide insights into service performance and health. The 'type-get' command retrieves the predefined metric types that services can report to provide standardized monitoring data without requiring custom metrics to be defined.",
         arguments=PARGS(
             [
                 (
@@ -2138,11 +2238,11 @@ class ServiceMetricsController(ServiceControllerChild):
                 "date.expiration",
                 "active",
             ]
-            self.app.render(res, key="metric_types", headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, key="metric_types", headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="add service metric type",
-        description="add service metric type",
+        description="This CLI command is used to add a new service metric type to the monitoring system. The 'beehive bu service-metrics type-add' command does not require any arguments as it will launch an interactive prompt to gather the details of the new metric type being added such as the name, unit of measure, aggregation method and more. Once provided, the new metric type will be created and available for association to services and collection of metrics.",
         arguments=ARGS(
             [
                 (
@@ -2166,12 +2266,12 @@ class ServiceMetricsController(ServiceControllerChild):
                     },
                 ),
                 (
-                    ["-group"],
+                    ["group"],
                     {
                         "help": "metric type group",
                         "action": "store",
                         "type": str,
-                        "default": "unknown",
+                        "default": None,
                     },
                 ),
                 (
@@ -2184,7 +2284,7 @@ class ServiceMetricsController(ServiceControllerChild):
                     },
                 ),
                 (
-                    ["-unit"],
+                    ["unit"],
                     {
                         "help": "metric type unit",
                         "action": "store",
@@ -2193,7 +2293,7 @@ class ServiceMetricsController(ServiceControllerChild):
                     },
                 ),
                 (
-                    ["-status"],
+                    ["status"],
                     {
                         "help": "metric type status",
                         "action": "store",
@@ -2250,138 +2350,139 @@ class ServiceMetricsController(ServiceControllerChild):
         res = self.cmp_post(uri, data=data)
         self.app.render({"msg": "add service metric type %s" % res})
 
-    @ex(
-        help="update service metric type",
-        description="update service metric type",
-        arguments=ARGS(
-            [
-                (
-                    ["-id"],
-                    {
-                        "help": "metric type id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-name"],
-                    {
-                        "help": "metric type name",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-desc"],
-                    {
-                        "help": "metric type description",
-                        "action": "store",
-                        "action": StringAction,
-                        "type": str,
-                        "nargs": "+",
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-group"],
-                    {
-                        "help": "metric type group",
-                        "action": "store",
-                        "type": str,
-                        "default": "unknown",
-                    },
-                ),
-                (
-                    ["-type"],
-                    {
-                        "help": "metric type. Supported values: CONSUME|BUNDLE|OPT_BUNDLE|PROF_SERVICE",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-unit"],
-                    {
-                        "help": "metric type unit",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-status"],
-                    {
-                        "help": "metric type status",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-active"],
-                    {
-                        "help": "metric type active",
-                        "action": "store",
-                        "type": bool,
-                        "default": True,
-                    },
-                ),
-                (
-                    ["-limits"],
-                    {
-                        "help": 'json file with limit definition.Ex. {"limits" : [{ "name" : "LimitCPU", '
-                        '"desc" : "LimitCPU", "value": 2.0, "metric_type_id" : "1" }]}',
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-            ]
-        ),
-    )
-    def type_update(self):
-        oid = self.app.pargs.oid
-        data = set_request_params(
-            self.app.pargs,
-            ["name", "desc", "group", "type", "unit", "status", "active"],
-        )
-        data_json = self.app.pargs.limits
-        if data_json is not None:
-            data["limits"] = load_config(data_json).get("limits", [])
+    # @ex(
+    #     help="update service metric type",
+    #     description="update service metric type",
+    #     arguments=ARGS(
+    #         [
+    #             (
+    #                 ["id"],
+    #                 {
+    #                     "help": "metric type id",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-name"],
+    #                 {
+    #                     "help": "metric type name",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-desc"],
+    #                 {
+    #                     "help": "metric type description",
+    #                     "action": "store",
+    #                     "action": StringAction,
+    #                     "type": str,
+    #                     "nargs": "+",
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-group"],
+    #                 {
+    #                     "help": "metric type group",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": "unknown",
+    #                 },
+    #             ),
+    #             (
+    #                 ["-type"],
+    #                 {
+    #                     "help": "metric type. Supported values: CONSUME|BUNDLE|OPT_BUNDLE|PROF_SERVICE",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-unit"],
+    #                 {
+    #                     "help": "metric type unit",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-status"],
+    #                 {
+    #                     "help": "metric type status",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-active"],
+    #                 {
+    #                     "help": "metric type active",
+    #                     "action": "store",
+    #                     "type": bool,
+    #                     "default": True,
+    #                 },
+    #             ),
+    #             (
+    #                 ["-limits"],
+    #                 {
+    #                     "help": 'json file with limit definition.Ex. {"limits" : [{ "name" : "LimitCPU", '
+    #                     '"desc" : "LimitCPU", "value": 2.0, "metric_type_id" : "1" }]}',
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #         ]
+    #     ),
+    # )
+    # def type_update(self):
+    #     oid = self.app.pargs.id
+    #     data = set_request_params(
+    #         self.app.pargs,
+    #         ["name", "desc", "group", "type", "unit", "status", "active"],
+    #     )
+    #     data_json = self.app.pargs.limits
+    #     if data_json is not None:
+    #         data["limits"] = load_config(data_json).get("limits", [])
 
-        data = {"metric_type": data}
-        uri = "%s/services/metricstypes/%s" % (self.baseuri, oid)
-        self.cmp_put(uri, data={"metric_type": data})
-        self.app.render({"msg": "update service metric type %s" % oid})
+    #     data = {"metric_type": data}
+    #     uri = "%s/services/metricstypes/%s" % (self.baseuri, oid)
+    #     self.cmp_put(uri, data={"metric_type": data})
+    #     self.app.render({"msg": "update service metric type %s" % oid})
 
-    @ex(
-        help="delete service metric types",
-        description="delete service metric types",
-        arguments=PARGS(
-            [
-                (
-                    ["-id"],
-                    {
-                        "help": "metric type id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-            ]
-        ),
-    )
-    def type_delete(self):
-        value = self.app.pargs.id
-        uri = "%s/services/metricstypes/%s" % (self.baseuri, value)
-        self.app.render({"msg": "delete service metric type %s" % value})
+    # @ex(
+    #     help="delete service metric types",
+    #     description="delete service metric types",
+    #     arguments=PARGS(
+    #         [
+    #             (
+    #                 ["id"],
+    #                 {
+    #                     "help": "metric type id",
+    #                     "action": "store",
+    #                     "type": str,
+    #                     "default": None,
+    #                 },
+    #             ),
+    #         ]
+    #     ),
+    # )
+    # def type_delete(self):
+    #     instance_id = self.app.pargs.id
+    #     uri = "%s/services/metricstypes" % (self.baseuri)
+    #     res = self.cmp_delete(uri, data={"InstanceId": instance_id})
+    #     # self.app.render({"msg": "delete service metric type %s" % instance_id})
 
     @ex(
         help="acquire metric",
-        description="acquire metric",
+        description="This CLI command acquires metric data from a Nivola CMP service. It does not require any arguments as it will acquire metrics for all services by default. The command connects to the Nivola CMP platform and retrieves the latest metrics captured for services that are being monitored.",
         arguments=ARGS(
             [
                 (
@@ -2445,7 +2546,8 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="list service job schedule",
-        description="list service job schedule",
+        description="This command lists the service job schedules.",
+        example="beehive bu service-schedules get -id <uuid> -e <env> ",
         arguments=PARGS(
             [
                 (
@@ -2537,11 +2639,12 @@ class ServiceJobSchedulerController(ServiceControllerChild):
                 "job_args",
                 "schedule_params",
             ]
-            self.app.render(res, key="job_schedule", headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, key="job_schedule", headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="list service job schedule",
-        description="list service job schedule",
+        description="This command lists the service job schedules.",
+        example="beehive bu service-schedules get -id <uuid> -e <env> ",
         arguments=ARGS(),
     )
     def add_example(self):
@@ -2568,7 +2671,7 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="add service job schedule",
-        description="add service job schedule",
+        description="This CLI command is used to add a new service job schedule to the beehive service scheduler. The service scheduler allows scheduling recurring jobs that run services or tasks on a defined schedule. This add subcommand does not require any arguments as all schedule details will need to be provided interactively after running the command.",
         arguments=ARGS(
             [
                 (
@@ -2595,7 +2698,7 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="delete service job schedule",
-        description="delete service job schedule",
+        description="This command deletes a service job schedule. Service schedules are used to automate recurring jobs like backups, deployments etc. on a scheduled basis. Since this command deletes the schedule, any future scheduled jobs for that service will not run.",
         arguments=ARGS(
             [
                 (
@@ -2624,7 +2727,7 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="start service job schedule",
-        description="start service job schedule",
+        description="This command starts an existing service job schedule. Service schedules allow running jobs on a recurring basis like daily, weekly etc. This command requires no arguments as it simply starts the existing schedule to begin running jobs based on the schedule configuration.",
         arguments=ARGS(
             [
                 (
@@ -2644,7 +2747,7 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="stop service job schedule",
-        description="stop service job schedule",
+        description="This command stops a service job schedule that was previously created. Service schedules allow running jobs on a recurring basis like daily, weekly etc. This command stops the execution of the scheduled job so it does not run on the scheduled intervals anymore.",
         arguments=ARGS(
             [
                 (
@@ -2664,7 +2767,7 @@ class ServiceJobSchedulerController(ServiceControllerChild):
 
     @ex(
         help="restart service job schedule",
-        description="restart service job schedule",
+        description="This command is used to restart the service job schedules on the Nivola CMP platform. Service schedules are used to automate recurring jobs like backups, deployments etc. Restarting the schedules would trigger the first run immediately and reset the schedule times.",
         arguments=ARGS(
             [
                 (
@@ -2691,7 +2794,8 @@ class ServiceAggregateConsumesController(ServiceControllerChild):
 
     @ex(
         help="list service job schedule",
-        description="list service job schedule",
+        description="This command lists the service job schedules.",
+        example="beehive bu service-schedules get -id <uuid> -e <env> ",
         arguments=PARGS(
             [
                 (
@@ -2820,11 +2924,11 @@ class ServiceAggregateConsumesController(ServiceControllerChild):
             "job_id",
             "evaluation_date",
         ]
-        self.app.render(res, key="consume", headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, key="consume", headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="generate aggregated consume",
-        description="generate aggregated consume",
+        description="This command aggregates the service consumption data over a given period. The required 'period' argument specifies the aggregation period which can be specified in year-month or year-month-day format like yyyy-mm or yyyy-mm-dd. This generates a report of the total consumption aggregated for that specified period.",
         arguments=ARGS(
             [
                 (

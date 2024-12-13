@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from pygments import format
@@ -167,6 +167,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="get resource entity tree",
         description="get resource entity tree",
+        example="beehive res entities tree $SERVER -e <env>;beehive res entities tree <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -209,6 +210,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="list resource entities",
         description="list resource entities",
+        example="beehive res entities get -id <uuid> -e <env>;beehive res entities get -id 715 -e <env>",
         arguments=PARGS(
             [
                 (
@@ -395,25 +397,28 @@ class ResourceEntityController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/entities" % self.baseuri
-            res = self.cmp_get(uri, data=data)
 
             # uri = '%s/containers' % self.baseuri
             # containers = self.cmp_get(uri).get('resourcecontainers', [])
             # c_idx = {str(c['id']): c['name'] for c in containers}
 
-            transform = {"base_state": self.color_error}
-            self.app.render(
-                res,
-                key="resources",
-                headers=self._meta.headers,
-                fields=self._meta.fields,
-                transform=transform,
-                maxsize=50,
-            )
+            def render(self, res, **kwargs):
+                transform = {"base_state": self.color_error}
+                self.app.render(
+                    res,
+                    key="resources",
+                    headers=self._meta.headers,
+                    fields=self._meta.fields,
+                    transform=transform,
+                    maxsize=50,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="list resource entity types",
         description="list resource entity types",
+        example="beehive res entities types -e <env>",
         arguments=ARGS(
             [
                 (
@@ -529,6 +534,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="update resource entity",
         description="update resource entity",
+        example="beehive res entities update 2760833 -ext_id=" ";beehive res entities update 2760833 ",
         arguments=ARGS(
             [
                 (
@@ -681,6 +687,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="patch resource entities",
         description="patch resource entities",
+        example="beehive res entities patch -id 772411 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -713,6 +720,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="delete resource entities",
         description="delete resource entities",
+        example="beehive res entities delete <uuid> -e <env> -y;beehive res entities delete 1509508",
         arguments=ARGS(
             [
                 (
@@ -774,6 +782,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="delete resource entity cache",
         description="delete resource entity cache",
+        example="beehive res entities cache-del <uuid> -e <env>;beehive res entities cache-del 2763044 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -792,6 +801,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="get resource entity config",
         description="get resource entity config",
+        example="beehive res entities config-get 809282;beehive res entities config-get 809291",
         arguments=ARGS(
             [
                 (
@@ -810,6 +820,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="update resource entity config",
         description="update resource entity config",
+        example="beehive res entities config-set -value 100 809282 configs.size;beehive res entities config-set -value 310 2246492 configs.size",
         arguments=ARGS(
             [
                 (
@@ -817,7 +828,7 @@ class ResourceEntityController(BaseController):
                     {"help": "resource entity id", "action": "store", "type": str},
                 ),
                 (
-                    ["key"],
+                    ["config_key"],
                     {
                         "help": "config key like config.key",
                         "action": "store",
@@ -839,7 +850,7 @@ class ResourceEntityController(BaseController):
     )
     def config_set(self):
         oid = self.app.pargs.id
-        key = self.app.pargs.key
+        key = self.app.pargs.config_key
         value = self.app.pargs.value
         uri = "%s/entities/%s/config" % (self.baseuri, oid)
         self.cmp_put(uri, data={"config": {"key": key, "value": value}})
@@ -884,6 +895,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="get linked resource entities",
         description="get linked resource entities",
+        example="beehive res entities linked get -id <uuid> -e <env>;beehive res entities linked <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -923,6 +935,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="reset resource state",
         description="reset resource state",
+        example="beehive res entities state <uuid> -state active",
         arguments=ARGS(
             [
                 (
@@ -953,6 +966,7 @@ class ResourceEntityController(BaseController):
     @ex(
         help="add tag to resource",
         description="add tag to resource",
+        example="beehive res entities tag-add 2763074 nws\$volume_bck;beehive res entities tag-add 2763047 nws\$volume_bck",
         arguments=ARGS(
             [
                 (
@@ -1035,4 +1049,4 @@ class ResourceEntityController(BaseController):
 
         fields = ["id", "name"]
         headers = ["id", "name"]
-        self.app.render(res, key="resourcetags", headers=headers, fields=fields, maxsize=40)
+        self.app.render(res, key="resourcetags", headers=headers, fields=fields, maxsize=45)

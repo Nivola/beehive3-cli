@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from re import match
@@ -40,17 +40,18 @@ class BusinessControllerChild(BaseController):
         :return: True if it is a literal name
         """
         # get obj by uuid
-        if match("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(oid)):
+        if self.is_uuid(oid):
             self.app.log.debug("Param %s is an uuid" % oid)
             return False
         # get obj by id
-        elif match("^\d+$", str(oid)):
+        if match("^\\d+$", str(oid)):
             self.app.log.debug("Param %s is an id" % oid)
             return False
         # get obj by name
-        elif match("[\-\w\d]+", oid):
+        if match("[\\-\\w\\d]+", oid):
             self.app.log.debug("Param %s is a name" % oid)
             return True
+        return False
 
     def is_uuid(self, oid):
         """Check if id is uuid
@@ -58,34 +59,38 @@ class BusinessControllerChild(BaseController):
         :param oid:
         :return: True if it is a uuid
         """
-        if match("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(oid)) is not None:
-            return True
-        return False
+        return match("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(oid)) is not None
 
-    def get_account(self, account_id):
+    def get_account(self, account_id, active=True):
         """Get account by id
 
         :param account_id: account id
         :return: account object
         """
+        data_base = ""
+        # print("get_account - active: %s" % active)
+        if active == False:
+            data_base = "filter_expired=True&active=False&"
+            # print("get_account - data: %s" % data)
+
         check = self.is_name(account_id)
         uri = "/v1.0/nws/accounts"
         if check is True:
             oid = account_id.split(".")
             if len(oid) == 1:
-                data = "name=%s" % oid[0]
+                data = data_base + "name=%s" % oid[0]
                 res = self.cmp_get(uri, data=data)
             elif len(oid) == 2:
-                data = "name=%s&division_id=%s" % (oid[1], oid[0])
+                data = data_base + "name=%s&division_id=%s" % (oid[1], oid[0])
                 res = self.cmp_get(uri, data=data)
             elif len(oid) == 3:
                 # get division
-                data = "name=%s&organization_id=%s" % (oid[1], oid[0])
+                data = data_base + "name=%s&organization_id=%s" % (oid[1], oid[0])
                 uri2 = "/v1.0/nws/divisions"
                 divs = self.cmp_get(uri2, data=data)
                 # get account
                 if divs.get("count") > 0:
-                    data = "name=%s&division_id=%s" % (
+                    data = data_base + "name=%s&division_id=%s" % (
                         oid[2],
                         divs["divisions"][0]["uuid"],
                     )
@@ -104,9 +109,11 @@ class BusinessControllerChild(BaseController):
             account = res.get("accounts")[0]
             self.app.log.info("get account by name: %s" % account)
             return account
+        else:
+            data = data_base
 
         uri += "/" + account_id
-        account = self.cmp_get(uri).get("account")
+        account = self.cmp_get(uri, data).get("account")
         self.app.log.info("get account by id: %s" % account)
         return account
 
@@ -121,6 +128,59 @@ class BusinessControllerChild(BaseController):
             res.append(self.get_account(account_id).get("uuid"))
 
         return res
+
+    def get_division(self, division_id):
+        """Get division by id
+
+        :param division_id: division id
+        :return: division object
+        """
+        data_base = ""
+
+        check = self.is_name(division_id)
+        uri = "/v1.0/nws/divisions"
+        if check is True:
+            oid = division_id.split(".")
+            if len(oid) == 1:
+                data = data_base + "name=%s" % oid[0]
+                res = self.cmp_get(uri, data=data)
+            elif len(oid) == 2:
+                # get division
+                data = data_base + "name=%s&organization_id=%s" % (oid[1], oid[0])
+                uri2 = "/v1.0/nws/divisions"
+                res = self.cmp_get(uri2, data=data)
+            else:
+                raise Exception("Division is wrong")
+
+            count = res.get("count")
+            if count > 1:
+                raise Exception("There are some divisions with name %s. Select one using uuid" % division_id)
+            if count == 0:
+                raise Exception("The account %s does not exist" % division_id)
+
+            division = res.get("divisions")[0]
+            self.app.log.info("get divisions by name: %s" % division)
+            return division
+        else:
+            data = data_base
+
+        uri += "/" + division_id
+        division = self.cmp_get(uri, data).get("division")
+        self.app.log.info("get account by id: %s" % division)
+        return division
+
+    def get_organization(self, org_id):
+        """Get organization by id
+
+        :param get_organization: organization id
+        :return: organization object
+        """
+        uri = "/v1.0/nws/organizations"
+        uri += "/" + org_id
+        data = ""
+        organization = self.cmp_get(uri, data).get("organization")
+        self.app.log.info("get organization by id: %s" % organization)
+        return organization
 
     def get_service_state(self, uuid, retry_times=10):
         try:
@@ -173,6 +233,14 @@ class BusinessControllerChild(BaseController):
             elapsed += delta
             if elapsed > maxtime and state != accepted_state:
                 state = "TIMEOUT"
+
+        # set exit code
+        if state == "ACTIVE" or state == "DELETED":
+            self.app.exit_code = 0
+        elif state == "TIMEOUT":
+            self.app.exit_code = 253
+        else:
+            self.app.exit_code = 254
 
         if state == "ERROR":
             error = self.get_service_instance_error(uuid)
@@ -272,7 +340,7 @@ class BusinessControllerChild(BaseController):
             res = self.cmp_get(uri, data=data)
             headers = [
                 "id",
-                "image_type",
+                "name",
                 "desc",
                 "status",
                 "active",
@@ -298,7 +366,7 @@ class BusinessControllerChild(BaseController):
             res["id"] = res.pop("uuid")
             self.app.render(res, details=True)
 
-            # get rules
+            # get service definition configs
             uri = "%s/servicecfgs" % self.baseuri
             res = self.cmp_get(uri, data="service_definition_id=%s" % template).get("servicecfgs", [{}])[0]
             params = res.pop("params", {})

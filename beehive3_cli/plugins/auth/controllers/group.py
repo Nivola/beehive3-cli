@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
@@ -22,6 +22,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="get groups",
         description="get groups",
+        example="beehive auth groups get -id Group1Role; beehive auth groups get -name xxxxx",
         arguments=PARGS(
             [
                 (
@@ -150,6 +151,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="add group",
         description="add group",
+        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno; beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
         arguments=ARGS(
             [
                 (["name"], {"help": "group name", "action": "store", "type": str}),
@@ -326,6 +328,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="add user to group",
         description="add user to group",
+        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno ;beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
         arguments=ARGS(
             [
                 (["id"], {"help": "group uuid", "action": "store", "type": str}),
@@ -349,6 +352,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="delete user from group",
         description="delete user from group",
+        example="beehive auth groups del-user GR-xxxx uuid",
         arguments=ARGS(
             [
                 (["id"], {"help": "group uuid", "action": "store", "type": str}),
@@ -371,6 +375,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="get permissions of group",
         description="get permissions of group",
+        example="beehive auth groups get-perms GR-xxxx; beehive auth groups get-perms #####",
         arguments=PARGS(
             [
                 (["id"], {"help": "group uuid", "action": "store", "type": str}),
@@ -394,6 +399,7 @@ class AuthGroupController(AuthChildController):
     @ex(
         help="add permissions to group",
         description="add permissions to group",
+        example="beehive auth groups add-perms GR-xxxx ##### ",
         arguments=ARGS(
             [
                 (["id"], {"help": "group uuid", "action": "store", "type": str}),

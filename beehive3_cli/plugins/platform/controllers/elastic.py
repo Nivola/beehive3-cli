@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 from cement import ex
 from beecell.simple import dict_get, format_date
-from beedrones.elk.client_elastic import ElasticManager
 from beehive3_cli.core.controller import ARGS, PARGS
 from beehive3_cli.plugins.platform.controllers import ChildPlatformController
 
@@ -47,6 +46,7 @@ class ElkController(ChildPlatformController):
         super(ElkController, self).pre_command_run()
 
         from elasticsearch import Elasticsearch
+        from beedrones.elk.client_elastic import ElasticManager
 
         self.es: Elasticsearch = self.config_elastic()
         self.client_elastic = ElasticManager(es=self.es)
@@ -56,12 +56,22 @@ class ElkController(ChildPlatformController):
         res = self.es.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
-    @ex(help="get elastic info", description="get elastic info", arguments=ARGS())
+    @ex(
+        help="get elastic info",
+        description="get elastic info",
+        example="beehive platform elastic info -e <env> ;beehive platform elastic info -e <env> ",
+        arguments=ARGS(),
+    )
     def info(self):
         res = self.es.info()
         self.app.render(res, details=True)
 
-    @ex(help="get cluster health", description="get cluster health", arguments=ARGS())
+    @ex(
+        help="get cluster health",
+        description="get cluster health",
+        example="beehive platform elastic cluster-health -e <env>;beehive platform elastic cluster-health",
+        arguments=ARGS(),
+    )
     def cluster_health(self):
         res = self.es.cluster.health()
         self.app.render(res, details=True)
@@ -69,13 +79,19 @@ class ElkController(ChildPlatformController):
     @ex(
         help="get cluster statistics",
         description="get cluster statistics",
+        example="beehive platform elastic cluster-stats -e <env>",
         arguments=ARGS(),
     )
     def cluster_stats(self):
         res = self.es.cluster.stats()
         self.app.render(res, details=True)
 
-    @ex(help="get cluster nodes", description="get cluster nodes", arguments=ARGS())
+    @ex(
+        help="get cluster nodes",
+        description="get cluster nodes",
+        example="beehive platform elastic cluster-nodes -e <env>;beehive platform elastic cluster-nodes -e <env>",
+        arguments=ARGS(),
+    )
     def cluster_nodes(self):
         res = self.es.nodes.info().get("nodes")
         nodes = [
@@ -100,6 +116,7 @@ class ElkController(ChildPlatformController):
     @ex(
         help="get indexes",
         description="get indexes",
+        example="beehive platform elastic index-get -e <env>;beehive platform elastic index-get -e <env>",
         arguments=ARGS(
             [
                 (
@@ -318,6 +335,7 @@ class ElkController(ChildPlatformController):
     @ex(
         help="query index",
         description="query index",
+        example="beehive platform elastic index-query cmp-event-podto1-2024.11.* -e <env> -sort date:asc -f text -query source.user.keyword:abc.def@ghi.lmno,type.keyword:API,dest.pod.keyword:uwsgi-service-app-*,data.op.keyword:*serviceinsts*:DELETE -fields date,data",
         arguments=PARGS(
             [
                 (
@@ -332,7 +350,16 @@ class ElkController(ChildPlatformController):
                 (
                     ["-query"],
                     {
-                        "help": "simple query like field1:value1",
+                        "help": "comma separated query like field1:value1,field2:value2",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-querynot"],
+                    {
+                        "help": "comma separated query like field1:value1,field2:value2",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -362,6 +389,7 @@ class ElkController(ChildPlatformController):
     def index_query(self):
         index = self.app.pargs.index
         query_data = self.app.pargs.query
+        querynot_data = self.app.pargs.querynot
         sort = self.app.pargs.sort
         page = self.app.pargs.page
         size = self.app.pargs.size
@@ -370,9 +398,25 @@ class ElkController(ChildPlatformController):
         if query_data is None:
             query = {"match_all": {}}
         else:
-            k, v = query_data.split(":")
-            query = {"match": {k: {"query": v, "operator": "and"}}}
+            # k, v = query_data.split(":")
+            # query = {"match": {k: {"query": v, "operator": "and"}}}
             # query = {"match_phrase": {k: {"query": v}}}
+            must = []
+            if query_data is not None:
+                must = self.get_filter_query(query_data)
+
+            must_not = []
+            if querynot_data is not None:
+                must_not = self.get_filter_query(querynot_data)
+
+            # index = None # better abcd*
+            query = {
+                "bool": {
+                    "must": must,
+                    "must_not": must_not,
+                }
+            }
+            print(query)
 
         page = page * size
         body = {"query": query}
@@ -412,6 +456,20 @@ class ElkController(ChildPlatformController):
             "values": values,
         }
         self.app.render(data, key="values", headers=headers, fields=fields, maxsize=maxsize)
+
+    def get_filter_query(self, query_data):
+        must = []
+        filters = query_data.split(",")
+        for filter in filters:
+            # k, v = filter.split(":")
+            sep_index = filter.find(":")
+            k = filter[0:sep_index]
+            v = filter[sep_index + 1 :]
+            if v.find("*") >= 0:
+                must.append({"wildcard": {k: v}})
+            else:
+                must.append({"match_phrase": {k: v}})
+        return must
 
     @ex(
         help="delete index",

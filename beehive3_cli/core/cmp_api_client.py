@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from os import path, mkdir
 from time import sleep
-from beedrones.cmp.client import CmpApiManager, CmpApiClientError
+from urllib.parse import urlencode
+
+# from beedrones.cmp.client import CmpApiManager, CmpApiClientError
+from bee_client.client import CmpApiManager, CmpApiClientError
 from cement.utils import fs
 from beecell.simple import truncate, dict_get
 from beehive3_cli.core.util import load_environment_config, CmpUtils, rotating_bar
@@ -209,6 +212,7 @@ class CmpApiClient(object):
             if self.app.curl is True:
                 print(self.app.colored_text.blue(self.client.get_curl_request()))
         except CmpApiClientError as ex:
+            self.app.log.debug(ex)
             if self.app.curl is True and self.app.curl_error is True:
                 print(self.app.colored_text.yellow(self.client.get_curl_request() or ""))
 
@@ -340,23 +344,81 @@ class CmpApiClient(object):
         """
         self.app.log.debug("wait for task: %s" % taskid)
         if output is True:
-            stdout.write("task:%s" % taskid)
+            stdout.write(f"task:{taskid}")
             stdout.flush()
         status, elapsed = CmpUtils.wait_task(
             task_id=taskid, get_task_status_function=self.get_task_status, delta=delta, max_time=maxtime, output=output
         )
         elapsed_str = f"Elapsed: {elapsed.ljust(7)}"
         if status == "TIMEOUT":
-            data = self.app.colored_text.error(":timeout (%s)\n" % elapsed_str)
+            data = self.app.colored_text.error(f":timeout ({elapsed_str})\n")
             if output is True:
                 stdout.write(data)
                 stdout.flush()
-            return False
         elif status == "FAILURE":
             trace = self.get_task_trace(taskid)
             raise Exception(trace)
         else:
             if output is True:
                 # cover rotating_bar
-                stdout.write(":end (%s)               \n\r" % elapsed_str)
+                stdout.write(f":end ({elapsed_str})               \n\r")
                 stdout.flush()
+
+    def error_if_resource_exists(self, restype=None, name=None, exact_name_match=False, ext_id=None):
+        """
+        if the resource specified by name or ext_id exists raise exception
+        """
+        if name is None and ext_id is None:
+            raise Exception("Provide at least name or ext_id")
+        if name is not None and ext_id is not None:
+            raise Exception("Search either by name or by ext_id, but not both")
+
+        tmp_data = {
+            "size": 1,
+        }
+
+        if name is not None:
+            tmp_name = name if exact_name_match else "%" + name + "%"
+            tmp_data["name"] = tmp_name
+
+        if ext_id is not None:
+            tmp_data["ext_id"] = ext_id
+
+        if restype is not None:
+            tmp_data["type"] = restype
+
+        tmp_data = urlencode(tmp_data)
+        tmp = self.call("/v1.0/nrs/entities", "GET", data=tmp_data, timeout=240).get("total")
+        if tmp != 0:
+            if name:
+                msg = f"name {tmp_name}"
+            if ext_id:
+                msg = f"ext_id {ext_id}"
+            raise Exception(f"A resource with {msg} already exists ({tmp} found)")
+
+    def error_if_service_exists(self, servtype=None, name=None, exact_name_match=False, flag_container=False):
+        """
+        if the srvice specified by name exists raise exception
+        """
+        if name is None:
+            raise Exception("name parameter missing")
+
+        tmp_data = {
+            "size": 1,
+            "flag_container": flag_container,
+        }
+
+        if name is not None:
+            tmp_name = name if exact_name_match else "%" + name + "%"
+            tmp_data["name"] = tmp_name
+
+        if servtype is not None:
+            tmp_data["plugintype"] = servtype
+
+        tmp_data = urlencode(tmp_data)
+        tmp = self.call("/v2.0/nws/serviceinsts", "GET", data=tmp_data, timeout=240).get("total")
+        if tmp != 0:
+            msg = f"A service with name {tmp_name}"
+            if servtype is not None:
+                msg += f"and type {servtype}"
+            raise Exception(f"{msg} already exists ({tmp} found)")

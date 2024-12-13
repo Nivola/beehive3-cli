@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from time import time
 from cement import ex
@@ -52,6 +52,7 @@ class ResourceOrchestratorController(BaseController):
     @ex(
         help="list resource containers",
         description="list resource containers",
+        example="beehive res containers get;beehive res containers get -id # -e <env>",
         arguments=PARGS(
             [
                 (
@@ -249,6 +250,15 @@ class ResourceOrchestratorController(BaseController):
         self.cmp_delete(uri, entity="resource container %s" % oid)
 
     @ex(
+        help="delete cache containers",
+        description="delete cache containers",
+        arguments=PARGS([]),
+    )
+    def delete_cache(self):
+        uri = "%s/containers/cache" % (self.baseuri)
+        self.cmp_delete(uri, entity="resource cache containers")
+
+    @ex(
         help="list resource container types",
         description="list resource container types",
         arguments=ARGS(),
@@ -338,6 +348,7 @@ class ResourceOrchestratorController(BaseController):
     @ex(
         help="discover container",
         description="discover container",
+        example="beehive res containers discover Podto1Openstack Provider.ComputeZone.ComputeStackV2 -e <env>;beehive res containers discover Podto1Vsphere Vsphere.DataCenter.Folder.Server -e <env>",
         arguments=ARGS(
             [
                 (
@@ -378,6 +389,7 @@ class ResourceOrchestratorController(BaseController):
     @ex(
         help="discover container",
         description="discover container",
+        example="beehive res containers discover Podto1Openstack Provider.ComputeZone.ComputeStackV2 -e <env>;beehive res containers discover Podto1Vsphere Vsphere.DataCenter.Folder.Server -e <env>",
         arguments=ARGS(
             [
                 (
@@ -418,6 +430,7 @@ class ResourceOrchestratorController(BaseController):
     @ex(
         help="synchronize container <class> resources",
         description="synchronize container <class> resources",
+        example="beehive res containers synchronizes Podto1Grafana;beehive res containers synchronize Podto2Vsphere Vsphere.DataCenter.Folder.Server -e <env>",
         arguments=ARGS(
             [
                 (
@@ -441,7 +454,7 @@ class ResourceOrchestratorController(BaseController):
                 (
                     ["-new"],
                     {
-                        "help": "add new physical entities",
+                        "help": "add new physical entities. Default True",
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -450,7 +463,7 @@ class ResourceOrchestratorController(BaseController):
                 (
                     ["-died"],
                     {
-                        "help": "delete not alive physical entities",
+                        "help": "delete not alive physical entities. Default False",
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -459,7 +472,7 @@ class ResourceOrchestratorController(BaseController):
                 (
                     ["-changed"],
                     {
-                        "help": "update physical entities",
+                        "help": "update physical entities. Default False",
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -482,6 +495,7 @@ class ResourceOrchestratorController(BaseController):
         new = str2bool(self.app.pargs.new)
         died = str2bool(self.app.pargs.died)
         changed = str2bool(self.app.pargs.changed)
+
         resclass = self.app.pargs.resclass
         ext_id = self.app.pargs.ext_id
         data = {"types": resclass, "new": new, "died": died, "changed": changed}
@@ -493,6 +507,7 @@ class ResourceOrchestratorController(BaseController):
     @ex(
         help="synchronize container resources",
         description="synchronize container resources",
+        example="beehive res containers synchronizes Podto1Grafana;beehive res containers synchronizes Podto2Grafana",
         arguments=ARGS(
             [
                 (

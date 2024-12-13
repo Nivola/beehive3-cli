@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
 from cement import ex
@@ -43,6 +43,7 @@ class ResourceTagController(BaseController):
     @ex(
         help="list resource tags",
         description="list resource tags",
+        example="beehive res tags get -size -1;beehive res tags get ",
         arguments=PARGS(
             [
                 (
@@ -173,15 +174,17 @@ class ResourceTagController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/tags" % self.baseuri
-            res = self.cmp_get(uri, data=data)
 
-            self.app.render(
-                res,
-                key="resourcetags",
-                headers=self._meta.headers,
-                fields=self._meta.fields,
-                maxsize=40,
-            )
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="resourcetags",
+                    headers=self._meta.headers,
+                    fields=self._meta.fields,
+                    maxsize=40,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
         help="add resource tag",

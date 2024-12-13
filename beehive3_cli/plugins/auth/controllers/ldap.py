@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from six import ensure_str
 from cement import ex
-from beecell.auth import LdapAuth, SystemUser
 from beehive3_cli.core.controller import ARGS, BaseController
 from beehive3_cli.core.util import load_environment_config
 
@@ -18,6 +17,8 @@ class AuthLdapController(BaseController):
         help = "ldap management"
 
     def pre_command_run(self):
+        from beecell.auth import LdapAuth, SystemUser
+
         super(AuthLdapController, self).pre_command_run()
 
         self.config = load_environment_config(self.app)
@@ -75,6 +76,7 @@ class AuthLdapController(BaseController):
     @ex(
         help="search users",
         description="search users",
+        example="beehive auth ldap search abc.def@ghi.lmno -ldap xxxxx",
         arguments=ARGS(
             [
                 (
@@ -96,7 +98,7 @@ class AuthLdapController(BaseController):
                         "help": "query fields",
                         "action": "store",
                         "type": str,
-                        "default": "cn,mail",
+                        "default": "cn,mail,uidNumber,uid",
                     },
                 ),
                 (
@@ -117,7 +119,9 @@ class AuthLdapController(BaseController):
         fields = self.app.pargs.fields
         filter = self.search_filter.format(username=value)
         self.client.authenticate(self.client.bind_user, self.client.bind_pwd)
-        users = self.client.search_users(filter)
+
+        ldap_fields = fields.split(",")
+        users = self.client.search_users(filter, ldap_fields)
         self.client.close()
         self.app.render(users, headers=fields)
 
@@ -145,11 +149,12 @@ class AuthLdapController(BaseController):
 
     @ex(
         help="get user",
-        description="get user",
+        description="get user ",
+        example="beehive auth ldap get abc.def@ghi.lmno -e <env> -ldap xxxxx; beehive auth ldap get abc.def@ghi.lmno -e <env> -ldap xxxxx",
         arguments=ARGS(
             [
                 (
-                    ["key"],
+                    ["user_key"],
                     {
                         "help": "user key like user email",
                         "action": "store",
@@ -178,7 +183,7 @@ class AuthLdapController(BaseController):
         ),
     )
     def get(self):
-        key = self.app.pargs.key
+        key = self.app.pargs.user_key
         filter = self.search_filter
         self.client.authenticate(self.client.bind_user, self.client.bind_pwd)
         user = self.client.search_user({"username": key}, filter)

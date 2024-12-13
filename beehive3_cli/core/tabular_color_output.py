@@ -8,11 +8,11 @@ from beecell.simple import truncate
 from beehive3_cli.core.util import ColoredText
 
 
-class TabularOutputHandler(OutputHandler):
+class TabularColorOutputHandler(OutputHandler):
     c = ColoredText()
 
     class Meta:
-        label = "tabular_output_handler"
+        label = "tabular_color_output_handler"
 
     def _multi_get(self, data, key, separator="."):
         keys = key.split(separator)
@@ -48,6 +48,9 @@ class TabularOutputHandler(OutputHandler):
     ):
         if data is None:
             data = "-"
+        # else:
+        #     print("data: %s" % data)
+
         if not isinstance(data, list):
             values = [data]
         else:
@@ -85,27 +88,31 @@ class TabularOutputHandler(OutputHandler):
             else:
                 raw.append(item)
 
-            base_transform = {
-                "base_state": self.app.color_error,
-                "state": self.app.color_error,
-                "status": self.app.color_error,
-            }
-            if transform is None:
-                transform = base_transform
-            else:
-                base_transform.update(transform)
-                transform = base_transform
+            # base_transform = {
+            #     "base_state": self.app.color_error,
+            #     "state": self.app.color_error,
+            #     "status": self.app.color_error,
+            # }
+            # if transform is None:
+            #     transform = base_transform
+            # else:
+            #     base_transform.update(transform)
+            #     transform = base_transform
 
             # apply transform
+            # print("transform: %s" % transform)
             for k, func in transform.items():
                 try:
                     raw_item = fields.index(k)
+                    # print("raw_item: %s" % raw_item)
+                    # print("raw: %s" % raw)
+
                     raw[raw_item] = func(raw[raw_item])
                 except ValueError:
                     pass
 
-            if getattr(self.app.pargs, "notruncate", False) is False:
-                raw = map(lambda x: truncate(x, maxsize, replace_new_line=False), raw)
+            # if getattr(self.app.pargs, "notruncate", False) is False:
+            #     raw = map(lambda x: truncate(x, maxsize, replace_new_line=False), raw)
 
             table.append(raw)
 
@@ -115,6 +122,70 @@ class TabularOutputHandler(OutputHandler):
             print(tabulate(table, headers=headers, tablefmt=table_style, showindex=showindex))
         else:
             print(tabulate(table, tablefmt=table_style, showindex=showindex))
+
+    def color_even(self, transform, item, maxsize, parent_item_key: str = ""):
+        func = lambda a: self.c.yellow(a)
+        self.color_item(transform, item, maxsize, func, parent_item_key)
+
+    def color_odd(self, transform, item, maxsize, parent_item_key: str = ""):
+        # func = lambda a: self.c.white(a)
+        func = lambda a: a
+        self.color_item(transform, item, maxsize, func, parent_item_key)
+
+    def color_item(self, transform, item, maxsize, func, parent_item_key: str = ""):
+        # print("+++++ AAA render - data: %s" % data)
+        # print("+++++ %s" % self.c.white("prova colorata"))
+        # print("+++++ %s" % self.c.bgred("prova colorata"))
+        # print("+++++ transform %s" % transform)
+
+        # item[item_key] = self.c.yellow(value)
+        # Back_gray = '\x1b[48;5;59m'
+        # Back_gray = '\x1b[48;5;188m'
+        # Style_reset = '\x1b[0m'
+        # item[item_key] = f'{Back_gray}{value}{Style_reset}'
+
+        for item_key in item:
+            colortext = transform.get(parent_item_key + item_key + ".colortext")
+            # print("transform key: %s - value: %s" % (parent_item_key + item_key, transform.get(parent_item_key + item_key + ".colortext")))
+            if (
+                type(item_key) is str
+                and (transform.get(parent_item_key + item_key) is None or colortext is True)
+                and (colortext is None or colortext is True)
+            ):
+                # print("parent_item_key - item_key: %s - %s  - %s" % (parent_item_key, item_key, type(item_key)))
+
+                from beecell.simple import dict_get, dict_set
+
+                # value = item[item_key]
+                value = dict_get(item, item_key)
+
+                if type(value) == str:
+                    if getattr(self.app.pargs, "notruncate", False) is False:
+                        value = truncate(value, size=(maxsize), replace_new_line=False)
+                    dict_set(item, item_key, func(value))
+
+                elif type(value) == bool:
+                    from beecell.types.type_string import bool2str
+
+                    item[item_key] = func(bool2str(value))
+
+                elif type(value) == int:
+                    item[item_key] = func(str(value))
+
+                elif type(value) == float:
+                    item[item_key] = func(str(value))
+
+                elif type(value) == dict:
+                    self.color_item(transform, value, maxsize, func, parent_item_key=parent_item_key + item_key + ".")
+
+                elif type(value) == list:
+                    for subitem in value:
+                        if type(subitem) == dict:
+                            self.color_item(transform, subitem, maxsize, func)
+                        # TODO: not dict (list IP)
+
+            # else:
+            #     print("+++++ parent_item_key + item_key %s %s" % (parent_item_key, item_key))
 
     def render(self, data, *args, **kwargs):
         """Render the ``data`` dict into output in some fashion.  This function
@@ -167,12 +238,16 @@ class TabularOutputHandler(OutputHandler):
         if data is None:
             self.app.error("data is undefined")
 
-        orig_data = data
+        from copy import deepcopy
 
-        if data is not None and key is not None:
-            data = data[key]
-        elif isinstance(data, dict) and data.get("msg", None) is not None:
-            msg = data.get("msg")
+        color_data = deepcopy(data)
+
+        # print("+++++ key: %s" % key)
+        # print("+++++ data: %s" % data)
+        if color_data is not None and key is not None:
+            color_data = color_data[key]
+        elif isinstance(color_data, dict) and color_data.get("msg", None) is not None:
+            msg = color_data.get("msg")
             if transform.get("msg", None) is not None:
                 try:
                     msg = transform.get("msg")(msg)
@@ -195,7 +270,7 @@ class TabularOutputHandler(OutputHandler):
 
             # manage data
             if manage_data is not None:
-                data, sections = manage_data(data)
+                color_data, sections = manage_data(color_data)
 
             maxsize = 500
 
@@ -216,32 +291,61 @@ class TabularOutputHandler(OutputHandler):
                     key = k
                     resp.append({"attrib": self.c.gray(key), "value": value})
 
-            if data is not None:
-                for k, v in data.items():
+            if color_data is not None:
+                for k, v in color_data.items():
                     __format_table_data(k, v)
             else:
                 self.app.error("data is None!")
 
-            data = resp
+            color_data = resp
             headers = ["attrib", "value"]
             print_header = False
             table_style = "plain"
 
+        # transform
+        base_transform = {
+            "base_state": self.app.color_error,
+            "state": self.app.color_error,
+            "status": self.app.color_error,
+        }
+        if transform is None:
+            transform = base_transform
+        else:
+            base_transform.update(transform)
+            transform = base_transform
+
+        def __color_rows(data):
+            i: int = 0
+            new_data = []
+            for item in data:
+                i += 1
+                if i % 2 == 0:
+                    self.color_even(transform, item, maxsize)
+                else:
+                    self.color_odd(transform, item, maxsize)
+                new_data.append(item)
+            return new_data
+
         if isinstance(data, dict) or isinstance(data, list):
-            if orig_data is not None and "page" in orig_data:
-                print("Page: %s" % orig_data["page"])
-                print("Count: %s" % orig_data["count"])
-                print("Total: %s" % orig_data["total"])
+            if data is not None and "page" in data:
+                print("Page: %s" % data["page"])
+                print("Count: %s" % data["count"])
+                print("Total: %s" % data["total"])
                 print(
                     "Order: %s %s"
                     % (
-                        orig_data.get("sort").get("field"),
-                        orig_data.get("sort").get("order"),
+                        data.get("sort").get("field"),
+                        data.get("sort").get("order"),
                     )
                 )
                 print("")
+
+            # color odd rows
+            if isinstance(color_data, list):
+                color_data = __color_rows(color_data)
+
             self._tabularprint(
-                data,
+                color_data,
                 table_style,
                 other_headers=other_headers,
                 headers=headers,
@@ -256,10 +360,14 @@ class TabularOutputHandler(OutputHandler):
             fn = getattr(ColoredText(), "underline")
             for section in sections:
                 print("\n" + fn(section.get("title")))
+                color_data = section.get("value")
+                if isinstance(color_data, list):
+                    color_data = __color_rows(color_data)
                 self._tabularprint(
-                    section.get("value"),
+                    color_data,
                     table_style,
                     headers=section.get("headers"),
                     fields=section.get("fields"),
                     maxsize=maxsize,
+                    transform=transform,
                 )

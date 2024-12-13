@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from threading import Thread
 from beecell.types.type_string import split_string_in_chunks, str2bool, truncate
@@ -135,6 +135,7 @@ class CmpSchedulerTaskController(ChildPlatformController):
     @ex(
         help="get task instances",
         description="get task instances",
+        example="beehive platform scheduler tasks get -id <uuid> resource -e <env>;beehive platform scheduler tasks get service -id <uuid>",
         arguments=SCHED_PARGS(
             [
                 (["-id"], {"help": "task uuid", "action": "store", "type": str}),
@@ -149,6 +150,14 @@ class CmpSchedulerTaskController(ChildPlatformController):
                         "action": "store",
                         "type": str,
                         "default": "true",
+                    },
+                ),
+                (
+                    ["-parent"],
+                    {
+                        "help": "parent task uuid and optional step",
+                        "action": "store",
+                        "type": str,
                     },
                 ),
             ]
@@ -203,7 +212,7 @@ class CmpSchedulerTaskController(ChildPlatformController):
             else:
                 self.app.render(res, details=True)
         else:
-            params = ["name", "objid"]
+            params = ["name", "objid", "parent"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/worker/tasks" % self.baseuri
@@ -557,6 +566,7 @@ class CmpSchedulerSchedController(BaseController):
     @ex(
         help="get schedules",
         description="get schedules",
+        example="beehive platform scheduler schedules get service -e <env>;beehive platform scheduler schedules get service  -e <env>",
         arguments=SCHED_PARGS(
             [
                 (["-name"], {"help": "schedule name", "action": "store", "type": str}),

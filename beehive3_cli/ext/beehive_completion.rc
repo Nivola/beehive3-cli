@@ -1,7 +1,7 @@
 #/usr/bin/env bash
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 # alias beehive="beehive"
 # alias beehive3="beehive3"

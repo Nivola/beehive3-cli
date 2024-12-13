@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64encode
 from six import ensure_binary
@@ -161,7 +161,7 @@ class SshCustomizePlugin(CustomizePlugin):
                     "Set node %s role %s to group %s" % (name, role, group),
                 )
 
-    def run(self, configs):
+    def run(self, configs, dry=False):
         self.__create_groups(configs)
         self.__create_keys(configs)
         self.__create_nodes(configs)

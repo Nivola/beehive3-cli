@@ -1,7 +1,7 @@
 # beehive3-cli
-__beehive3-cli__ is a project that contains a shell console (Command Line Interface) that is used to manage all the 
-components of the beehive platform: 
-- cmp 
+__beehive3-cli__ is a project that contains a shell console (Command Line Interface) that is used to manage all the
+components of the beehive platform:
+- cmp
 - orchestrated infrastructure platform
 - instruments
 
@@ -62,7 +62,7 @@ We suggest to use a Mysql Docker that runs in a docker network "nivolanet" for b
 
 
 #### Mysql Docker
-This section explains how to install a MySQL instance with docker. 
+This section explains how to install a MySQL instance with docker.
 If you intend to install mysql in another way, ignore this section.
 
 Create folders where Mysql can store persistent data
@@ -81,13 +81,13 @@ docker run --network nivolanet --name=mysql-nivola \
 -d mysql/mysql-server:8.0.25
 ```
 
-Look mysql docker logs and find "GENERATED ROOT PASSWORD". 
+Look mysql docker logs and find "GENERATED ROOT PASSWORD".
 The following value is the "root" user temporary password.
 ```
 docker logs mysql-nivola 2>&1 | more
 ```
 
-Update "root" db user password and create a "root" db user with password "nivola" for accessing from any IP. 
+Update "root" db user password and create a "root" db user with password "nivola" for accessing from any IP.
 The default "root" one only allows you to login from localhost.
 ```
 docker exec -it mysql-nivola mysql -uroot -p
@@ -95,7 +95,7 @@ docker exec -it mysql-nivola mysql -uroot -p
 	-- update localhost root password
 	ALTER USER 'root'@'localhost' IDENTIFIED BY 'nivola';
 
-	-- create user root 
+	-- create user root
 	CREATE USER 'root'@'%' IDENTIFIED BY 'docker';
 	GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
 	FLUSH PRIVILEGES;
@@ -114,7 +114,7 @@ Update configuration in file /config/env/mylab.yml
  - replacement of <HOST_NGINX> can be done after you have installed the cmp and Nginx
  - replace placeholder <HOST_ELASTIC> with your Elasticsearch server IP
 
-Look at configuration file /config/beehive.yml 
+Look at configuration file /config/beehive.yml
 The parameters:
 - ansible_path
 - cmp_post_install_path
@@ -171,9 +171,12 @@ We use Semantic Versioning for versioning. (http://semver.org)
 See the list of contributors who participated in this project in the file AUTHORS.md contained in each specific project.
 
 ## Copyright
-CSI Piemonte - 2018-2022
+CSI Piemonte - 2018-2024
 
 Regione Piemonte - 2020-2022
 
 ## License
-See the *LICENSE.txt file for details
+See EUPL v1_2 EN-LICENSE.txt or EUPL v1_2 IT-LICENSE.txt file for details
+
+## Community site (Optional)
+At https://www.nivolapiemonte.it/ could find all the informations about the project.

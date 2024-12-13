@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 from six import ensure_str
@@ -713,7 +713,7 @@ class ZabbixPlatformController(BaseController):
                     },
                 ),
                 (
-                    ["key"],
+                    ["item_key"],
                     {
                         "help": "item key",
                         "action": "store",
@@ -758,7 +758,7 @@ class ZabbixPlatformController(BaseController):
         agent_type = self.app.pargs.agent_type
         value_type = self.app.pargs.value_type
         interfaceid = self.app.pargs.interfaceid
-        key = self.app.pargs.key
+        key = self.app.pargs.item_key
         delay = self.app.pargs.delay
         history = self.app.pargs.history
         trends = self.app.pargs.trends
@@ -1531,7 +1531,7 @@ class ZabbixPlatformController(BaseController):
             res = self.client.problem.list()
             headers = ["problemid", "name", "status"]
             fields = ["problemid", "name", "status"]
-            self.app.render(res, headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="list proxys",
@@ -1811,7 +1811,7 @@ class ZabbixPlatformController(BaseController):
 
             headers = ["userid", "alias", "name", "surname", "user groups"]
             fields = ["userid", "alias", "name", "surname", "usrgrps_name"]
-            self.app.render(res, headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="delete user",
@@ -1937,7 +1937,7 @@ class ZabbixPlatformController(BaseController):
 
             headers = ["id", "name", "users"]
             fields = ["usrgrpid", "name", "users_name"]
-            self.app.render(res, key="groups", headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, key="groups", headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="delete user group",
@@ -2008,7 +2008,7 @@ class ZabbixPlatformController(BaseController):
             res = self.client.action.list(**filter)
             headers = ["actionid", "name", "status", "eventsource"]
             fields = ["actionid", "name", "status", "eventsource"]
-            self.app.render(res, headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
         help="add action",

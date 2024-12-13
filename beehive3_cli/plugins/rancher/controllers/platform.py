@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.types.type_list import merge_list
 from cement import ex
@@ -45,12 +45,7 @@ class RancherPlatformController(BaseController):
             raise Exception("Valid labels are: %s" % ", ".join(orchestrators.keys()))
         self.conf = orchestrators.get(label)
 
-        uri = "%s://%s:%s%s" % (
-            self.conf.get("proto"),
-            self.conf.get("hosts")[0],
-            self.conf.get("port"),
-            self.conf.get("api_version"),
-        )
+        uri = self.conf.get("uri")
         self.client = RancherManager(uri)
         self.client.authorize(self.conf.get("user"), self.conf.get("pwd"), key=self.key)
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode, quote
 from cement import ex
@@ -19,6 +19,7 @@ class AuthObjectController(AuthChildController):
     @ex(
         help="get permission",
         description="get permission",
+        example="beehive auth perms get-types ;beehive auth perms get ######",
         arguments=PARGS(
             [
                 (
@@ -65,7 +66,11 @@ class AuthObjectController(AuthChildController):
         else:
             self.app.render(res, key="perm", details=True)
 
-    @ex(help="get object actions", description="get object actions")
+    @ex(
+        help="get object actions",
+        description="get object actions",
+        example="beehive auth perms get-actions ",
+    )
     def get_actions(self):
         uri = "%s/objects/actions" % self.baseuri
         res = self.cmp_get(uri)
@@ -79,6 +84,7 @@ class AuthObjectController(AuthChildController):
     @ex(
         help="get object types",
         description="get object types",
+        example="beehive auth perms get-types -size 0;beehive auth perms get-types -size 50",
         arguments=PARGS(
             [
                 (
@@ -183,6 +189,7 @@ class AuthObjectController(AuthChildController):
     @ex(
         help="get objects",
         description="get objects",
+        example="beehive auth perms get-objects -objid #####;beehive auth perms get-objects -group GR-xxxx",
         arguments=PARGS(
             [
                 (

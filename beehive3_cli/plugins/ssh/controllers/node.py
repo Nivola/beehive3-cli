@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from getpass import getpass
 from ujson import dumps
@@ -29,6 +29,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="get nodes",
         description="get nodes",
+        example="beehive ssh nodes get > mauro01;beehive ssh nodes get -e <env>",
         arguments=PARGS(
             [
                 (
@@ -108,6 +109,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="add node",
         description="add node",
+        example="beehive ssh nodes add k8sm01-indire-prod01.site02.nivolapiemonte.it podto2 admin-platform ###.###.###.###;beehive ssh nodes add k8s-lb-priv01-csi-prod01.site02.nivolapiemonte.it podto2 admin-platform ###.###.###.###",
         arguments=ARGS(
             [
                 (["name"], {"help": "node group name", "action": "store", "type": str}),
@@ -230,6 +232,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="delete node",
         description="delete node",
+        example="beehive ssh nodes delete <uuid>;beehive ssh nodes delete <uuid>",
         arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
     )
     def delete(self):
@@ -258,6 +261,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="open ssh connection to node",
         description="open ssh connection to node",
+        example="beehive ssh nodes connect ###.###.###.###;beehive ssh nodes connect dbs-gamopera-prd-001p.site03.nivolapiemonte.it",
         arguments=ARGS(
             [
                 (
@@ -267,10 +271,10 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-user"],
                     {
-                        "help": "node user name",
+                        "help": "node user name, if set use this username",
                         "action": "store",
                         "type": str,
-                        "default": "root",
+                        "default": None,
                     },
                 ),
                 (["-pwd"], {"help": "if set request password", "action": "store_true"}),
@@ -293,11 +297,11 @@ class SshNodeController(SshControllerChild):
         data["passwd"] = passwd
         scm.ssh2node(**data)
 
-    def __node_run_cmd(self, scm, node, user, cmd):
+    def __node_run_cmd(self, scm: SshConnectionManager, node: dict, user, cmd, timeout=30):
         """[DEPRECATED]"""
         self.app.print("[%s@%s]$ %s" % (user, node["name"], cmd), color="GRAY")
         try:
-            res = scm.sshcmd2node(node=node, user="root", cmd=cmd)
+            res = scm.sshcmd2node(node=node, user="root", cmd=cmd, timeout=timeout)
         except Exception as ex:
             res = {"stderr": str(ex)}
 
@@ -314,16 +318,17 @@ class SshNodeController(SshControllerChild):
 
         return status
 
-    def __node_run_cmds(self, scm, node, user, cmds):
+    def __node_run_cmds(self, scm: SshConnectionManager, node: dict, user, cmds, timeout=30):
         """[DEPRECATED]"""
         for cmd in cmds:
-            status = self.__node_run_cmd(scm, node, user, cmd)
+            status = self.__node_run_cmd(scm, node, user, cmd, timeout=timeout)
             if status is False:
                 break
 
     @ex(
         help="execute command(s) on node",
         description="execute command(s) on node",
+        example="beehive ssh nodes cmd $NODE.$ZONE commands;beehive ssh nodes cmd <uuid> script-ssh-test.sh -e <env>",
         arguments=ARGS(
             [
                 (
@@ -352,8 +357,8 @@ class SshNodeController(SshControllerChild):
         node = self.cmp_get(uri).get("node", {})
 
         cmds = load_config(cmd).split("\n")
-
-        self.__node_run_cmds(scm, node, user, cmds)
+        timeout = None
+        self.__node_run_cmds(scm, node, user, cmds, timeout=timeout)
 
         # for cmd in cmds:
         #     res = scm.sshcmd2node(node=node, user=user, cmd=cmd)
@@ -367,6 +372,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="get node admin user password",
         description="get node admin user password",
+        example="beehive ssh nodes admin-password-get <uuid>;beehive ssh nodes admin-password-get ",
         arguments=PARGS(
             [
                 (["id"], {"help": "node id", "action": "store", "type": str}),
@@ -451,6 +457,7 @@ class SshNodeController(SshControllerChild):
     @ex(
         help="set node user password",
         description="set node user password",
+        example="beehive ssh nodes user-password-set",
         arguments=ARGS(
             [
                 (["id"], {"help": "node id", "action": "store", "type": str}),
@@ -510,6 +517,7 @@ class SshNodeAuthController(SshControllerChild):
     @ex(
         help="get node roles",
         description="get node roles",
+        example="beehive ssh nodes-auth role-get <uuid>;beehive ssh nodes-auth role-get <uuid>",
         arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
     )
     def role_get(self):
@@ -521,6 +529,7 @@ class SshNodeAuthController(SshControllerChild):
     @ex(
         help="get node users",
         description="get node users",
+        example="beehive ssh nodes-auth user-get;beehive ssh nodes-auth user-get <uuid>",
         arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
     )
     def user_get(self):
@@ -538,6 +547,7 @@ class SshNodeAuthController(SshControllerChild):
     @ex(
         help="add node role to a user",
         description="add node role to a user",
+        example="beehive ssh nodes-auth user-add <uuid> connect.root abd.def@ghi.lmn -e <env>;beehive ssh nodes-auth user-add <uuid> connect.root abc.def@ghi.lmno",
         arguments=ARGS(
             [
                 (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
@@ -590,6 +600,7 @@ class SshNodeAuthController(SshControllerChild):
     @ex(
         help="get node groups",
         description="get node groups",
+        example="beehive ssh nodes-auth group-get <uuid>;beehive ssh nodes-auth group-get <uuid>",
         arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
     )
     def group_get(self):
@@ -607,6 +618,7 @@ class SshNodeAuthController(SshControllerChild):
     @ex(
         help="add node role to a group",
         description="add node role to a group",
+        example="beehive ssh nodes-auth group-add <uuid> connect.root GR-sdptoolc-jv-sdpqueryapi;beehive ssh nodes-auth group-add <uuid> connect.root GR-sdptoolc-jv-sdpqueryapi",
         arguments=ARGS(
             [
                 (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
@@ -691,6 +703,7 @@ class SshNodeActionController(SshControllerChild):
     @ex(
         help="get nodes actions",
         description="get nodes actions",
+        example="beehive ssh nodes-action get <uuid> -date 2021.05.04 -size 100;beehive ssh nodes-action get <uuid> -date 2021.04.31 -size -1",
         arguments=PARGS(
             [
                 (
@@ -737,6 +750,7 @@ class SshNodeFileController(SshControllerChild):
     @ex(
         help="copy file to node",
         description="copy file to node",
+        example="beehive ssh nodes-files put dbs-reflex-prd-001m.site01.nivolapiemonte.it /home/DOMNT/2067/indire/filebeat.yml /etc/filebeat/filebeat.yml;beehive ssh nodes-files put <uuid> /home/DOMNT/2067/esenzione/filebeat.yml /etc/filebeat/filebeat.yml",
         arguments=ARGS(
             [
                 (["id"], {"help": "node uuid", "action": "store", "type": str}),
@@ -746,7 +760,7 @@ class SshNodeFileController(SshControllerChild):
                         "help": "connection user [default=root]",
                         "action": "store",
                         "type": str,
-                        "default": "root",
+                        "default": None,
                     },
                 ),
                 (
@@ -777,6 +791,7 @@ class SshNodeFileController(SshControllerChild):
     @ex(
         help="copy file from node",
         description="copy file from node",
+        example="beehive ssh nodes-files get w22-gw-apimint.site01.nivolapiemonte.it /appserv/wso2carbon/apim-gateway/wso2am-4.1.0/repository/logs/CSI_audit-08-30-2023.log /home/DOMNT/2067/3/2/CSI_audit-08-30-2023.log;beehive ssh nodes-files get jb2-esenzione.site01.nivolapiemonte.it /etc/filebeat/filebeat.yml /home/DOMNT/2067/esenzione/filebeat.yml",
         arguments=ARGS(
             [
                 (["id"], {"help": "node uuid", "action": "store", "type": str}),
@@ -892,6 +907,7 @@ class SshNodeAnsibleController(SshControllerChild):
     @ex(
         help="get inventory",
         description="get inventory",
+        example="beehive ssh nodes-ansible inventory-get",
         arguments=ARGS(
             [
                 (

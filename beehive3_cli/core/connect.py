@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64decode
 from logging import getLogger
@@ -149,7 +149,11 @@ class SshConnectionManager(object):
             node = node[0]
 
         # get ssh user
-        data = {"node_id": node["id"], "username": user}
+        data = {"node_id": node["id"]}
+        if user is not None:
+            # Filter the nodes for user only if it is specified
+            data["username"] = user
+
         uri = "/v1.0/gas/users"
         users = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("users", [])
         if len(users) == 0:
@@ -157,6 +161,7 @@ class SshConnectionManager(object):
 
         user = users[0]
 
+        # passwd is password enter by user
         if passwd is not None:
             key_string = None
             key_file = None
@@ -232,9 +237,11 @@ class SshConnectionManager(object):
         :param key_string: private ssh key string [optional]
         :return:
         """
-        # get ssh ksy
+        # get ssh key
         if key_file is None and key_string is None:
-            data = {"node_id": node["id"], "username": user}
+            data = {"node_id": node["id"]}
+            if user is not None:
+                data["username"] = user
             uri = "/v1.0/gas/users"
             res = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("users")
             res_users = {i["username"]: i for i in res}
@@ -242,6 +249,7 @@ class SshConnectionManager(object):
                 raise Exception("no valid user found")
 
             data = {"user_id": res[0]["id"]}
+            user = res[0]["username"]
             uri = "/v1.0/gas/keys"
             key = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("keys", [])
             if len(key) == 0:
@@ -334,6 +342,7 @@ class SshConnectionManager(object):
             self.__node_post_action(ssh_session_id, node, user, key, status=status, cmd=cmd, elapsed=elapsed)
 
         ip_address, port = self.__get_ipaddress(node)
+        gateway = self.__get_gateway(node)
         client = ParamikoShell(
             ip_address,
             user,
@@ -343,6 +352,7 @@ class SshConnectionManager(object):
             pre_login=pre_login,
             post_logout=post_logout,
             post_action=post_action,
+            tunnel=gateway,
         )
 
         client.open_file(filename)

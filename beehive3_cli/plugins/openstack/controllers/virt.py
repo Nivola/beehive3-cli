@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64decode
 from six import ensure_text
@@ -102,6 +102,7 @@ class VirshPlatformController(BaseController):
     @ex(
         help="get libvirt hosts",
         description="get libvirt hosts",
+        example="beehive platform virsh hosts -e <env>",
         arguments=OPENSTACK_ARGS(),
     )
     def hosts(self):
@@ -141,6 +142,7 @@ class VirshPlatformController(BaseController):
     @ex(
         help="get libvirt host domains",
         description="get libvirt host domains",
+        example="beehive platform virsh domain-get -e <env>;beehive platform virsh domain-get",
         arguments=OPENSTACK_ARGS(
             [
                 (["hostip"], {"help": "host ip", "action": "store", "type": str}),
@@ -471,6 +473,7 @@ class VirshPlatformController(BaseController):
     @ex(
         help="get libvirt host domains",
         description="get libvirt host domains",
+        example="beehive platform virsh domain-get -e <env>;beehive platform virsh domain-get",
         arguments=OPENSTACK_ARGS(
             [
                 (["hostip"], {"help": "host ip", "action": "store", "type": str}),

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from json import loads
 from ipaddress import ip_address, ip_network
@@ -497,6 +497,8 @@ class LoadBalancerAdminController(AdminChildController):
             raise AdminError("unable to get site network, import failed")
         site_network_name = splits[2]
         site_network_name = site_network_name[::-1]
+        res = self.api.resource.provider.site_network.get(site_network_name)
+        site_network_id = res.get("id")
 
         # get compute zone
         data = {"account_id": self.account, "flag_container": True, "plugintype": "NetworkService"}
@@ -517,7 +519,7 @@ class LoadBalancerAdminController(AdminChildController):
 
         virtual_server = self.lb_data.get("virtual_server")
         res_name = virtual_server.get("name")
-        res_params = {"compute_zone": compute_zone, "site_network": site_network_name}
+        res_params = {"compute_zone": compute_zone, "site_network": site_network_id}
         res_params.update(self.lb_data)
         resource_id = self.api.resource.provider.load_balancer.load("ResourceProvider01", res_name, **res_params)
         return resource_id
@@ -571,6 +573,17 @@ class LoadBalancerAdminController(AdminChildController):
         if self.uplink_vnic is None:
             vs_ip_addr = dict_get(self.lb_data, "virtual_server.ipAddress")
             self.get_uplink_vnic(vs_ip_addr)
+        else:
+            self.lb_data["vnic"].update(
+                {
+                    "uplink": {
+                        "index": self.uplink_vnic.get("index"),
+                        "primary_ip": self.uplink_vnic.get("addressGroups.addressGroup.primaryAddress"),
+                        "prefix": self.uplink_vnic.get("addressGroups.addressGroup.subnetPrefixLength"),
+                        "portgroup_name": self.uplink_vnic.get("portgroupName"),
+                    }
+                }
+            )
 
     def import_srv_health_monitor(self):
         """Import health monitor as service instance

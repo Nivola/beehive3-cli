@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from re import compile
 from os import path, listdir
@@ -111,7 +111,7 @@ class CostomizeManager(object):
         configs = filter(lambda x: x.get(key, None) == value, configs)
         dict_set(self.configs, entity, configs)
 
-    def run(self, sections):
+    def run(self, sections, dry=True):
         # replace section values
         new_apply = sections
         if new_apply is not None:
@@ -121,4 +121,5 @@ class CostomizeManager(object):
 
         for plugin in self.plugins:
             plugin_runner = plugin(self)
-            res = plugin_runner.run(self.configs)
+            # print("plugin_runner: %s" % plugin_runner)
+            res = plugin_runner.run(self.configs, dry)

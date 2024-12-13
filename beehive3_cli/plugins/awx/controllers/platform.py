@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from time import sleep
@@ -145,6 +145,7 @@ class AwxPlatformController(BaseController):
     @ex(
         help="get inventories",
         description="get inventories",
+        example="beehive platform awx inventory-get;beehive platform awx inventory-get ",
         arguments=AWX_ARGS(
             [
                 (
@@ -738,6 +739,7 @@ class AwxPlatformController(BaseController):
     @ex(
         help="get jobs",
         description="get jobs",
+        example="beehive platform awx job-get -id #### -e <env>;beehive platform awx job-get",
         arguments=AWX_ARGS(
             [
                 (
@@ -778,6 +780,7 @@ class AwxPlatformController(BaseController):
                     "started",
                     "finished",
                     "elapsed",
+                    "job_tags",
                 ],
             )
 
@@ -800,6 +803,7 @@ class AwxPlatformController(BaseController):
     @ex(
         help="get job stdout",
         description="get job stdout",
+        example="beehive platform awx job-stdout #### ;beehive platform awx job-stdout #### ",
         arguments=AWX_ARGS(
             [
                 (
@@ -1362,6 +1366,7 @@ class AwxPlatformController(BaseController):
     @ex(
         help="get projects",
         description="get projects",
+        example="beehive platform awx project-get ;beehive platform awx project-get ",
         arguments=AWX_ARGS(
             [
                 (
@@ -1382,6 +1387,15 @@ class AwxPlatformController(BaseController):
                         "default": None,
                     },
                 ),
+                (
+                    ["-search"],
+                    {
+                        "help": "search",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
@@ -1392,8 +1406,13 @@ class AwxPlatformController(BaseController):
 
             if self.is_output_text():
                 res.pop("related", None)
-                res.pop("summary_fields", None)
+                summary_fields = res.pop("summary_fields", None)
+                default_environment = summary_fields.pop("default_environment", None)
                 self.app.render(res, details=True)
+
+                if default_environment is not None:
+                    self.c("\ndefault environment", "underline")
+                    self.app.render(default_environment, details=True)
 
                 self.c("\njobs", "underline")
                 jobs = self.client.project.job.list(project=oid)
@@ -1413,11 +1432,12 @@ class AwxPlatformController(BaseController):
                 self.app.render(res, details=True)
         else:
             name = self.app.pargs.name
+            search = self.app.pargs.search
             size = self.app.pargs.size
             page = self.app.pargs.page
             if page == 0:
                 page = 1
-            res = self.client.project.list(name=name, page_size=size, page=page)
+            res = self.client.project.list(name=name, page_size=size, page=page, search=search)
             self.app.render(
                 res,
                 headers=[
@@ -1501,6 +1521,15 @@ class AwxPlatformController(BaseController):
                         "default": True,
                     },
                 ),
+                (
+                    ["-default_environment"],
+                    {
+                        "help": "default environment",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
@@ -1512,15 +1541,21 @@ class AwxPlatformController(BaseController):
         scm_type = self.app.pargs.scm_type
         scm_branch = self.app.pargs.scm_branch
         scm_update_on_launch = self.app.pargs.scm_update_on_launch
-        res = self.client.project.add(
-            name,
-            organization=organization,
-            scm_type=scm_type,
-            scm_url=scm_url,
-            scm_branch=scm_branch,
-            credential=credential,
-            scm_update_on_launch=scm_update_on_launch,
-        )
+        default_environment = self.app.pargs.default_environment
+
+        params = {
+            "organization": organization,
+            "scm_type": scm_type,
+            "scm_url": scm_url,
+            "scm_branch": scm_branch,
+            "credential": credential,
+            "scm_update_on_launch": scm_update_on_launch,
+        }
+
+        if default_environment is not None:
+            params.update({"default_environment": default_environment})
+
+        res = self.client.project.add(name, **params)
         project = res["id"]
         self.app.render({"msg": "add project %s" % project})
 
@@ -1549,6 +1584,7 @@ class AwxPlatformController(BaseController):
     @ex(
         help="sync project",
         description="sync project",
+        example="beehive platform awx project-sync ### -e <env>;beehive platform awx project-sync ###",
         arguments=AWX_ARGS(
             [
                 (
@@ -1862,8 +1898,8 @@ class AwxPlatformController(BaseController):
         #     'p_mysql_db_type': 'default',
         #     'p_mysql_root_username': 'root',
         #     'p_mysql_root_password': 'nnn',
-        #     'p_ip_repository': '10.138.208.15',
-        #     'p_proxy_server': 'http://10.138.213.7:3128'
+        #     'p_ip_repository': '###.###.###.###',
+        #     'p_proxy_server': 'http://###.###.###.###:3128'
         # }
 
         extra_vars = {}
@@ -1907,3 +1943,47 @@ class AwxPlatformController(BaseController):
         oid = self.app.pargs.id
         self.client.job_template.delete(oid)
         self.app.render({"msg": "delete template %s" % oid}, headers=["msg"])
+
+    # Execution Environments
+    @ex(
+        help="get execution environments",
+        description="get execution environments",
+        example="",
+        arguments=AWX_ARGS(
+            [
+                (
+                    ["-id"],
+                    {"help": "job id", "action": "store", "type": str, "default": None},
+                ),
+            ]
+        ),
+    )
+    def execution_environments_get(self):
+        oid = self.app.pargs.id
+        if oid is not None:
+            res = self.client.execution_environments.get(oid)
+
+            if self.is_output_text():
+                self.app.render(res, details=True)
+            else:
+                self.app.render(res, details=True)
+        else:
+            size = self.app.pargs.size
+            page = self.app.pargs.page
+            if page == 0:
+                page = 1
+            res = self.client.execution_environments.list(page_size=size, page=page)
+            self.app.render(
+                res,
+                headers=[
+                    "id",
+                    "name",
+                    # "type",
+                    "image",
+                    "managed",
+                    "organization",
+                    "pull",
+                    "created",
+                    "modified",
+                ],
+            )

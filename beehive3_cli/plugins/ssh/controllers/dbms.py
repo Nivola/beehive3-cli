@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from cement import ex
-from beecell.db import MysqlManager
 from beehive3_cli.core.controller import PARGS
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
 
@@ -80,6 +79,8 @@ class SshDbmsController(SshControllerChild):
         ),
     )
     def ping(self):
+        from beecell.db import MysqlManager
+
         host = self.app.pargs.host
         port = self.app.pargs.port
         user = self.app.pargs.user

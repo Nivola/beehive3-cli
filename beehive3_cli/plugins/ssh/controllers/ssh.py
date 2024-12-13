@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from os import environ
 from re import match
@@ -87,7 +87,7 @@ class SshControllerChild(BaseController):
 
         return res
 
-    def parse_node_id(self, node):
+    def parse_node_id(self, node: str) -> dict:
         """Parse node passed and extract name or ip or uuid
 
         :return: dict like {'host_id': .., 'host_ip': .., 'host_name': ..}

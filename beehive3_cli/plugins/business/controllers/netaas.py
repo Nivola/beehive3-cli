@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
@@ -20,7 +20,8 @@ class NetaaServiceController(BusinessControllerChild):
 
     @ex(
         help="get network service info",
-        description="get network service info",
+        description="This command retrieves network service information for the specified account. The account ID is required to get the info for a particular account. This provides details about the network services configured for that account.",
+        example="beehive bu netaas info openspace;beehive bu netaas info <uuid>",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -38,7 +39,8 @@ class NetaaServiceController(BusinessControllerChild):
 
     @ex(
         help="get network service quotas",
-        description="get network service quotas",
+        description="Get network service quotas. This command retrieves the quotas for network services like bandwidth, connections etc. for a given account id. The required account id argument specifies the account for which the quotas need to be retrieved.",
+        example="beehive bu netaas quotas Acc_demo1_nmsflike -e <env>;beehive bu netaas quotas Acc-deomo1-nmsflike -e <env>",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -62,7 +64,8 @@ class NetaaServiceController(BusinessControllerChild):
 
     @ex(
         help="get network service availibility zones",
-        description="get network service availibility zones",
+        description="This command is used to get the network service availability zones for a given account id. The account id is a required argument that must be provided to retrieve the availability zones.",
+        example="beehive bu netaas availability-zones openspace",
         arguments=ARGS(
             [
                 (["account"], {"help": "account id", "action": "store", "type": str}),
@@ -91,7 +94,8 @@ class VpcNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get private cloud networks",
-        description="get private cloud networks",
+        description="This command is used to get private cloud networks configured in the specified account. It lists all the VPCs along with their IDs and names. The account can be specified using the -account flag followed by the account name. Alternatively, a specific VPC can be fetched by specifying its ID using the -ids flag.",
+        example="beehive bu netaas vpcs list -account silp;beehive bu netaas vpcs list -ids <uuid>",
         arguments=ARGS(
             [
                 (
@@ -158,35 +162,46 @@ class VpcNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/computeservices/vpc/describevpcs" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeVpcsResponse")
-        page = self.app.pargs.page
-        for item in res.get("vpcSet"):
-            item["cidr"] = ["%s" % (i["cidrBlock"]) for i in item["cidrBlockAssociationSet"]]
-            item["cidr"] = ", ".join(item["cidr"])
-        resp = {
-            "count": len(res.get("vpcSet")),
-            "page": page,
-            "total": res.get("nvl-vpcTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("vpcSet"),
-        }
 
-        headers = ["id", "name", "state", "account", "cidr", "subnet_cidrs", "tenancy"]
-        fields = [
-            "vpcId",
-            "nvl-name",
-            "state",
-            "nvl-vpcOwnerAlias",
-            "cidrBlock",
-            "cidr",
-            "instanceTenancy",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=60)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeVpcsResponse")
+            for item in res.get("vpcSet"):
+                item["cidr"] = ["%s" % (i["cidrBlock"]) for i in item["cidrBlockAssociationSet"]]
+                item["cidr"] = ", ".join(item["cidr"])
+            resp = {
+                "count": len(res.get("vpcSet")),
+                "page": page,
+                "total": res.get("nvl-vpcTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("vpcSet"),
+            }
+
+            headers = ["id", "name", "state", "account", "cidr", "subnet_cidrs", "tenancy"]
+            fields = [
+                "vpcId",
+                "nvl-name",
+                "state",
+                "nvl-vpcOwnerAlias",
+                "cidrBlock",
+                "cidr",
+                "instanceTenancy",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=60)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeVpcsResponse.nvl-vpcTotal",
+            key_list_name="DescribeVpcsResponse.vpcSet",
+            fn_render=render,
+        )
 
     @ex(
         help="add virtual private cloud",
-        description="add virtual private cloud",
+        description="This command adds a new virtual private cloud (VPC) to the specified account. It requires the VPC name, account ID and CIDR block as required arguments. Optionally a template can also be provided to apply certain configuration to the new VPC.",
+        example="beehive bu netaas vpcs add VpcPrivate01 xxx ###.###.###.###/21 -template Vpc.Private;beehive bu netaas vpcs add VpcPrivate01 xxx ###.###.###.###/21 -template Vpc.Private",
         arguments=ARGS(
             [
                 (["name"], {"help": "vpc name", "action": "store", "type": str}),
@@ -233,7 +248,8 @@ class VpcNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a vpc",
-        description="delete a vpc",
+        description="This command deletes a VPC (Virtual Private Cloud) by specifying its ID. The VPC ID is a required argument for this command to identify which VPC to delete from the account.",
+        example="beehive bu netaas vpcs delete <uuid> -e <env>;beehive bu netaas vpcs delete <uuid> -e <env>",
         arguments=ARGS(
             [
                 (["vpc"], {"help": "vpc id", "action": "store", "type": str}),
@@ -259,7 +275,8 @@ class VpcNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get vpc templates",
-        description="get vpc templates",
+        description="This command is used to retrieve VPC templates from Nivola Cloud. VPC templates define network configurations that can be used to quickly deploy new VPCs. This command with no arguments will return all available templates. A specific template can be retrieved by providing its unique identifier as an argument.",
+        example="beehive bu netaas vpcs templates <uuid>;beehive bu netaas vpcs templates <uuid>",
         arguments=ARGS(
             [
                 (
@@ -297,7 +314,8 @@ class SubnetNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get vpc subnets",
-        description="get vpc subnets",
+        description="This command is used to get the subnets under a VPC. It lists all the subnets available in the given account. The account can be specified using the -accounts flag with the account name or ID. If no account is specified, it will list subnets for the default account.",
+        example="beehive bu netaas subnets list -accounts Sipal;beehive bu netaas subnets list -account <uuid>",
         arguments=ARGS(
             [
                 (
@@ -365,32 +383,42 @@ class SubnetNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/computeservices/subnet/describesubnets" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeSubnetsResponse")
-        page = self.app.pargs.page
-        resp = {
-            "count": len(res.get("subnetSet")),
-            "page": page,
-            "total": res.get("nvl-subnetTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("subnetSet"),
-        }
 
-        headers = ["id", "name", "state", "account", "availabilityZone", "vpc", "cidr"]
-        fields = [
-            "subnetId",
-            "nvl-name",
-            "state",
-            "nvl-subnetOwnerAlias",
-            "availabilityZone",
-            "nvl-vpcName",
-            "cidrBlock",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeSubnetsResponse")
+            resp = {
+                "count": len(res.get("subnetSet")),
+                "page": page,
+                "total": res.get("nvl-subnetTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("subnetSet"),
+            }
+
+            headers = ["id", "name", "state", "account", "availabilityZone", "vpc", "cidr"]
+            fields = [
+                "subnetId",
+                "nvl-name",
+                "state",
+                "nvl-subnetOwnerAlias",
+                "availabilityZone",
+                "nvl-vpcName",
+                "cidrBlock",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeSubnetsResponse.nvl-subnetTotal",
+            key_list_name="DescribeSubnetsResponse.subnetSet",
+            fn_render=render,
+        )
 
     @ex(
         help="add virtual private cloud subnet",
-        description="add virtual private cloud subnet",
+        description="This command adds a new subnet to an existing VPC. It requires the name of the subnet, ID of the VPC it belongs to, the CIDR block of the subnet, and the availability zone where it will be created.",
         arguments=ARGS(
             [
                 (["name"], {"help": "subnet name", "action": "store", "type": str}),
@@ -431,7 +459,7 @@ class SubnetNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a subnet",
-        description="delete a subnet",
+        description="This command deletes a subnet from the Nivola CMP platform. The subnet id is required as an argument to identify which subnet needs to be deleted from the account. Once deleted, all resources associated with that subnet will be removed permanently.",
         arguments=ARGS(
             [
                 (["subnet"], {"help": "subnet id", "action": "store", "type": str}),
@@ -456,8 +484,9 @@ class SubnetNetServiceController(BusinessControllerChild):
             self.wait_for_service(oid, accepted_state="DELETED")
 
     @ex(
-        help="get vpc templates",
-        description="get vpc templates",
+        help="get subnets templates",
+        description="This command is used to retrieve subnet templates from Nivola Cloud. Subnet templates define network configurations that can be applied when creating new subnets in a business unit's virtual network. The command accepts an optional business unit ID and template ID to filter the results.",
+        example="beehive bu netaas subnets templates <uuid> -id <uuid>;beehive bu netaas subnets templates <uuid>",
         arguments=ARGS(
             [
                 (
@@ -495,7 +524,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get security group templates",
-        description="get security group templates",
+        description="This command is used to retrieve security group templates from Nivola Cloud. Security group templates define a set of rules that can be applied to security groups to control ingress and egress network access. The templates command with no additional arguments will return all available templates. A template ID can also be provided to get details of a specific template.",
+        example="beehive bu netaas securitygroups templates procedo;beehive bu netaas securitygroups templates <uuid>",
         arguments=ARGS(
             [
                 (
@@ -524,7 +554,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create a security group",
-        description="create a security group",
+        description="This CLI command creates a security group with the specified name in the given VPC. It requires the security group name, parent VPC and an optional template ID as arguments.",
+        example="beehive bu netaas securitygroups add-rule ingress <uuid> source CIDR:###.###.###.###/32 -proto tcp -port 80;beehive bu netaas securitygroups add-rule egress <uuid> -dest CIDR:###.###.###.###/32 -proto tcp -port 80",
         arguments=ARGS(
             [
                 (
@@ -552,7 +583,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get security groups",
-        description="get security groups",
+        description="This command is used to retrieve and display the list of security groups associated with the current AWS account. Security groups act as a virtual firewall that controls the traffic for instances. This allows you to specify the protocols and ports that can reach your instances. By listing the security groups, you can view the existing rules and configurations for network access management.",
+        example="beehive bu netaas securitygroups list -accounts airvalidfe;beehive bu netaas securitygroups list -account procedo",
         arguments=ARGS(
             [
                 (
@@ -630,41 +662,51 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/computeservices/securitygroup/describesecuritygroups" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeSecurityGroupsResponse", {})
-        page = self.app.pargs.page
 
-        for item in res.get("securityGroupInfo"):
-            item["egress_rules"] = len(item["ipPermissionsEgress"])
-            item["ingress_rules"] = len(item["ipPermissions"])
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeSecurityGroupsResponse", {})
 
-        resp = {
-            "count": len(res.get("securityGroupInfo")),
-            "page": page,
-            "total": res.get("nvl-securityGroupTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("securityGroupInfo"),
-        }
+            for item in res.get("securityGroupInfo"):
+                item["egress_rules"] = len(item["ipPermissionsEgress"])
+                item["ingress_rules"] = len(item["ipPermissions"])
 
-        headers = [
-            "id",
-            "name",
-            "state",
-            "account",
-            "vpc",
-            "egress_rules",
-            "ingress_rules",
-        ]
-        fields = [
-            "groupId",
-            "groupName",
-            "nvl-state",
-            "nvl-sgOwnerAlias",
-            "nvl-vpcName",
-            "egress_rules",
-            "ingress_rules",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("securityGroupInfo")),
+                "page": page,
+                "total": res.get("nvl-securityGroupTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("securityGroupInfo"),
+            }
+
+            headers = [
+                "id",
+                "name",
+                "state",
+                "account",
+                "vpc",
+                "egress_rules",
+                "ingress_rules",
+            ]
+            fields = [
+                "groupId",
+                "groupName",
+                "nvl-state",
+                "nvl-sgOwnerAlias",
+                "nvl-vpcName",
+                "egress_rules",
+                "ingress_rules",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeSecurityGroupsResponse.nvl-securityGroupTotal",
+            key_list_name="DescribeSecurityGroupsResponse.securityGroupInfo",
+            fn_render=render,
+        )
 
     def __format_rule(self, rules):
         for rule in rules:
@@ -692,7 +734,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get security group with rules",
-        description="get security group with rules",
+        description="This command retrieves the security group details including its rules. The security group id is required as an argument to fetch the specific security group details.",
+        example="beehive bu netaas securitygroups get <uuid>;beehive bu netaas securitygroups get <uuid>",
         arguments=ARGS(
             [
                 (
@@ -751,7 +794,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="patch a security group",
-        description="patch a security group",
+        description="This CLI command patches or updates an existing security group in Nivola Cloud. It requires the security group ID as the only required argument to identify which security group to update. This allows modifying attributes of the security group like its name, description or rules.",
+        example="beehive bu netaas securitygroups patch",
         arguments=ARGS(
             [
                 (
@@ -771,7 +815,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a security group",
-        description="delete a security group",
+        description="This command deletes a security group. It requires the security group ID as the only required argument. The -y flag confirms deletion and -e <env> provides an environment name if multiple environments exist.",
+        example="beehive bu netaas securitygroups delete <uuid> -y;beehive bu netaas securitygroups delete <uuid> -e <env>",
         arguments=ARGS(
             [
                 (
@@ -794,7 +839,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="add a security group rule",
-        description="add a security group rule",
+        description="This command allows you to add a new rule to an existing security group. You need to specify whether it is an egress or ingress rule by providing the 'type' argument. For egress rules, you also need to specify the destination using '-destination' flag and for ingress rules, you need to specify the source using '-source' flag. The 'securitygroup' argument is used to specify the security group id to which the rule needs to be added.",
+        example="beehive bu netaas securitygroups add-rule ingress <uuid> -source SG:<uuid> --curl -e <env>;beehive bu netaas securitygroups add-rule ingress <uuid> -source CIDR:###.###.###.###/32 -proto tcp -port 20443",
         arguments=ARGS(
             [
                 (
@@ -834,7 +880,7 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
                     ["-dest"],
                     {
                         "help": "rule destination. Syntax <type>:<value>. Destination type can be SG, CIDR. For SG "
-                        "value must be <sg_id>. For CIDR value should like 10.102.167.0/24.",
+                        "value must be <sg_id>. For CIDR value should like ###.###.###.###/24.",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -844,7 +890,7 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
                     ["-source"],
                     {
                         "help": "rule source. Syntax <type>:<value>. Source type can be SG, CIDR. For SG "
-                        "value must be <sg_id>. For CIDR value should like 10.102.167.0/24.",
+                        "value must be <sg_id>. For CIDR value should like ###.###.###.###/24.",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -911,7 +957,8 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a security group rule",
-        description="delete a security group rule",
+        description="Delete a security group rule. This requires specifying the rule type (egress or ingress), the security group id, and optionally the source/destination, protocol and port details of the rule to delete.",
+        example="beehive bu netaas securitygroups del-rule ingress <uuid> -source CIDR:###.###.###.###/32 -proto tcp -port '10050'-'10051';beehive bu netaas securitygroups del-rule egress <uuid> -dest CIDR:###.###.###.###/32 -e <env>",
         arguments=ARGS(
             [
                 (
@@ -951,7 +998,7 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
                     ["-dest"],
                     {
                         "help": "rule destination. Syntax <type>:<value>. Destination type can be SG, CIDR. For SG "
-                        "value must be <sg_id>. For CIDR value should like 10.102.167.0/24.",
+                        "value must be <sg_id>. For CIDR value should like ###.###.###.###/24.",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -961,7 +1008,7 @@ class SecurityGroupNetServiceController(BusinessControllerChild):
                     ["-source"],
                     {
                         "help": "rule source. Syntax <type>:<value>. Source type can be SG, CIDR. For SG "
-                        "value must be <sg_id>. For CIDR value should like 10.102.167.0/24.",
+                        "value must be <sg_id>. For CIDR value should like ###.###.###.###/24.",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1038,7 +1085,7 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get gateway templates",
-        description="get gateway templates",
+        description="This command is used to retrieve gateway templates from Nivola Cloud. Gateway templates define the configuration of internet gateways that can be attached to VPC networks to provide internet access to instances. By calling this command without any arguments, it will return a list of all available gateway templates that can be used when creating new internet gateways.",
         arguments=ARGS(
             [
                 (
@@ -1067,7 +1114,7 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create a gateway",
-        description="create a gateway",
+        description="This command creates a new internet gateway for the specified account using the provided template id. The account id and template id are required arguments that must be provided to create the gateway using the specified template configuration.",
         arguments=ARGS(
             [
                 (
@@ -1089,12 +1136,14 @@ class GatewayNetServiceController(BusinessControllerChild):
             data["Nvl_GatewayType"] = gateway_type
         uri = "%s/networkservices/gateway/createinternetgateway" % self.baseuri
         res = self.cmp_post(uri, data={"gateway": data}, timeout=600)
-        res = dict_get(res, "CreateInternetGatewayResponse.internetGateway.internetGatewayId")
-        self.app.render({"msg": "add gateway %s" % res})
+        uuid = dict_get(res, "CreateInternetGatewayResponse.internetGateway.internetGatewayId")
+        self.wait_for_service(uuid)
+        self.app.render({"msg": "add gateway %s" % uuid})
 
     @ex(
         help="get gateways",
-        description="get gateways",
+        description="This command is used to retrieve a list of all internet gateways associated with the current account. An internet gateway is a horizontally scaled, redundant, and highly available VPC component that allows communication between instances in your VPC and the Internet. It therefore provides a path for internet-bound traffic to leave your VPC, and a path for internet-sourced traffic to enter your VPC.",
+        example="beehive bu netaas internet-gateways list -accounts EleWebRDE;beehive bu netaas internet-gateways list -size 0 ",
         arguments=ARGS(
             [
                 (
@@ -1161,41 +1210,52 @@ class GatewayNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/networkservices/gateway/describeinternetgateways" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeInternetGatewaysResponse", {})
-        page = self.app.pargs.page
 
-        resp = {
-            "count": len(res.get("internetGatewaySet")),
-            "page": page,
-            "total": res.get("nvl-internetGatewayTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("internetGatewaySet"),
-        }
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeInternetGatewaysResponse", {})
 
-        headers = [
-            "id",
-            "name",
-            "state",
-            "account",
-            "internal-vpc",
-            "external-ip-address",
-            "bastion",
-        ]
-        fields = [
-            "internetGatewayId",
-            "nvl-name",
-            "nvl-state",
-            "nvl-ownerAlias",
-            "attachmentSet.0.VpcSecurityGroupMembership.nvl-vpcName",
-            "nvl-external_ip_address",
-            "nvl-bastion",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("internetGatewaySet")),
+                "page": page,
+                "total": res.get("nvl-internetGatewayTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("internetGatewaySet"),
+            }
+
+            headers = [
+                "id",
+                "name",
+                "state",
+                "account",
+                "internal-vpc",
+                "external-ip-address",
+                "bastion",
+            ]
+            fields = [
+                "internetGatewayId",
+                "nvl-name",
+                "nvl-state",
+                "nvl-ownerAlias",
+                "attachmentSet.0.VpcSecurityGroupMembership.nvl-vpcName",
+                "nvl-external_ip_address",
+                "nvl-bastion",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeInternetGatewaysResponse.nvl-internetGatewayTotal",
+            key_list_name="DescribeInternetGatewaysResponse.internetGatewaySet",
+            fn_render=render,
+        )
 
     @ex(
         help="get gateway",
-        description="get gateway",
+        description="This command retrieves information about an existing internet gateway in the specified business unit. The gateway ID is required to identify the specific gateway to retrieve details for.",
+        example="beehive bu netaas internet-gateways get nuvolaweb;beehive bu netaas internet-gateways get <uuid>",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1225,7 +1285,7 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="patch a gateway",
-        description="patch a gateway",
+        description="This command patches or updates a gateway. It requires the gateway ID as the only required argument to identify which gateway to update. The gateway fields can then be modified as needed through additional arguments or options and committed with this command.",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1242,7 +1302,7 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a gateway",
-        description="delete a gateway",
+        description="This command deletes an internet gateway from your account. You need to provide the ID of the gateway you want to delete as the only required argument 'gateway'.",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1253,12 +1313,16 @@ class GatewayNetServiceController(BusinessControllerChild):
         oid = self.app.pargs.gateway
         data = {"InternetGatewayId": oid}
         uri = "%s/networkservices/gateway/deleteinternetgateway" % self.baseuri
-        self.cmp_delete(uri, data=data, timeout=600, entity="gateway %s" % oid)
-        self.wait_for_service(oid, accepted_state="DELETED")
+        entity = "Internet Gateway %s" % oid
+        res = self.cmp_delete(uri, data=data, timeout=600, entity=entity, output=False)
+        if res is not None:
+            state = self.wait_for_service(oid, accepted_state="DELETED")
+            if state == "DELETED":
+                print("%s deleted" % entity)
 
     @ex(
         help="attach vpc from gateway",
-        description="attach vpc from gateway",
+        description="This command attaches a VPC to an internet gateway. It requires the gateway ID and VPC ID as arguments to specify which gateway and VPC to attach. Attaching a VPC to an internet gateway enables access to the internet for instances in the VPC.",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1277,7 +1341,7 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="detach vpc from gateway",
-        description="detach vpc from gateway",
+        description="This command detaches a VPC from an internet gateway. It requires the gateway ID and VPC ID as arguments to identify which gateway and VPC to detach. Detaching a VPC from its internet gateway will remove the public internet access to resources in the VPC like EC2 instances.",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1296,7 +1360,8 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get gateway bastion",
-        description="get gateway bastion",
+        description="This command retrieves the bastion details of an internet gateway. The gateway id is required to identify the specific gateway to retrieve the bastion details from. The gateway id can be found using the internet-gateways list command.",
+        example="beehive bu netaas internet-gateways bastion-get InternetGateway-458f7a0188;beehive bu netaas internet-gateways bastion-get <uuid>",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1317,7 +1382,8 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create a gateway bastion",
-        description="create a gateway bastion",
+        description="This command creates a bastion host for the specified internet gateway. A bastion host allows secure inbound access to private subnets from the public internet and helps manage and maintain resources within private subnets.",
+        example="beehive bu netaas internet-gateways bastion-add InternetGateway-458f7a0188;beehive bu netaas internet-gateways bastion-add InternetGateway-458f7a0188",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1338,7 +1404,8 @@ class GatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a gateway bastion",
-        description="delete a gateway bastion",
+        description="This command deletes a bastion host associated with an internet gateway. It requires the gateway id as the only required argument to identify the gateway and bastion host to delete.",
+        example="beehive bu netaas internet-gateways bastion-del InternetGateway-458f7a0188;beehive bu netaas internet-gateways bastion-delete InternetGateway-458f7a0188",
         arguments=ARGS(
             [
                 (["gateway"], {"help": "gateway id", "action": "store", "type": str}),
@@ -1371,7 +1438,7 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get health monitor templates",
-        description="get health monitor templates",
+        description="This command is used to retrieve all the available health monitor templates that can be used to configure health monitors for load balancers. Health monitors are used to check the health status of backend servers in a load balancer pool. Templates define common configurations that can be selected while creating new health monitors. This command lists all the predefined templates without any parameters.",
         arguments=ARGS(
             [
                 (
@@ -1400,7 +1467,7 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
 
     @ex(
         help="list health monitors",
-        description="list health monitors",
+        description="This command is used to list all the configured health monitors in the Nivola CMP Bu Netaas platform. Health monitors are used to check the health and availability of backend servers, load balancers, applications etc. This command will display the name, type, delay, timeout and other configuration details of all the existing health monitors.",
         arguments=ARGS(
             [
                 (
@@ -1467,51 +1534,61 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/networkservices/loadbalancer/healthmonitor/describehealthmonitors" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeHealthMonitorsResponse", {})
-        page = self.app.pargs.page
 
-        resp = {
-            "count": len(res.get("healthMonitorSet")),
-            "page": page,
-            "total": res.get("healthMonitorTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("healthMonitorSet"),
-        }
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeHealthMonitorsResponse", {})
 
-        headers = [
-            "uuid",
-            "name",
-            "state",
-            "predefined",
-            "account",
-            "protocol",
-            "interval",
-            "timeout",
-            "max_retries",
-            "method",
-            "uri",
-            "expected",
-        ]
-        fields = [
-            "healthMonitorId",
-            "name",
-            "state",
-            "predefined",
-            "nvl-ownerAlias",
-            "protocol",
-            "interval",
-            "timeout",
-            "maxRetries",
-            "method",
-            "requestURI",
-            "expected",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("healthMonitorSet")),
+                "page": page,
+                "total": res.get("healthMonitorTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("healthMonitorSet"),
+            }
+
+            headers = [
+                "uuid",
+                "name",
+                "state",
+                "predefined",
+                "account",
+                "protocol",
+                "interval",
+                "timeout",
+                "max_retries",
+                "method",
+                "uri",
+                "expected",
+            ]
+            fields = [
+                "healthMonitorId",
+                "name",
+                "state",
+                "predefined",
+                "nvl-ownerAlias",
+                "protocol",
+                "interval",
+                "timeout",
+                "maxRetries",
+                "method",
+                "requestURI",
+                "expected",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeHealthMonitorsResponse.healthMonitorTotal",
+            key_list_name="DescribeHealthMonitorsResponse.healthMonitorSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get health monitor",
-        description="get health monitor",
+        description="This command is used to retrieve details of a specific health monitor configured in Nivola Cloud. It requires the unique identifier or name of the health monitor as an argument. The details returned include configuration parameters like type of health check, interval, timeout etc. This helps to view the configuration of any existing health monitor to check/troubleshoot its working.",
         arguments=ARGS(
             [
                 (["id"], {"help": "health monitor uuid or name", "action": "store", "type": str}),
@@ -1536,7 +1613,7 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create health monitor",
-        description="create health monitor",
+        description="This command is used to create a new health monitor. It requires the monitor name, parent account id, protocol used to perform targets health check, health monitor description, interval in seconds in which a server is to be tested, maximum time in seconds in which a response from the server must be received, maximum number of times the server is tested before it is declared down, method to send the health check request to the server, url to get or post, and expected string as required arguments.",
         arguments=ARGS(
             [
                 (["name"], {"help": "monitor name", "action": "store", "type": str}),
@@ -1640,7 +1717,7 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
 
     @ex(
         help="update health monitor",
-        description="update health monitor",
+        description="This command updates an existing health monitor on Nivola Cloud. It requires the health monitor ID and allows updating the interval, timeout, max retries, method, url and expected values of the health monitor through the required arguments.",
         arguments=ARGS(
             [
                 (["id"], {"help": "health monitor id", "action": "store", "type": str}),
@@ -1715,7 +1792,7 @@ class HealthMonitorNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete health monitors",
-        description="delete health monitors",
+        description="This command deletes health monitors from the configured BEEHIVE instance. The 'ids' argument requires a comma separated list of the IDs of the health monitors to delete as input. Upon successful deletion, no output is returned.",
         arguments=ARGS(
             [
                 (
@@ -1750,7 +1827,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get target group templates",
-        description="get target group templates",
+        description="This command is used to retrieve target group templates from Nivola Cloud. Target group templates define the configuration for target groups, which are used to route and load balance traffic in Nivola Cloud. This command will return the available target group templates that can be used when creating a new target group.",
         arguments=ARGS(
             [
                 (
@@ -1779,7 +1856,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="list target groups",
-        description="list target groups",
+        description="This command is used to list all the target groups configured for the beehive application. Target groups in AWS refer to groups of targets (instances) that route traffic in an Application Load Balancer. This command will retrieve and display the names of all target groups associated with the specified beehive application.",
         arguments=ARGS(
             [
                 (
@@ -1846,43 +1923,53 @@ class TargetGroupNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/networkservices/loadbalancer/targetgroup/describetargetgroups" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeTargetGroupsResponse", {})
-        page = self.app.pargs.page
 
-        resp = {
-            "count": len(res.get("targetGroupSet")),
-            "page": page,
-            "total": res.get("targetGroupTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("targetGroupSet"),
-        }
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeTargetGroupsResponse", {})
 
-        headers = [
-            "uuid",
-            "name",
-            "state",
-            "account",
-            "balancing_algorithm",
-            "target_type",
-            "N.targets",
-            "health_monitor",
-        ]
-        fields = [
-            "targetGroupId",
-            "name",
-            "state",
-            "nvl-ownerAlias",
-            "balancingAlgorithm",
-            "targetType",
-            "attachmentSet.TargetSet.totalTargets",
-            "attachmentSet.HealthMonitor.name",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("targetGroupSet")),
+                "page": page,
+                "total": res.get("targetGroupTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("targetGroupSet"),
+            }
+
+            headers = [
+                "uuid",
+                "name",
+                "state",
+                "account",
+                "balancing_algorithm",
+                "target_type",
+                "N.targets",
+                "health_monitor",
+            ]
+            fields = [
+                "targetGroupId",
+                "name",
+                "state",
+                "nvl-ownerAlias",
+                "balancingAlgorithm",
+                "targetType",
+                "attachmentSet.TargetSet.totalTargets",
+                "attachmentSet.HealthMonitor.name",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeTargetGroupsResponse.targetGroupTotal",
+            key_list_name="DescribeTargetGroupsResponse.targetGroupSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get target group",
-        description="get target group",
+        description="This command is used to retrieve information about a specific target group configured in Nivola CMP. The target group is identified either by its UUID or name. The 'id' argument is required and should contain the target group identifier to fetch details for a particular target group.",
         arguments=ARGS(
             [
                 (["id"], {"help": "target group uuid or name", "action": "store", "type": str}),
@@ -1963,7 +2050,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create empty target group",
-        description="create empty target group",
+        description="This command adds a target group to Nivola CMP. A target group contains a collection of targets (VMs or containers) that can receive traffic from Elastic Load Balancers. It requires specifying the target group name, parent account ID, load balancing algorithm, target type, and optionally a description and health monitor ID.",
         arguments=ARGS(
             [
                 (
@@ -2043,7 +2130,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="update target group",
-        description="update target group",
+        description="This command updates a target group in Nivola CMP. The required arguments are the target group id to update (-id), the new target group description (-desc) and the load balancing algorithm (-balancing_algorithm) to use among the target group targets.",
         arguments=ARGS(
             [
                 (["id"], {"help": "target group id", "action": "store", "type": str}),
@@ -2098,7 +2185,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete target groups",
-        description="delete target groups",
+        description="This command deletes target groups from the Nivola CMP platform. The 'ids' argument is required and expects a comma separated list of target group IDs to delete.",
         arguments=ARGS(
             [
                 (
@@ -2121,7 +2208,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="register targets with target group",
-        description="register targets with target group",
+        description="This command registers targets with a target group. It requires the target group id and a comma separated list of target identifiers and port mappings in the format <target_id>:<lb_port> or <target_id>:<target_port>:<hm_port>.",
         arguments=ARGS(
             [
                 (["id"], {"help": "target group id", "action": "store", "type": str}),
@@ -2167,7 +2254,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="deregister targets from target group",
-        description="deregister targets from target group",
+        description="This command deregisters targets from a target group. It requires the target group id and a comma separated list of target ids as arguments. The targets will be removed from load balancing of the target group.",
         arguments=ARGS(
             [
                 (["id"], {"help": "target group id", "action": "store", "type": str}),
@@ -2205,7 +2292,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="register health monitor with target group",
-        description="register health monitor with target group",
+        description="This command registers a health monitor with a target group. It requires the target group id and health monitor id as required arguments to associate the health check with the target group.",
         arguments=ARGS(
             [
                 (["id"], {"help": "target group id", "action": "store", "type": str}),
@@ -2231,7 +2318,7 @@ class TargetGroupNetServiceController(BusinessControllerChild):
 
     @ex(
         help="deregister health monitor from target group",
-        description="deregister health monitor from target group",
+        description="This command deregisters a health monitor from a target group. It requires the target group ID as the only argument to identify which target group's health monitor will be deregistered.",
         arguments=ARGS([(["id"], {"help": "target group id", "action": "store", "type": str})]),
     )
     def health_monitor_deregister(self):
@@ -2291,7 +2378,7 @@ class ListenerNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get listener templates",
-        description="get listener templates",
+        description="This command is used to retrieve listener templates configured in Nivola Cloud. Listener templates define the frontend configuration for load balancers and application delivery controllers in Nivola Cloud. The command does not require any arguments as it will return all available listener templates by default. These templates can then be selected when creating a new listener on a load balancer or ADC to simplify configuration of common scenarios like HTTP, HTTPS or TCP load balancing.",
         arguments=ARGS(
             [
                 (
@@ -2320,7 +2407,7 @@ class ListenerNetServiceController(BusinessControllerChild):
 
     @ex(
         help="list listeners",
-        description="list listeners",
+        description="This command lists all the configured listeners for the Nivola CMP application running on Nivola Cloud. Listeners allow incoming connections from external clients or services and are configured during application deployment to expose specific ports. This command displays the listener name, port and protocol of each active listener without any other output.",
         arguments=ARGS(
             [
                 (
@@ -2387,41 +2474,51 @@ class ListenerNetServiceController(BusinessControllerChild):
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/networkservices/loadbalancer/listener/describelisteners" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeListenersResponse", {})
-        page = self.app.pargs.page
 
-        resp = {
-            "count": len(res.get("listenerSet")),
-            "page": page,
-            "total": res.get("listenerTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("listenerSet"),
-        }
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeListenersResponse", {})
 
-        headers = [
-            "uuid",
-            "name",
-            "state",
-            "predefined",
-            "account",
-            "traffic_type",
-            "persistence",
-        ]
-        fields = [
-            "listenerId",
-            "name",
-            "state",
-            "predefined",
-            "nvl-ownerAlias",
-            "trafficType",
-            "persistence.method",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("listenerSet")),
+                "page": page,
+                "total": res.get("listenerTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("listenerSet"),
+            }
+
+            headers = [
+                "uuid",
+                "name",
+                "state",
+                "predefined",
+                "account",
+                "traffic_type",
+                "persistence",
+            ]
+            fields = [
+                "listenerId",
+                "name",
+                "state",
+                "predefined",
+                "nvl-ownerAlias",
+                "trafficType",
+                "persistence.method",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeListenersResponse.listenerTotal",
+            key_list_name="DescribeListenersResponse.listenerSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get listener",
-        description="get listener",
+        description="This command is used to retrieve information about a specific listener configured on the Nivola CMP platform. It requires the unique identifier or name of the listener as the only required argument. The listener details will be displayed upon running this command with a valid listener id or name.",
         arguments=ARGS(
             [
                 (["id"], {"help": "listener uuid or name", "action": "store", "type": str}),
@@ -2446,7 +2543,7 @@ class ListenerNetServiceController(BusinessControllerChild):
 
     @ex(
         help="create listener",
-        description="create listener",
+        description="This command creates a new listener on a Nivola CMP load balancer. It requires specifying the listener name, parent account ID, traffic type (TCP, HTTP, etc.), and optionally can configure settings like persistence, certificates, ciphers, headers and redirections.",
         arguments=ARGS(
             [
                 (["name"], {"help": "listener name", "action": "store", "type": str}),
@@ -2572,7 +2669,7 @@ class ListenerNetServiceController(BusinessControllerChild):
 
     @ex(
         help="update listener",
-        description="update listener",
+        description="Update an existing load balancer listener configuration. The required arguments are the listener id to update and at least one configuration parameter like the description, persistence type, cookie settings etc. This allows modifying listener settings non-disruptively.",
         arguments=ARGS(
             [
                 (["id"], {"help": "listener id", "action": "store", "type": str}),
@@ -2659,7 +2756,7 @@ class ListenerNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete listeners",
-        description="delete listeners",
+        description="This command deletes one or more listeners from a beehive cluster. The ids argument is required and expects a comma separated list of listener ids to delete from the cluster configured with the beehive CLI. Once deleted, the listeners will no longer accept or proxy requests.",
         arguments=ARGS(
             [
                 (
@@ -2714,7 +2811,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="get load balancer templates",
-        description="get load balancer templates",
+        description="This command is used to retrieve all the available load balancer templates from Nivola Cloud. Load balancer templates define the configuration for load balancers that can be created. This command lists the available options without creating any resources.",
         arguments=ARGS(
             [
                 (
@@ -2743,7 +2840,8 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="list load balancers",
-        description="list load balancers",
+        description="This command lists all the load balancers in the accounts specified or in the default account if no account is specified. Load balancers are networking components that distribute incoming application traffic across multiple backend servers.",
+        example="beehive bu netaas load-balancers list -accounts dma;beehive bu netaas load-balancers list -accounts fos-concilia",
         arguments=ARGS(
             [
                 (
@@ -2810,47 +2908,57 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
         uri = "%s/networkservices/loadbalancer/describeloadbalancers" % self.baseuri
-        res = self.cmp_get(uri, data=data)
-        res = res.get("DescribeLoadBalancersResponse", {})
-        page = self.app.pargs.page
 
-        resp = {
-            "count": len(res.get("loadBalancerSet")),
-            "page": page,
-            "total": res.get("loadBalancerTotal"),
-            "sort": {"field": "id", "order": "asc"},
-            "instances": res.get("loadBalancerSet"),
-        }
+        def render(self, res, **kwargs):
+            page = kwargs.get("page", 0)
+            res = res.get("DescribeLoadBalancersResponse", {})
 
-        headers = [
-            "uuid",
-            "name",
-            "state",
-            "runstate",
-            "account",
-            "vip",
-            "protocol",
-            "port",
-            "listener",
-            "target_group",
-        ]
-        fields = [
-            "loadBalancerId",
-            "name",
-            "state",
-            "runstate",
-            "nvl-ownerAlias",
-            "virtualIP",
-            "protocol",
-            "port",
-            "attachmentSet.Listener.name",
-            "attachmentSet.TargetGroup.name",
-        ]
-        self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=40)
+            resp = {
+                "count": len(res.get("loadBalancerSet")),
+                "page": page,
+                "total": res.get("loadBalancerTotal"),
+                "sort": {"field": "id", "order": "asc"},
+                "instances": res.get("loadBalancerSet"),
+            }
+
+            headers = [
+                "uuid",
+                "name",
+                "state",
+                "runstate",
+                "account",
+                "vip",
+                "protocol",
+                "port",
+                "listener",
+                "target_group",
+            ]
+            fields = [
+                "loadBalancerId",
+                "name",
+                "state",
+                "runstate",
+                "nvl-ownerAlias",
+                "virtualIP",
+                "protocol",
+                "port",
+                "attachmentSet.Listener.name",
+                "attachmentSet.TargetGroup.name",
+            ]
+            self.app.render(resp, key="instances", headers=headers, fields=fields, maxsize=45)
+
+        self.cmp_get_pages(
+            uri,
+            data=data,
+            pagesize=20,
+            key_total_name="DescribeLoadBalancersResponse.loadBalancerTotal",
+            key_list_name="DescribeLoadBalancersResponse.loadBalancerSet",
+            fn_render=render,
+        )
 
     @ex(
         help="get load balancer",
-        description="get load balancer",
+        description="This command is used to retrieve information about a specific load balancer configured in Nivola Cloud. It requires the unique identifier (UUID) or name of the load balancer as the only required argument. The command will return details like the load balancer type, port, protocol, backend servers and health check configuration.",
         arguments=ARGS(
             [
                 (["id"], {"help": "load balancer uuid or name", "action": "store", "type": str}),
@@ -3036,7 +3144,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="update load balancer",
-        description="update load balancer",
+        description="This CLI command updates a load balancer on Nivola Cloud. It requires the load balancer ID and allows updating the description, protocol, port number, maximum concurrent connections, and maximum connections per second.",
         arguments=ARGS(
             [
                 (["id"], {"help": "load balancer id", "action": "store", "type": str}),
@@ -3101,7 +3209,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="delete load balancer",
-        description="delete load balancer",
+        description="This command deletes a load balancer from Nivola Cloud. It requires the ID of the load balancer to delete as a required argument. The load balancer ID uniquely identifies the load balancer instance.",
         arguments=ARGS(
             [
                 (["id"], {"help": "load balancer id", "action": "store", "type": str}),
@@ -3121,7 +3229,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="enable load balancer",
-        description="enable load balancer",
+        description="This command enables a load balancer that was previously created. It requires the ID of the load balancer to start as a required argument. The load balancer ID uniquely identifies the load balancer instance. Enabling the load balancer allows it to start distributing traffic to the backend servers.",
         arguments=ARGS(
             [
                 (["id"], {"help": "load balancer id", "action": "store", "type": str}),
@@ -3138,7 +3246,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="disable load balancer",
-        description="disable load balancer",
+        description="This command stops or disables the specified load balancer. It takes the load balancer ID as the only required argument. Disabling a load balancer will stop forwarding traffic to the backend servers and the health check will stop. The load balancer can be re-enabled using the 'beehive bu netaas load-balancers start' command.",
         arguments=ARGS(
             [
                 (["id"], {"help": "load balancer id", "action": "store", "type": str}),
@@ -3155,7 +3263,7 @@ class LoadBalancerNetServiceController(BusinessControllerChild, AdminChildContro
 
     @ex(
         help="delete load balancer generic services",
-        description="delete load balancer generic services",
+        description="This command deletes predefined load balancer services for a given account id. The account id argument is required to identify the account whose predefined services need to be deleted from the load balancer. Deleting predefined services removes the preconfigured load balancing rules for applications like HTTP, HTTPS etc for the specified account.",
         arguments=ARGS(
             [
                 (
@@ -3206,7 +3314,7 @@ class SshGatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="get ssh gateway configurations",
-        description="get ssh gateway configurations",
+        description="This command is used to retrieve the list of configured SSH gateway configurations on the Nivola CMP platform. SSH gateways allow clients to connect to internal resources through a secure tunnel without exposing those resources directly to the internet. The conf-list subcommand displays all existing SSH gateway configurations by name so they can be easily identified and referred to by other commands.",
         # example="todo ",
         # epilog="ciao",
         arguments=ARGS(
@@ -3316,12 +3424,12 @@ class SshGatewayNetServiceController(BusinessControllerChild):
             headers=headers,
             fields=fields,
             transform=transform,
-            maxsize=40,
+            maxsize=45,
         )
 
     @ex(
         help="get ssh gateway configuration",
-        description="get ssh gateway configuration",
+        description="This command is used to retrieve the configuration of a specific SSH gateway from the Nivola CMP platform. The 'id' argument is required and should contain the unique identifier of the SSH gateway configuration to fetch. This command will return the full configuration details of the specified SSH gateway as a JSON object.",
         arguments=ARGS(
             [
                 (
@@ -3356,11 +3464,11 @@ class SshGatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="add ssh gateway configuration",
-        description="add ssh gateway configuration",
+        description="This CLI command is used to add SSH gateway configuration to a beehive device. The conf-add subcommand of the beehive bu netaas sshgw command allows administrators to configure SSH tunnels and gateways on Cisco SD-WAN devices for site-to-site or client VPN access. No arguments are required for this command as the configuration values can be passed interactively. The command connects to the designated device and prompts for inputs to define the SSH gateway settings that should be added.",
         arguments=ARGS(
             [
                 (
-                    ["name"],
+                    ["-name"],
                     {
                         "help": "configuration name",
                         "action": "store",
@@ -3422,7 +3530,7 @@ class SshGatewayNetServiceController(BusinessControllerChild):
         # gw_dbaas automatically sets as allowed port only the db port
         if self.app.pargs.gw_type == "gw_dbaas":
             self.app.warning("the only allowed port is going to be the database port")
-            self.app.pargs.allowed_ports = "DB_PORT"  # placeholder value
+            self.app.pargs.allowed_ports = "DB_PORT"  # optional placeholder value
             self.app.pargs.forbidden_ports = None
 
         if self.app.pargs.gw_type == "gw_cpaas" and self.app.pargs.allowed_ports is None:
@@ -3464,7 +3572,7 @@ class SshGatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="delete a ssh gateway configuration",
-        description="delete a ssh gateway configuration",
+        description="This command deletes a specific SSH gateway configuration from the beehive database by its unique ID. The ID of the configuration to delete must be provided as an argument to this command. Upon successful deletion, a confirmation message will be displayed.",
         arguments=ARGS(
             [
                 (
@@ -3494,7 +3602,7 @@ class SshGatewayNetServiceController(BusinessControllerChild):
 
     @ex(
         help="activate ssh gw configuration",
-        description="activate ssh gw configuration",
+        description="This command activates an existing SSH gateway configuration on Nivola Cloud. It requires the SSH gateway configuration ID and destination port number as required arguments to identify and activate the specific configuration.",
         arguments=ARGS(
             [
                 (

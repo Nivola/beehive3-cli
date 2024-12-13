@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_dict import dict_get
@@ -304,13 +304,16 @@ class VsphereController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/datastores" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="datastores",
-                headers=self._meta.ds_headers,
-                fields=self._meta.ds_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="datastores",
+                    headers=self._meta.ds_headers,
+                    fields=self._meta.ds_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
         help="get clusters",
@@ -909,13 +912,16 @@ class VsphereController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/network/nsx_edges" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="nsx_edges",
-                headers=self._meta.headers,
-                fields=self._meta.fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="nsx_edges",
+                    headers=self._meta.headers,
+                    fields=self._meta.fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="get servers",
@@ -1003,13 +1009,16 @@ class VsphereController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/servers" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="servers",
-                headers=self._meta.server_headers,
-                fields=self._meta.server_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="servers",
+                    headers=self._meta.server_headers,
+                    fields=self._meta.server_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="patch server",
@@ -1890,6 +1899,15 @@ class VsphereController(BaseController):
                         "default": None,
                     },
                 ),
+                (
+                    ["-container"],
+                    {
+                        "help": "container id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
@@ -1905,6 +1923,7 @@ class VsphereController(BaseController):
 
                 uri = "%s/volumetypes/%s/datastores" % (self.baseuri, oid)
                 res = self.cmp_get(uri).get("datastores", [])
+                res = sorted(res, key=lambda i: i["name"])
                 self.c("\ndatastore", "underline")
                 self.app.render(
                     res,
@@ -1913,7 +1932,7 @@ class VsphereController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            params = []
+            params = ["container"]
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/volumetypes" % self.baseuri
@@ -2099,13 +2118,16 @@ class VsphereController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/volumes" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            self.app.render(
-                res,
-                key="volumes",
-                headers=self._meta.vol_headers,
-                fields=self._meta.vol_fields,
-            )
+
+            def render(self, res, **kwargs):
+                self.app.render(
+                    res,
+                    key="volumes",
+                    headers=self._meta.vol_headers,
+                    fields=self._meta.vol_fields,
+                )
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
         help="add volume",

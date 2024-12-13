@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64decode, b64encode
 from cement import ex
@@ -28,6 +28,7 @@ class SshKeyController(SshControllerChild):
     @ex(
         help="get ssh keys",
         description="get ssh keys",
+        example="beehive ssh keys get ;beehive ssh keys get -e <env>",
         arguments=PARGS(
             [
                 (
@@ -64,6 +65,7 @@ class SshKeyController(SshControllerChild):
     @ex(
         help="export key private and public key as string",
         description="export key private and public key as string",
+        example="beehive ssh keys export cmp-key;beehive ssh keys export <uuid>",
         arguments=ARGS(
             [
                 (["id"], {"help": "ssh key uuid", "action": "store", "type": str}),
@@ -177,6 +179,7 @@ class SshKeyController(SshControllerChild):
     @ex(
         help="add ssh key",
         description="add ssh key",
+        example="beehive ssh keys add key-pinerolo-maggioli-key -bits 2048;beehive ssh keys add gaeacc-key -bits 2048",
         arguments=ARGS(
             [
                 (["name"], {"help": "ssh key uuid", "action": "store", "type": str}),
@@ -252,6 +255,16 @@ class SshKeyController(SshControllerChild):
     def delete(self):
         oid = self.app.pargs.id
         uri = "%s/keys/%s" % (self.baseuri, oid)
+        # get key name
+        name = self.cmp_get(uri).get("key").get("name")
+        # since name is unique, check if it's related to any compute key pair. if so except
+        # because it has to be deleted from beehive bu cpaas keypairs delete
+        try:
+            self.api.error_if_service_exists(name=name, exact_name_match=True, servtype="ComputeKeyPairs")
+        except Exception as kp_ex:
+            raise Exception(
+                "Ssh key is still being used by a keypair business object. Please delete it from there if necessary."
+            ) from kp_ex
         res = self.cmp_delete(uri, data="", entity="ssh key %s" % oid)
 
 
@@ -264,6 +277,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="get key roles",
         description="get key roles",
+        example="beehive ssh keys-auth role-get;beehive ssh keys-auth role-get <uuid>",
         arguments=ARGS([(["id"], {"help": "key uuid", "action": "store", "type": str})]),
     )
     def role_get(self):
@@ -275,6 +289,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="get key users",
         description="get key users",
+        example="beehive ssh keys-auth user-get <uuid>;beehive ssh keys-auth user-get ",
         arguments=ARGS([(["id"], {"help": "key uuid", "action": "store", "type": str})]),
     )
     def user_get(self):
@@ -292,6 +307,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="add key role to a user",
         description="add key role to a user",
+        example="beehive ssh keys-auth user-add <uuid> viewer abc.def@ghi.lmno;beehive ssh keys-auth user-add <uuid> viewer abc.def@ghi.lmno",
         arguments=ARGS(
             [
                 (["id"], {"help": "key uuid", "action": "store", "type": str}),
@@ -344,6 +360,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="get key groups",
         description="get key groups",
+        example="beehive ssh keys-auth group-get <uuid>;beehive ssh keys-auth group-get <uuid>",
         arguments=ARGS([(["id"], {"help": "key uuid", "action": "store", "type": str})]),
     )
     def group_get(self):
@@ -361,6 +378,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="add key role to a group",
         description="add key role to a group",
+        example="beehive ssh keys-auth group-add <uuid> viewer GR-xxx;beehive ssh keys-auth group-add <uuid> viewer GR-xxx",
         arguments=ARGS(
             [
                 (["id"], {"help": "key uuid", "action": "store", "type": str}),
@@ -387,6 +405,7 @@ class SshKeyAuthController(SshControllerChild):
     @ex(
         help="remove key role from a group",
         description="remove key role from a group",
+        example="beehive ssh keys-auth group-del <uuid> master GR-sdptoolc-jv-sdpqueryapi",
         arguments=ARGS(
             [
                 (["id"], {"help": "key uuid", "action": "store", "type": str}),

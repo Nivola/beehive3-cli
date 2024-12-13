@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 try:
-    from os import path, environ
+    import os
     from traceback import print_exc, format_exc
     from logging import captureWarnings
     from cement import App, init_defaults
@@ -16,9 +16,12 @@ try:
     from beehive3_cli.core.json_output import JsonOutputHandler
     from beehive3_cli.core.log import CliLogHandler
     from beehive3_cli.core.tabular_output import TabularOutputHandler
+    from beehive3_cli.core.tabular_color_output import TabularColorOutputHandler
     from beehive3_cli.core.dynamic_output import DynamicOutputHandler
     from beehive3_cli.core.yaml_output import YamlOutputHandler
     from beehive3_cli.core.util import ColoredText
+
+    from beehive3_cli.core.mixed_output import MixedOutputHandler
 
     captureWarnings(True)
 
@@ -94,8 +97,8 @@ try:
             config_file_suffix = ".yml"
 
             # configuration files
-            home = environ.get("HOME", "~")
-            default_cfg = environ.get("BEEHIVE_CFG", f"{home}/.beehive3/config/beehive.yml")
+            home = os.environ.get("HOME", "~")
+            default_cfg = os.environ.get("BEEHIVE_CFG", f"{home}/.beehive3/config/beehive.yml")
 
             config_files = [default_cfg]
 
@@ -105,7 +108,9 @@ try:
             log_handler = "clilog"
 
             # set the output handler
-            output_handler = "tabular_output_handler"
+            # output_handler = "tabular_output_handler"
+            output_handler = "tabular_color_output_handler"
+            format = "colortext"
 
             argument_handler = "cli_argument_handler"
 
@@ -120,6 +125,8 @@ try:
                 YamlOutputHandler,
                 CliArgumentHandler,
                 CliLogHandler,
+                TabularColorOutputHandler,
+                MixedOutputHandler,
             ]
 
             # register hooks
@@ -128,9 +135,9 @@ try:
                 ("post_setup", load_configs),
             ]
 
-            plugin_dirs = [path.join(path.dirname(__file__), "plugins")]
+            plugin_dirs = [os.path.join(os.path.dirname(__file__), "plugins")]
 
-            template_dirs = [path.join(path.dirname(__file__), "templates")]
+            template_dirs = [os.path.join(os.path.dirname(__file__), "templates")]
 
         def output(self, msg, color="GREEN"):
             if self.config.get("beehive", "colored") is True:
@@ -165,6 +172,10 @@ try:
                     val = self.colored_text.output(val, "CYAN")
                 elif exp in ["pending"]:
                     val = self.colored_text.output(val, "BLUE")
+                elif exp in ["closed"]:
+                    val = self.colored_text.output(val, "LYELLOW")
+                elif exp in ["deleted"]:
+                    val = self.colored_text.output(val, "GRAY")
             return val
 
         def run(self):
@@ -183,6 +194,7 @@ try:
                 res = super(CliManager, self).run()
                 return res
             except Exception as ex:
+                self.exit_code = 255
                 self.log.error(format_exc())
                 self.error(ex)
 

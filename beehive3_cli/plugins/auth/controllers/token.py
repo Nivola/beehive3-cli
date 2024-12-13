@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from binascii import a2b_base64
 from datetime import datetime, timedelta
@@ -44,6 +44,7 @@ class AuthTokenController(AuthChildController):
     @ex(
         help="get tokens",
         description="get tokens",
+        example="beehive auth tokens get ;beehive auth tokens get -e <env>",
         arguments=PARGS(
             [
                 (

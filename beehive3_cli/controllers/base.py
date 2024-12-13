@@ -1,25 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from time import time
-
-
-start = time()
-
-from base64 import b64decode, b64encode
-from six import ensure_binary, ensure_text, ensure_binary
-from cryptography.fernet import Fernet
+from base64 import urlsafe_b64decode
+from six import ensure_binary, ensure_text
 from cement import ex
+from beecell.crypto_util.fernet import Fernet
 from beecell.types.type_string import str2bool
 from beecell.password import random_password
 from beehive3_cli.core.controller import CliController
 from beehive3_cli.core.util import list_environments, load_environment_config
-from beehive3_cli.core.version import get_version
+from beehive3_cli.core.version import get_version, get_changelog
 
 VERSION_BANNER = """
 Beehive3 Console %s
-Copyright (c) 2019-2023 CSI Piemonte
+Copyright (c) 2019-2024 CSI Piemonte
 """ % (
     get_version()
 )
@@ -51,6 +46,19 @@ class Base(CliController):
     def _default(self):
         """Default action if no sub-command is passed."""
         self.app.args.print_help()
+
+    @ex(
+        help="changelog command",
+        description="show changelog",
+        arguments=[
+            (["-a", "--all"], {"action": "store_true", "dest": "all", "help": "Show all content"}),
+        ],
+    )
+    def changelog(self):
+        if getattr(self.app.pargs, "all", False) is False:
+            print(get_changelog())
+        else:
+            print(get_changelog(all=True))
 
     @ex(
         help="ask command",
@@ -102,8 +110,6 @@ class Base(CliController):
         if command_to_search is None:
             print("specify command to search: [-a] command")
         else:
-            if b64encode(ensure_binary(command_to_search)) == b"ZmlsaXBwbw==":
-                print(b64decode(b"Li4uaGVyZSBJIGFtIQ==").decode("utf-8"))
             for c in self._controllers:
                 from cement.core.meta import Meta
 
@@ -141,7 +147,10 @@ class Base(CliController):
 
                 # set child commands
                 for command in commands:
-                    command_label: str = command["label"]
+                    if isinstance(command, dict):
+                        command_label: str = command["label"]
+                    else:
+                        command_label: str = command.label
 
                     if (eq and command_label == command_to_search != -1) or (
                         eq is False and command_label.find(command_to_search) != -1
@@ -248,12 +257,21 @@ class Base(CliController):
                     array_path.append(path_obj)
 
             for command in commands:
+                if isinstance(command, dict):
+                    command_label = command["label"]
+                    command_arguments = command["arguments"]
+                    parser_options = command["parser_options"]
+                else:
+                    command_label = command.label
+                    command_arguments = command.arguments
+                    parser_options = command.parser_options
+
                 deep = deep + 1
                 # print("command: %s" % command)
-                command_label: str = command["label"]
-                command_arguments: str = command["arguments"]
+                # command_label: str = command["label"]
+                # command_arguments: str = command["arguments"]
 
-                parser_options: str = command["parser_options"]
+                # parser_options: str = command["parser_options"]
                 command_help: str = parser_options["help"]
                 command_description: str = parser_options["description"]
 
@@ -362,7 +380,7 @@ class Base(CliController):
             # html = json2html.convert(json = json_path)
             # print(html)
 
-            from jinja2 import Environment, FileSystemLoader
+            from jinja2 import Environment
 
             environment = Environment()
 
@@ -431,9 +449,14 @@ class Base(CliController):
                 ctrl_idx[parent] = [label]
             commands = c._collect_commands()
 
-            # set child commands
+            # set child commands_
             for command in commands:
-                command_label = command["label"]
+                if isinstance(command, dict):
+                    command_label = command["label"]
+                    command_arguments = command.get("arguments", [])
+                else:
+                    command_label = command.label
+                    command_arguments = command.arguments
 
                 try:
                     ctrl_idx[label].append(command_label)
@@ -441,7 +464,7 @@ class Base(CliController):
                     ctrl_idx[label] = [command_label]
 
                 # set command arguments
-                for argument in command.get("arguments", []):
+                for argument in command_arguments:
                     action = argument[1].get("action", None)
                     try:
                         for a in argument[0]:
@@ -562,7 +585,9 @@ class Base(CliController):
                     item["has_cmp"] = True
                 elif len(endpoints) > 0:
                     item["has_cmp"] = ",".join(endpoints)
+
                 orchestrators = value.get("orchestrators", {})
+                # if orchestrators is not None:
                 for k in list(orchestrators.keys()):
                     if otn and otn != k:
                         continue
@@ -574,8 +599,9 @@ class Base(CliController):
                         headers_orch.append(k)
 
                 res.append(item)
-            except:
+            except Exception as ex:
                 self.app.log.warning("no correct config found for environment %s" % env)
+                self.app.log.error(ex, exc_info=True)
 
         if chunk_size:
             headers_chunks = [headers_orch[i : i + chunk_size] for i in range(0, len(headers_orch), chunk_size)]
@@ -625,50 +651,45 @@ class Base(CliController):
         key = Fernet.generate_key()
         self.app.render({"key": key}, headers=["key"])
 
-    @ex(
-        help="encrypt data with symmetric encryption",
-        description="encrypt data with symmetric encryption",
-        arguments=[
-            (["data"], {"help": "data to encrypt", "action": "store", "type": str}),
-            (
-                ["key"],
-                {
-                    "action": "store",
-                    "help": "secret key to use for encryption/decryption",
-                },
-            ),
-        ],
-    )
+    # @ex(
+    #     help="encrypt data with symmetric encryption",
+    #     description="encrypt data with symmetric encryption",
+    #     arguments=[
+    #         (["data"], {"help": "data to encrypt", "action": "store", "type": str}),
+    #         (
+    #             ["key"],
+    #             {
+    #                 "action": "store",
+    #                 "help": "secret key to use for encryption/decryption",
+    #             },
+    #         ),
+    #     ],
+    # )
     def encrypt(self):
         # self.check_secret_key()
         data = self.app.pargs.data
         # see API_FERNET_KEY in k8s files
         key = self.app.pargs.key
-
-        # similar to
-        # from beecell.simple import encrypt_data as simple_encrypt_data
-        # res = simple_encrypt_data(key, data)
-
-        key = ensure_binary(key)
+        key = urlsafe_b64decode(key)
         cipher_suite = Fernet(key)
         cipher_text = cipher_suite.encrypt(ensure_binary(data))
         res = [{"encrypt_data": "$BEEHIVE_VAULT;AES128 | %s" % ensure_text(cipher_text)}]
         self.app.render(res, headers=["encrypt_data"], maxsize=400)
 
-    @ex(
-        help="decrypt quoted data with symmetric encryption",
-        description="decrypt quoted data with symmetric encryption",
-        arguments=[
-            (["data"], {"help": "data to decrypt", "action": "store", "type": str}),
-            (
-                ["key"],
-                {
-                    "action": "store",
-                    "help": "secret key to use for encryption/decryption",
-                },
-            ),
-        ],
-    )
+    # @ex(
+    #     help="decrypt quoted data with symmetric encryption",
+    #     description="decrypt quoted data with symmetric encryption",
+    #     arguments=[
+    #         (["data"], {"help": "data to decrypt", "action": "store", "type": str}),
+    #         (
+    #             ["key"],
+    #             {
+    #                 "action": "store",
+    #                 "help": "secret key to use for encryption/decryption",
+    #             },
+    #         ),
+    #     ],
+    # )
     def decrypt(self):
         from beecell.crypto import decrypt_data
 
@@ -676,7 +697,7 @@ class Base(CliController):
         data = self.app.pargs.data
         # see API_FERNET_KEY in k8s files
         key = self.app.pargs.key
-        key = ensure_binary(key)
+        key = urlsafe_b64decode(key)
         cipher_suite = Fernet(key)
         cipher_text = cipher_suite.decrypt(ensure_binary(data))
         self.app.render({"decrypt_data": cipher_text}, headers=["decrypt_data"], maxsize=200)

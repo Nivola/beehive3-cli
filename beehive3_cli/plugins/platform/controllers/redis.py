@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from json import dumps, loads
 from time import sleep, time
 from cement import ex
-from beecell.db.manager import RedisManager
 from beecell.types.type_list import merge_list
 from beecell.types.type_id import id_gen
 from beehive3_cli.core.controller import BASE_ARGS
@@ -46,13 +45,18 @@ class RedisController(BaseK8sController):
         default_group = "redis"
 
     def pre_command_run(self):
-        super(RedisController, self).pre_command_run()
+        # use same label for k8s
+        label = getattr(self.app.pargs, "orchestrator", None)
+        # print("label: %s" % label)
+        # super(RedisController, self).pre_command_run_inner(orch_label=label)
+        super(RedisController, self).pre_command_run_inner()
 
         self.sentinel_conf = None
         self.config = load_environment_config(self.app)
 
         orchestrators = self.config.get("orchestrators", {}).get("redis", {})
-        label = getattr(self.app.pargs, "orchestrator", None)
+
+        # label = getattr(self.app.pargs, "orchestrator", None)
         self.db = getattr(self.app.pargs, "database", None)
 
         if label is None:
@@ -61,7 +65,7 @@ class RedisController(BaseK8sController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No redis default platform is available for this environment. Select " "another environment"
+                    "No redis default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
@@ -74,6 +78,8 @@ class RedisController(BaseK8sController):
         self.redis_service = services[0]
 
     def run_cmd(self, func, dbs=[0], print_res=True, format_res=True):
+        from beecell.db.manager import RedisManager
+
         """Run command on redis instances"""
         if self.sentinel_conf is None:
             host = self.conf.get("host")
@@ -406,7 +412,11 @@ class RedisController(BaseK8sController):
             for item in resp.get("response"):
                 print("--------------------------------------------")
                 print("key:   %s" % self.app.colored_text.blue(item.get("key").decode("utf-8")))
-                print("value: %s" % self.app.colored_text.blue(item.get("val").decode("utf-8")))
+                value = item.get("val")
+                if value is None:
+                    print("value: None")
+                else:
+                    print("value: %s" % self.app.colored_text.blue(value.decode("utf-8")))
 
     @ex(
         help="get redis records by pattern",
@@ -466,13 +476,13 @@ class RedisController(BaseK8sController):
         arguments=REDIS_ARGS(
             [
                 (["-port"], {"help": "redis port", "action": "store", "default": 443}),
-                (["key"], {"help": "record key", "action": "store"}),
+                (["record_key"], {"help": "record key", "action": "store"}),
                 (["value"], {"help": "record value", "action": "store"}),
             ]
         ),
     )
     def set(self):
-        key = self.app.pargs.key
+        key = self.app.pargs.record_key
         value = self.app.pargs.value
 
         def func(server):
@@ -593,6 +603,7 @@ class RedisController(BaseK8sController):
     @ex(
         help="get cache",
         description="get cache",
+        example="beehive platform redis cache-get -e <env>",
         arguments=REDIS_ARGS(
             [
                 (["-port"], {"help": "redis port", "action": "store", "default": 443}),
@@ -660,8 +671,8 @@ class RedisController(BaseK8sController):
         resp = self.run_cmd(func, dbs=[db], print_res=False, format_res=False)
         if len(resp) > 0:
             resp = resp[0]
-            print("host: %s" % resp.get("host"))
-            print("db: %s" % resp.get("db"))
+            # print("host: %s" % resp.get("host"))
+            # print("db: %s" % resp.get("db"))
 
             for item in resp.get("response"):
                 print("key:   %s" % self.app.colored_text.blue(item.get("key").decode("utf-8")))

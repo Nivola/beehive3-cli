@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
-from json import loads
+from ujson import loads
 from sys import stdout
 from copy import deepcopy
 from time import sleep, time
 from ipaddress import IPv4Address
 from cement import ex
-from beecell.db import MysqlManager
 from beecell.types.type_string import str2bool
 from beecell.types.type_dict import dict_get
 from beecell.types.type_date import format_date
@@ -83,21 +82,23 @@ class OpenstackPlatformController(BaseController):
         )
 
         if self.app.config.get("log.clilog", "verbose_log"):
-            transform = {"msg": lambda x: self.color_string(x, "YELLOW")}
-            self.app.render(
-                {"msg": "Using openstack orchestrator: %s (uri: %s - project: %s)" % (label, uri, project)},
-                transform=transform,
-            )
-            self.app.log.debug("Using openstack orchestrator: %s (uri: %s - project: %s)" % (label, uri, project))
+            # log to stdout and to logfile
+            self.app.print(f"Using openstack orchestrator: {label} (uri: {uri} - project: {project})", color="YELLOW")
+            self.app.log.debug(f"Using openstack orchestrator: {label} (uri: {uri} - project: {project})")
+
+        command = getattr(self.app.pargs, "command", None)
 
         self.client = OpenstackManager(uri, default_region=conf.get("region"))
-        self.client.authorize(
-            conf.get("user"),
-            conf.get("pwd"),
-            project=project,
-            domain=conf.get("domain"),
-            key=self.key,
-        )
+        if command == "token-release" or command == "token-validate":
+            print("no authorize per command: %s" % command)
+        else:
+            self.client.authorize(
+                conf.get("user"),
+                conf.get("pwd"),
+                project=project,
+                domain=conf.get("domain"),
+                key=self.key,
+            )
 
         # get mariadb config
         mariadb_confg = conf.get("mariadb", None)
@@ -157,6 +158,8 @@ class OpenstackPlatformController(BaseController):
         return client
 
     def __get_mariadb_engine(self, host, port, user, db):
+        from beecell.db import MysqlManager
+
         db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % (
             user["name"],
             user["password"],
@@ -193,6 +196,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="ping mariadb instances",
         description="ping mariadb instances",
+        example="beehive platform openstack mariadb-ping -e <env>;beehive platform openstack mariadb-ping -e <env>",
         arguments=OPENSTACK_ARGS([]),
     )
     def mariadb_ping(self):
@@ -213,6 +217,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get mariadb galera cluster status",
         description="get mariadb galera cluster status",
+        example="beehive platform openstack mariadb-cluster-status -e <env>;beehive platform openstack mariadb-cluster-status -e <env>",
         arguments=OPENSTACK_ARGS([]),
     )
     def mariadb_cluster_status(self):
@@ -436,11 +441,65 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get openstack version",
         description="get openstack version",
+        example="beehive platform openstack version -e <env>;beehive platform openstack version -e <env>",
         arguments=OPENSTACK_ARGS(),
     )
     def version(self):
         res = self.client.version()
-        self.app.render({"version": res}, headers=["version"])
+        if self.is_output_text():
+            self.app.render({"msg": f"version: {res}"})
+        else:
+            self.app.render({"version": res}, headers=["version"])
+
+    @ex(
+        help="validate token openstack",
+        description="validate token openstack",
+        arguments=OPENSTACK_ARGS(
+            [
+                (
+                    ["token"],
+                    {
+                        "help": "token",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def token_validate(self):
+        identity_token = self.client.identity.token
+        print("identity token: %s" % identity_token)
+
+        token = getattr(self.app.pargs, "token", None)
+        res = self.client.identity.validate_token(token)
+        print("validate token %s - res: %s" % (token, res))
+
+    @ex(
+        help="release token openstack",
+        description="release token openstack",
+        arguments=OPENSTACK_ARGS(
+            [
+                (
+                    ["token"],
+                    {
+                        "help": "token",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def token_release(self):
+        identity_token = self.client.identity.token
+        print("identity token: %s" % identity_token)
+
+        token = getattr(self.app.pargs, "token", None)
+        res = self.client.identity.release_token(token)
+        print("release token %s - res: %s" % (token, res))
 
     @ex(
         help="get openstack keystone catalog",
@@ -1252,6 +1311,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get networks",
         description="get networks",
+        example="beehive platform openstack network-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -1498,6 +1558,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get subnets",
         description="get subnets",
+        example="beehive platform openstack subnet-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -1776,6 +1837,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get ports",
         description="get ports",
+        example="beehive platform openstack port-get -id <uuid> -e <env>;beehive platform openstack port-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -2167,6 +2229,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="delete openstack port",
         description="delete openstack port",
+        example="beehive platform openstack port-del <uuid> -e <env>;beehive platform openstack port-del <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -2663,6 +2726,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get security_groups",
         description="get security_groups",
+        example="beehive platform openstack security-group-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -3005,7 +3069,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-visibility"],
                     {
-                        "help": "image visibility: all, public, private, shared, or community",
+                        "help": "image visibility: all, public, private, shared, community",
                         "action": "store",
                         "type": str,
                         "default": "all",
@@ -3028,9 +3092,12 @@ class OpenstackPlatformController(BaseController):
             # else:
             self.app.render(res, details=True)
         else:
-            params = {
-                "visibility": self.app.pargs.visibility,
-            }
+            glance_version = float(self.client.glance.api()[0]["id"][1:])
+            params = {}
+            if glance_version > 2.6:
+                params = {
+                    "visibility": self.app.pargs.visibility,
+                }
             owner = self.app.pargs.owner
             if owner is not None:
                 params["owner"] = owner
@@ -3301,6 +3368,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get flavors",
         description="get flavors",
+        example="beehive platform openstack flavor-get -id <uuid> -e <env>;beehive platform openstack flavor-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -3941,6 +4009,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get server groups",
         description="get server groups",
+        example="beehive platform openstack server-group-get -e <env>;beehive platform openstack server-group-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4004,6 +4073,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="add openstack server group",
         description="add openstack server group",
+        example="beehive platform openstack server-group-add Csi.LavoroFormazioneProfessionale.pangea-preprod.wf-appl -p soft-affinity -e <env>;beehive platform openstack server-group-add pippo2 -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4047,6 +4117,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="delete openstack server group",
         description="delete openstack server group",
+        example="beehive platform openstack server-group-del <uuid>;beehive platform openstack server-group-del <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4069,6 +4140,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="add openstack server group member",
         description="add openstack server group member",
+        example="beehive platform openstack server-group-member-add <uuid> <uuid> -e <env>;beehive platform openstack server-group-member-add <uuid> <uuid> -e <env> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4127,6 +4199,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="delete openstack server group member",
         description="delete openstack server group member",
+        example="beehive platform openstack server-group-member-del <uuid> <uuid> -e <env>;beehive platform openstack server-group-member-del <uuid> <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4180,6 +4253,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get servers",
         description="get servers",
+        example="beehive platform openstack server-get -e <env> -id <uuid>;beehive platform openstack server-get -id <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -4343,7 +4417,7 @@ class OpenstackPlatformController(BaseController):
                     "rebuild": 0,
                 }
                 for i in res:
-                    # if i['id'] == 'e062ad5e-5973-4dd4-a5fc-f9bcb474aa2e':
+                    # if i['id'] == '<uuid>':
                     #     continue
                     status = i["status"]
                     if status == "ACTIVE":
@@ -5183,9 +5257,9 @@ class OpenstackPlatformController(BaseController):
                     },
                 ),
                 (
-                    ["volume"],
+                    ["key_name"],
                     {
-                        "help": "volume id",
+                        "help": "key name",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5196,7 +5270,7 @@ class OpenstackPlatformController(BaseController):
     )
     def server_metadata_del(self):
         oid = self.app.pargs.id
-        key = self.app.pargs.key
+        key = self.app.pargs.key_name
         res = self.client.server.remove_metadata(oid, key)
         msg = "Delete metadata %s from server %s" % (key, oid)
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
@@ -6042,7 +6116,7 @@ class OpenstackPlatformController(BaseController):
                 "creation_time",
                 "required_by",
             ]
-            self.app.render(res, headers=headers, fields=fields, maxsize=40)
+            self.app.render(res, headers=headers, fields=fields, maxsize=45)
         else:
             self.app.render(res[0], details=True, maxsize=200)
 
@@ -6850,6 +6924,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="add manila share access grant",
         description="add manila share access grant",
+        example="beehive platform openstack share-grant-add <uuid> -level rw -type ip -to ###.###.###.###/32;beehive platform openstack share-grant-add <uuid> -level RW -type IP -to ###.###.###.###/32",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7048,6 +7123,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get all back-end storage pools that are known to the scheduler service",
         description="get all back-end storage pools that are known to the scheduler service",
+        example="beehive platform openstack volume-backend-get -backendname podto2-transito -e <env> -f json",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7091,6 +7167,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get volumes",
         description="get volumes",
+        example="beehive platform openstack volume-get -e <env> -id <uuid>;beehive platform openstack volume-get -e <env> -id <uuid>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7620,6 +7697,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get volume types",
         description="get volume types",
+        example="beehive platform openstack volume-type-get -e <env>;beehive platform openstack volume-type-get -id beehive platform openstack volume-type-update <uuid> iscsi",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7653,6 +7731,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="change volume type",
         description="change volume type",
+        example="beehive platform openstack volume-type-update <uuid> <uuid> -e <env>;beehive platform openstack volume-type-update -e <env> <uuid> <uuid>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7768,6 +7847,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="attach volume from server",
         description="attach volume from server",
+        example="beehive platform openstack volume-attach <uuid> <uuid> /dev/vda -e <env>;beehive platform openstack volume-attach <uuid> <uuid> /dev/vda -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -7810,6 +7890,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="detach volume from server",
         description="detach volume from server",
+        example="beehive platform openstack volume-detach <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -8007,6 +8088,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get volume snapshots",
         description="get volume snapshots",
+        example="beehive platform openstack volume-snapshot-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
@@ -8324,6 +8406,7 @@ class OpenstackPlatformController(BaseController):
     @ex(
         help="get volume groups",
         description="get volume groups",
+        example="beehive platform openstack volume-group-get",
         arguments=OPENSTACK_ARGS(
             [
                 (

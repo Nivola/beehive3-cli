@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from getpass import getpass
 from os import path
@@ -8,12 +8,12 @@ from sys import stdout
 from base64 import b64decode
 from six import ensure_text
 from cement import ex
-from beecell.paramiko_shell.shell import ParamikoShell, Rsync
 from beecell.types.type_list import merge_list
 from beecell.types.type_string import str2bool
 from beehive3_cli.core.controller import BASE_ARGS
 from beehive3_cli.core.util import load_environment_config, ColoredText
 from beehive3_cli.plugins.platform.controllers import ChildPlatformController
+from beecell.paramiko_shell.shell import Rsync
 
 try:
     from scp import SCPClient
@@ -75,6 +75,8 @@ class ConsoleController(ChildPlatformController):
             self.user_postfix = "@" + self.user_postfix
 
     def __get_ssh_client(self):
+        from beecell.paramiko_shell.shell import ParamikoShell
+
         keystring = b64decode(self.conf.get("sshkey", ""))
         user = self.conf.get("user", "")
         host = self.conf.get("host", "")
@@ -108,6 +110,8 @@ class ConsoleController(ChildPlatformController):
         ),
     )
     def connect(self):
+        from beecell.paramiko_shell.shell import ParamikoShell
+
         user = self.app.pargs.user
         pwd = self.app.pargs.pwd
 
@@ -233,6 +237,7 @@ class ConsoleController(ChildPlatformController):
     @ex(
         help="list user configured",
         description="list user configured",
+        example="beehive platform console user-list;beehive platform console user-list -size 0 -e <env>",
         arguments=CONSOLE_ARGS([]),
     )
     def user_list(self):
@@ -294,8 +299,9 @@ class ConsoleController(ChildPlatformController):
             idx += 1
 
     @ex(
-        help="list user configured",
-        description="list user configured",
+        help="get user configured",
+        description="get user configured",
+        example="beehive platform console user-get 74067;beehive platform console user-get 72990",
         arguments=CONSOLE_ARGS(
             [
                 (
@@ -392,6 +398,7 @@ class ConsoleController(ChildPlatformController):
     @ex(
         help="setup user home directory and configuration",
         description="setup user home directory and configuration",
+        example="beehive platform console user-setup name.surname -e <env>;beehive platform console user-setup name.surname -e <env>",
         arguments=CONSOLE_ARGS([(["user_ssh"], {"help": "console user", "action": "store", "type": str})]),
     )
     def user_setup(self):
@@ -532,6 +539,7 @@ class ConsoleController(ChildPlatformController):
     @ex(
         help="setup user additional environment",
         description="setup user additional environment",
+        example="beehive platform console user-env-add ### site1,site2,site3 -e <env> -C cons01",
         arguments=CONSOLE_ARGS(
             [
                 (

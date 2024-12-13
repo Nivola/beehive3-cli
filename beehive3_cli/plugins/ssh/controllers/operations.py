@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
@@ -163,6 +163,7 @@ class SshOperationController(SshControllerChild):
     @ex(
         help="check data domain mounted in dbaas",
         description="check data domain mounted in dbaas",
+        example="beehive ssh ops dbaas-check-dd;beehive ssh ops dbaas-check-dd -name dbs -size 10",
         arguments=PARGS(
             [
                 (
@@ -304,6 +305,7 @@ class SshOperationController(SshControllerChild):
     @ex(
         help="show action on dbaas",
         description="show action on dbaas",
+        example="beehive ssh ops dbaas-show-response node-check.json;beehive ssh ops dbaas-show-response node-check.json",
         arguments=PARGS(
             [
                 (

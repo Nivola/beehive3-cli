@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import stdout
 from typing import Generator, List, Callable, Tuple, Optional, AbstractSet
@@ -23,9 +23,14 @@ class TreeStyle(Style):
 
     default_style = ""
     styles = {
+        # Token.Text.Whitespace: "#fff",    # bianco
+        # Token.Name: "bold #ffcc66",       # giallo
+        # Token.Literal.String: "#fff",     # bianco
+        # Token.Literal.Number: "#0099ff",  # blu
+        # Token.Operator: "#ff3300",        # rosso
         Token.Text.Whitespace: "#fff",
         Token.Name: "bold #ffcc66",
-        Token.Literal.String: "#fff",
+        Token.Literal.String: "#33aa00",
         Token.Literal.Number: "#0099ff",
         Token.Operator: "#ff3300",
     }
@@ -57,9 +62,9 @@ def duration(precision=3):
     return wrapper
 
 
-def load_config(file_name):
+def load_config(file_name, secret=None):
     """load config from file"""
-    data = read_file(file_name)
+    data = read_file(file_name, secret=secret)
     return data
 
 
@@ -70,9 +75,10 @@ def load_environment_config(app, env=None):
     file = fs.join_exists(app.environment_config_path, "%s.yml" % env)
 
     if file[1] is True:
-        env_configs = load_config(file[0])
+        env_configs = load_config(file[0], secret=app.key)
     else:
         raise CliManagerError("No configuration file found for the environment specified")
+
     if env_configs is None or env_configs.get("cmp", None) is None:
         raise CliManagerError("No configuration file found for the environment specified")
 
@@ -82,8 +88,10 @@ def load_environment_config(app, env=None):
 def list_environments(app):
     """list environments"""
     envs = []
+    # print("environment_config_path: %s" % app.environment_config_path)
     p = Path(app.environment_config_path)
     for file in sorted(Path(p.expanduser()).glob("*.yml")):
+        # print(file.name)
         envs.append((file.name[:-4]))
     return envs
 

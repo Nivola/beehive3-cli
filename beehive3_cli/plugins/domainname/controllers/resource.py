@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from re import findall
 from cement import ex
@@ -174,12 +174,12 @@ class DnsController(BaseController):
         """
         ---------------------------------------------
         $TTL 30 ; 30 seconds
-        prova123                A       10.11.12.13
+        prova123                A       ###.###.###.###
         $TTL 60 ; 1 minute
         prova123_               CNAME   prova123
         $TTL 30 ; 30 seconds
-        prova456                A       10.11.12.14
-        prova890                A       10.11.12.15
+        prova456                A       ###.###.###.###
+        prova890                A       ###.###.###.###
         ---------------------------------------------
         """
         oid = self.app.pargs.id
@@ -271,26 +271,29 @@ class DnsController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/recordas" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            headers = [
-                "id",
-                "name",
-                "ip_address",
-                "state",
-                "zone",
-                "container",
-                "creation",
-            ]
-            fields = [
-                "uuid",
-                "name",
-                "ip_address",
-                "state",
-                "parent",
-                "container",
-                "date.creation",
-            ]
-            self.app.render(res, key="recordas", headers=headers, fields=fields)
+
+            def render(self, res, **kwargs):
+                headers = [
+                    "id",
+                    "name",
+                    "ip_address",
+                    "state",
+                    "zone",
+                    "container",
+                    "creation",
+                ]
+                fields = [
+                    "uuid",
+                    "name",
+                    "ip_address",
+                    "state",
+                    "parent",
+                    "container",
+                    "date.creation",
+                ]
+                self.app.render(res, key="recordas", headers=headers, fields=fields)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
         help="create new record A (ip address -> hostname.zone)",
@@ -453,26 +456,29 @@ class DnsController(BaseController):
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
             uri = "%s/record_cnames" % self.baseuri
-            res = self.cmp_get(uri, data=data)
-            headers = [
-                "id",
-                "name",
-                "host_name",
-                "state",
-                "zone",
-                "container",
-                "creation",
-            ]
-            fields = [
-                "uuid",
-                "name",
-                "host_name",
-                "state",
-                "parent",
-                "container",
-                "date.creation",
-            ]
-            self.app.render(res, key="record_cnames", headers=headers, fields=fields)
+
+            def render(self, res, **kwargs):
+                headers = [
+                    "id",
+                    "name",
+                    "host_name",
+                    "state",
+                    "zone",
+                    "container",
+                    "creation",
+                ]
+                fields = [
+                    "uuid",
+                    "name",
+                    "host_name",
+                    "state",
+                    "parent",
+                    "container",
+                    "date.creation",
+                ]
+                self.app.render(res, key="record_cnames", headers=headers, fields=fields)
+
+            res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
         help="create new record CNAME (alias -> hostname.zone)",

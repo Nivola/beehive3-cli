@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from json import loads
 from cement import ex
 from beecell.simple import merge_list
@@ -60,16 +60,26 @@ class GrafanaPlatformController(BaseController):
         # print("-+-+- self.conf: " + str(self.conf))
         grafana_host = self.conf.get("hosts")[0]
         grafana_port = self.conf.get("port")
+        grafana_token = self.conf.get("token")
         grafana_user = self.conf.get("user")
         grafana_pwd = self.conf.get("pwd")
         grafana_protocol = self.conf.get("proto", "http")
-        self.client = GrafanaManager(
-            host=grafana_host,
-            port=grafana_port,
-            protocol=grafana_protocol,
-            username=grafana_user,
-            pwd=grafana_pwd,
-        )
+
+        if grafana_token is not None:
+            self.client = GrafanaManager(
+                host=grafana_host,
+                port=grafana_port,
+                protocol=grafana_protocol,
+                token=grafana_token,
+            )
+        else:
+            self.client = GrafanaManager(
+                host=grafana_host,
+                port=grafana_port,
+                protocol=grafana_protocol,
+                username=grafana_user,
+                pwd=grafana_pwd,
+            )
 
     @ex(help="ping grafana", description="ping grafana", arguments=GRAFANA_ARGS())
     def ping(self):
@@ -383,10 +393,10 @@ class GrafanaPlatformController(BaseController):
             self.app.render(res, details=True)
         elif team_name is not None:
             res = self.client.team.get_by_name(team_name)
-            self.app.render(res, headers=["id", "name", "memberCount"])
+            self.app.render(res, headers=["id", "uid", "name", "memberCount"])
         else:
             res = self.client.team.list(page=page, size=size)
-            self.app.render(res, headers=["id", "name", "memberCount"])
+            self.app.render(res, headers=["id", "uid", "name", "memberCount"])
             # self.app.render(res, details=True)
 
     @ex(
@@ -523,6 +533,53 @@ class GrafanaPlatformController(BaseController):
         login = self.app.pargs.login
         password = self.app.pargs.password
         res = self.client.user.add(name=name, email=email, login=login, password=password)
+        self.app.render(res, headers=["id"])
+
+    @ex(
+        help="update user",
+        description="update user",
+        arguments=GRAFANA_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": "user id",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": "user name",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-email"],
+                    {"help": "email", "action": "store", "type": str, "default": None},
+                ),
+                (
+                    ["-login"],
+                    {
+                        "help": "user login",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def user_update(self):
+        id = self.app.pargs.id
+        name = self.app.pargs.name
+        email = self.app.pargs.email
+        login = self.app.pargs.login
+        res = self.client.user.update(user_id=id, name=name, email=email, login=login)
         self.app.render(res, headers=["id"])
 
     @ex(
@@ -791,6 +848,24 @@ class GrafanaPlatformController(BaseController):
                     {"help": "division name", "action": "store", "type": str},
                 ),
                 (["account"], {"help": "account name", "action": "store", "type": str}),
+                (
+                    ["-dash_tag"],
+                    {
+                        "help": "dash tag to add (comma separated)",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dashboard_folder_from_id"],
+                    {
+                        "help": "folder id where search dashboard",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
             ]
         ),
     )
@@ -802,10 +877,21 @@ class GrafanaPlatformController(BaseController):
         division = self.app.pargs.division
         account = self.app.pargs.account
 
+        dash_tag = self.app.pargs.dash_tag
+        dashboard_folder_from_id = self.app.pargs.dashboard_folder_from_id
+
         res_folder = self.client.folder.get(folder_uid_to)
         folder_id_to = res_folder["id"]
 
-        res = self.client.dashboard.add_dashboard(dashboard_to_search, folder_id_to, organization, division, account)
+        res = self.client.dashboard.add_dashboard(
+            dashboard_to_search,
+            folder_id_to,
+            organization,
+            division,
+            account,
+            dash_tag=dash_tag,
+            dashboard_folder_from_id=dashboard_folder_from_id,
+        )
         # self.app.render(res, headers=['uid'])
         self.app.render(res, details=True)
 
@@ -815,9 +901,9 @@ class GrafanaPlatformController(BaseController):
         arguments=GRAFANA_ARGS(
             [
                 (
-                    ["id"],
+                    ["uid"],
                     {
-                        "help": "dashboard id",
+                        "help": "dashboard uid",
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -827,7 +913,7 @@ class GrafanaPlatformController(BaseController):
         ),
     )
     def dashboard_del(self):
-        dashboard_uid = self.app.pargs.id
+        dashboard_uid = self.app.pargs.uid
         self.client.dashboard.delete(dashboard_uid)
         self.app.render({"msg": "delete dashboard %s" % dashboard_uid}, headers=["message"])
 
@@ -837,7 +923,7 @@ class GrafanaPlatformController(BaseController):
         arguments=GRAFANA_ARGS(
             [
                 (
-                    ["-id"],
+                    ["-uid"],
                     {
                         "help": "dashboard uid",
                         "action": "store",
@@ -867,10 +953,10 @@ class GrafanaPlatformController(BaseController):
         ),
     )
     def dashboard_get(self):
-        dashboard_id = self.app.pargs.id
+        dashboard_uid = self.app.pargs.uid
 
-        if dashboard_id is not None:
-            res = self.client.dashboard.get(dashboard_id)
+        if dashboard_uid is not None:
+            res = self.client.dashboard.get(dashboard_uid)
             self.app.render(res, details=True)
         else:
             page = self.app.pargs.page
@@ -879,3 +965,35 @@ class GrafanaPlatformController(BaseController):
             folder = self.app.pargs.folder
             res = self.client.dashboard.list(search=search, folder_id=folder, size=size, page=page)
             self.app.render(res["dashboards"], headers=["id", "uid", "title", "tags", "folderUid"])
+
+    @ex(
+        help="update dashboard",
+        description="update dashboard",
+        arguments=GRAFANA_ARGS(
+            [
+                (
+                    ["uid"],
+                    {
+                        "help": "dashboard uid",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["title"],
+                    {
+                        "help": "dashboard new title",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dashboard_update(self):
+        dashboard_uid = self.app.pargs.uid
+        title = self.app.pargs.title
+        res = self.client.dashboard.update(dashboard_uid, title)
+        self.app.render(res, details=True)

@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
+import os
 from datetime import datetime
 from binascii import crc32
-from os import path
 from re import search
 from jinja2 import Template
-from elasticsearch import Elasticsearch
 from beecell.types.type_string import str2bool, truncate
 from beecell.types.type_list import merge_list
 from beehive3_cli.core.controller import BaseController, BASE_ARGS
@@ -82,11 +81,11 @@ class ChildPlatformController(BaseController):
 
         if valorname[0] == "@":
             name = valorname[1:]
-            if path.isfile(name):
+            if os.path.isfile(name):
                 filename = name
             else:
-                filename = path.join(self.ansible_path, name)
-            if path.isfile(filename):
+                filename = os.path.join(self.ansible_path, name)
+            if os.path.isfile(filename):
                 f = open(filename, "r")
                 value = f.read()
                 f.close()
@@ -98,6 +97,8 @@ class ChildPlatformController(BaseController):
             return valorname, ""
 
     def config_elastic(self):
+        from elasticsearch import Elasticsearch
+
         config = load_environment_config(self.app)
 
         orchestrators = config.get("orchestrators", {}).get("elk", {})

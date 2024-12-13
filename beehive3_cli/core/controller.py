@@ -1,24 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
+import os
+import sys
 from time import time
 from pprint import PrettyPrinter
 from argparse import SUPPRESS, Action
-from sys import argv, exit
-from typing import List
+from typing import List, Dict, Union
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlencode
 from six import ensure_binary
 from cement import Controller, FrameworkError
 from cement.ext.ext_argparse import _clean_func
 from beecell.types.type_list import merge_list
-from beecell.types.type_dict import dict_get
+from beecell.types.type_dict import dict_get, dict_set
 from beecell.file import read_file
 from beehive3_cli.core.argument import CliHelpFormatter
 from beehive3_cli.core.cmp_api_client import CmpApiClient
 from beehive3_cli.core.exc import CliManagerError
 from beehive3_cli.core.util import ColoredText, CmpUtils
+
 
 BASE_ARGS = [
     (["-y"], {"action": "store_true", "dest": "assumeyes", "help": "Force delete"}),
@@ -36,8 +38,8 @@ BASE_ARGS = [
         {
             "action": "store",
             "dest": "format",
-            "help": "Output format",
-            "default": "text",
+            "help": "Output format: text, json, colortext",
+            "default": None,
         },
     ),
     (
@@ -113,12 +115,12 @@ PAGINATION_ARGS = [
 ]
 
 
-def ARGS(*list_args):
+def ARGS(*list_args) -> list:
     res = merge_list(BASE_ARGS, *list_args)
     return res
 
 
-def PARGS(*list_args):
+def PARGS(*list_args) -> list:
     res = merge_list(BASE_ARGS, PAGINATION_ARGS, *list_args)
     return res
 
@@ -151,6 +153,10 @@ class CliController(Controller):
 
     def _cmd(self, contr, func_name):
         if func_name != "_default":
+            # Pop platform; prevents sys.platform from being overwritten by
+            # by a platform.py. This occurs on alpine cli
+            # (hivetool/docker/cli/py-alpine.env)
+            sys.modules.pop("platform", None)
             contr.pre_command_run()
 
         func = getattr(contr, func_name)
@@ -166,8 +172,18 @@ class CliController(Controller):
         commands = controller._collect_commands()
         for command in commands:
             kwargs = self._get_command_parser_options(command)
+            # compatibility for cement 3.0.12 command are no more dict but ComandMeta instance
+            if isinstance(command, dict):
+                func_name = command["func_name"]
+                label = command["label"]
+                ctr_label = command["controller"]._meta.label
+                cmd_args = command["arguments"]
+            else:
+                label = command.label
+                func_name = command.func_name
+                ctr_label = command.controller._meta.label
+                cmd_args = command.arguments
 
-            func_name = command["func_name"]
             # self.app.log.debug("adding command '%s' " % command['label'] + "(controller=%s, func=%s)" %
             #                    (controller._meta.label, func_name))
 
@@ -179,12 +195,12 @@ class CliController(Controller):
                 epilog = kwargs.get("epilog", "")
                 kwargs["epilog"] = "Example: " + example + "\n" + epilog  # TODO avoid \n being stripped
 
-            command_parser = cmd_parent.add_parser(command["label"], **kwargs)
+            command_parser = cmd_parent.add_parser(label, **kwargs)
             # add an invisible dispatch option so we can figure out what to
             # call later in self._dispatch
             default_contr_func = "%s.%s" % (
-                command["controller"]._meta.label,
-                command["func_name"],
+                ctr_label,
+                func_name,
             )
             command_parser.add_argument(
                 self._dispatch_option,
@@ -196,11 +212,21 @@ class CliController(Controller):
 
             # add additional arguments to the sub-command namespace
             # self.app.log.debug("processing arguments for '%s' " % command['label'] + "command namespace")
-            for arg, kw in command["arguments"]:
+            for arg, kw in cmd_args:
                 # self.app.log.debug('adding argument (args=%s, kwargs=%s)' % (arg, kw))
                 command_parser.add_argument(*arg, **kw)
 
     def _dispatch(self):
+        """dispatch the command to apropriate controller
+        TODO  generate event for Audit log
+
+
+        Raises:
+            FrameworkError: _description_
+
+        Returns:
+            _type_: _description_
+        """
         self.app.log.info("########### PRE COMMAND ########### - start")
         start = time()
 
@@ -210,7 +236,7 @@ class CliController(Controller):
 
         ctrl_idx = {c._meta.label: c for c in self._controllers}
 
-        pre_params = argv[1:]
+        pre_params = sys.argv[1:]
         controller = None
         if len(pre_params) > 0:
             pre_param = pre_params[0].replace("-", "_")
@@ -321,9 +347,56 @@ class CliController(Controller):
     def close_temp_file(self, fp):
         fp.close()
 
+    def interactive_parameters(self, parameters: Dict[str, Union[str, None]]) -> Dict[str, str]:
+        """get a parameters  value asking the user for values
+
+        Args:
+            parameters (Dict[str,str]): _description_
+
+        Returns:
+            Dict[str,str]: _description_
+        """
+        for param, value in parameters:
+            parameters[param] = self.interactive_get_parameter(param, value)
+        return parameters
+
+    def interactive_parameter(self, parameter: str, default: str = None) -> str:
+        """get a parameter value asking the user for value
+
+        Args:
+            parameter (str): the parameter as miningful for the user
+            default (str):  default value empty string by default
+
+        Returns:
+            str: the value
+        """
+        if default is None:
+            resp = input(self.app.colored_text.yellow(f"{parameter} :"))
+            return resp
+        else:
+            resp = input(self.app.colored_text.yellow(f"{parameter} [{default}]:"))
+            if len(resp) > 0:
+                return resp
+            else:
+                return default
+
+    def confirm(self, msg: str) -> bool:
+        """ask for confirm
+
+        Args:
+            msg (str): mesage to display
+
+        Returns:
+            bool: true if user confirmed
+        """
+        msg = self.app.colored_text.yellow("%s. Are you sure [y/n]? " % msg)
+        i = input(msg).lower()
+        return i == "y"
+
 
 class BaseController(CliController):
     api: CmpApiClient = None
+    aliases = None
 
     class Meta:
         # controller level arguments. ex: 'beehive --version'
@@ -336,8 +409,14 @@ class BaseController(CliController):
         return self._meta.cmp.get("baseuri")
 
     def is_output_text(self):
-        if self.format == "text":
+        # print("+++++ is_output_text - self.format: %s" % self.format)
+        if self.format == "text" or self.format == "colortext":
             return True
+        try:
+            if self.app.output.handles_text():
+                return True
+        except:
+            return False
         return False
 
     def is_output_dynamic(self):
@@ -364,39 +443,62 @@ class BaseController(CliController):
         else:
             self.app.curl = self.curl
 
-        # set output hanlder
+        if not os.isatty(1):
+            # stdout is being piped to. e.g... beehive... | grep ...
+            # unless -f json or -f yaml, force "text" format
+            force_no_color = True
+        else:
+            force_no_color = False
+
+        # print("self.format %s" % self.format)
+        # print("self.app.format %s" % self.app.format)
+        if self.format is None:
+            self.format = self.app.format
+
         if self.format == "json":
             self.app.output = self.app._resolve_handler("output", "json_output_handler", raise_error=False)
         elif self.format == "yaml":
             self.app.output = self.app._resolve_handler("output", "yaml_output_handler", raise_error=False)
-        elif self.format == "text":
+        elif self.format == "text" or force_no_color:
             self.app.output = self.app._resolve_handler("output", "tabular_output_handler", raise_error=False)
+        elif self.format == "colortext":
+            self.app.output = self.app._resolve_handler("output", "tabular_color_output_handler", raise_error=False)
         elif self.format == "dynamic":
             self.app.output = self.app._resolve_handler("output", "dynamic_output_handler", raise_error=False)
+        elif self.format == "mixed":
+            self.app.output = self.app._resolve_handler("output", "mixed_output_handler", raise_error=False)
+        else:
+            raise Exception("Invalid format")
 
-    def format_paginated_query(self, params, mappings=None, aliases=None):
+    def format_paginated_query(self, params: dict, mappings=None, aliases=None) -> str:
         params.extend(["page", "size", "field", "order"])
         return self.format_query(params, mappings, aliases)
 
-    def format_query(self, params, mappings=None, aliases=None):
+    def format_query(self, params: dict, mappings=None, aliases=None) -> str:
         if mappings is None:
             mappings = {}
         if aliases is None:
             aliases = {}
+        self.aliases = aliases
+
         data = {}
         for item in params:
             mapping = mappings.get(item, None)
             value = getattr(self.app.pargs, item, None)
+            # print("item value %s - %s" % (item, value))
             if value is not None:
                 if mapping is not None:
                     value = mapping(value)
                 item = aliases.get(item, item)
                 data[item] = value
+
         data = urlencode(data, doseq=True)
         self.app.log.info("query data: %s" % data)
         return data
 
-    def add_field_from_pargs_to_data(self, field_name, data, data_key, reject_value=None, format=None):
+    def add_field_from_pargs_to_data(
+        self, field_name: str, data: dict, data_key: str, reject_value=None, format=None
+    ) -> dict:
         """add field to data dict used in post, put and delete api request
 
         :param field_name: command line field name
@@ -438,9 +540,147 @@ class BaseController(CliController):
             if taskid is not None:
                 self.api.wait_task(taskid, maxtime=task_timeout, delta=delta)
 
+    def debug(self, s):
+        # return
+        if False:
+            print("debug... %s" % s)
+
     def cmp_get(self, uri, data="", headers=None, timeout=240):
         res = self.api.call(uri, "GET", data=data, headers=headers, timeout=timeout)
         return res
+
+    def cmp_get_pages(
+        self,
+        uri,
+        data="",
+        headers=None,
+        timeout=240,
+        pagesize: int = 100,
+        key_total_name: str = None,
+        key_list_name: str = None,
+        fn_render=None,
+    ):
+        self.debug("self.app.pargs: %s" % self.app.pargs)
+        self.debug("self.format: %s" % self.format)
+
+        render_output = True
+        if self.format != "text" and self.format != "colortext":
+            render_output = False
+        if fn_render is None:
+            render_output = False
+
+        size = None
+        if hasattr(self.app.pargs, "size"):
+            size = getattr(self.app.pargs, "size")
+            self.debug("size: %s" % size)
+            if size < -2:
+                pagesize = abs(size)
+
+        if size is not None and size < -1:
+            param_size = "size"
+            param_page = "page"
+            self.debug("self.aliases: %s" % self.aliases)
+            if self.aliases is not None:
+                if "size" in self.aliases:
+                    param_size = self.aliases["size"]
+                if "page" in self.aliases:
+                    param_page = self.aliases["page"]
+
+            # self.debug(data)
+            SIZE_PARAM = "%s=%s" % (param_size, size)
+            if type(data) == str and data.find(SIZE_PARAM) > 0:
+                self.debug("loop get pages")
+
+                data_step = data.replace(SIZE_PARAM, "%s=%s" % (param_size, pagesize))
+                self.debug("data_step: %s" % data_step)
+                res = self.api.call(uri, "GET", data=data_step, headers=headers, timeout=timeout)
+                self.debug("res first: %s" % res)
+
+                total = None
+                if key_total_name is not None:
+                    total = dict_get(res, key_total_name)
+                    self.debug("total: %s" % total)
+                elif "total" in res:
+                    total = res["total"]
+
+                self.debug("total: %s" % total)
+                if total is not None:
+                    MAX_RECORDS = 10000
+                    if total > MAX_RECORDS:
+                        self.app.error("total record > %s - use filters" % MAX_RECORDS)
+                        return
+
+                    key_list = None
+                    data_key = []
+
+                    # find key with results
+                    if key_list_name is not None:
+                        key_list = key_list_name
+
+                        if render_output:
+                            fn_render(self, res)
+
+                            print("---")
+                            print("")
+                        else:
+                            data_key += dict_get(res, key_list)
+                    else:
+                        self.debug("keys... %s" % res.keys())
+                        for key in res.keys():
+                            if key not in ("count", "page", "total", "sort"):
+                                # self.debug("key: %s" % key)
+                                key_list = key
+                                self.debug("key_list: %s" % key_list)
+
+                                if render_output:
+                                    fn_render(self, res)
+
+                                    print("---")
+                                    print("")
+                                else:
+                                    data_key += res[key]
+
+                    # calc pages
+                    pages = total // pagesize
+                    if total % pagesize > 0:
+                        pages += 1
+                    self.debug("pages: %s" % pages)
+
+                    for page in range(1, pages):
+                        data_step = data.replace(SIZE_PARAM, "%s=%s" % (param_size, pagesize)).replace(
+                            "%s=0" % param_page, "%s=%s" % (param_page, page)
+                        )
+                        self.debug(data_step)
+                        res = self.api.call(uri, "GET", data=data_step, headers=headers, timeout=timeout)
+                        self.debug("page %s - res: %s" % (page, res))
+
+                        if render_output:
+                            fn_render(self, res, page=page)
+
+                            print("---")
+                            print("")
+                        else:
+                            data_key += dict_get(res, key_list)
+
+                    if render_output:
+                        return
+
+                    # res[key_list] = data_key
+                    dict_set(res, key_list, data_key)
+
+                    res["count"] = len(data_key)
+                    res["page"] = 0
+                    # self.debug(res)
+                    fn_render(self, res, page=0)
+                    return
+
+        # default
+        self.debug("default - data: %s" % data)
+        res = self.api.call(uri, "GET", data=data, headers=headers, timeout=timeout)
+        if fn_render:
+            fn_render(self, res)
+        else:
+            return res
 
     def cmp_post(
         self,
@@ -565,4 +805,4 @@ class BaseController(CliController):
                     self.app.colored_text.green(f"{action} {entity} success.")
             return res
         else:
-            exit()
+            sys.exit()

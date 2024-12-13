@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-import sh
 from cement import ex
 from beehive3_cli.core.connect import SshConnectionManager
 from beehive3_cli.core.controller import PARGS, ARGS, StringAction
@@ -28,6 +27,7 @@ class SshGroupController(SshControllerChild):
     @ex(
         help="get node groups",
         description="get node groups",
+        example="beehive ssh node-groups get -field NAME xxxx;beehive ssh node-groups get -e <env>",
         arguments=PARGS(
             [
                 (
@@ -58,6 +58,7 @@ class SshGroupController(SshControllerChild):
     @ex(
         help="add node group",
         description="add node group",
+        example="beehive ssh node-groups add",
         arguments=ARGS(
             [
                 (["name"], {"help": "nodegroup name", "action": "store", "type": str}),
@@ -104,6 +105,7 @@ class SshGroupController(SshControllerChild):
     @ex(
         help="add node to node group",
         description="add node to node group",
+        example="beehive ssh node-groups node-add",
         arguments=ARGS(
             [
                 (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
@@ -162,6 +164,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="get node group users",
         description="get node group users",
+        example="beehive ssh node-groups-auth user-get <uuid> -e <env>;beehive ssh node-groups-auth user-get <uuid>",
         arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
     )
     def user_get(self):
@@ -179,6 +182,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="add node group role to a user",
         description="add node group role to a user",
+        example="beehive ssh node-groups-auth user-add <uuid> <uuid> <uuid> -e <env>;beehive ssh node-groups-auth user-add <uuid> connect 2148@domnt.csi.it",
         arguments=ARGS(
             [
                 (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
@@ -205,6 +209,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="remove node group role from a user",
         description="remove node group role from a user",
+        example="beehive ssh node-groups-auth user-del <uuid> connect 71439;beehive ssh node-groups-auth user-del <uuid> connect 2021",
         arguments=ARGS(
             [
                 (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
@@ -231,6 +236,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="get node group groups",
         description="get node group groups",
+        example="beehive ssh node-groups-auth group-get <uuid>;beehive ssh node-groups-auth group-get <uuid>",
         arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
     )
     def group_get(self):
@@ -248,6 +254,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="add node group role to a group",
         description="add node group role to a group",
+        example="beehive ssh node-groups-auth group-add <uuid> connect GR-devops;beehive ssh node-groups-auth group-add <uuid> connect GR-comunemilano-ced-connect",
         arguments=ARGS(
             [
                 (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
@@ -274,6 +281,7 @@ class SshGroupAuthController(SshControllerChild):
     @ex(
         help="remove node group role from a group",
         description="remove node group role from a group",
+        example="beehive ssh node-groups-auth group-del <uuid> connect GR-sdptoolc-jv-sdpqueryapi",
         arguments=ARGS(
             [
                 (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
@@ -483,6 +491,8 @@ class SshGroupActionController(SshControllerChild):
         ),
     )
     def ping(self):
+        import sh
+
         oid = self.app.pargs.id
         data = self.format_paginated_query([])
         if oid is not None:
@@ -548,6 +558,8 @@ class SshGroupActionController(SshControllerChild):
         ),
     )
     def ultra_ping(self):
+        import sh
+
         oid = self.app.pargs.id
         data = self.format_paginated_query([])
         if oid is not None:

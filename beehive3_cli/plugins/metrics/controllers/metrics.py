@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from urllib.parse import urlencode
@@ -825,14 +825,14 @@ class MetricsController(MetricsBaseController):
             WHERE  tdd.id is NULL """,
             # creo service_link inst uguali a quello della service instance che rappresenta la macchina che monta il volume -- questionabile
             """
-            INSERT INTO service_link_inst(creation_date, modification_date, expiry_date, uuid, objid, `desc`, active, name, version, start_service_id, end_service_id, `attributes`, priority) 
-            SELECT tv.creation_date creation_date, tv.modification_date modification_date, sli.expiry_date, UUID() uuid, sli.objid, concat( 'vol_', sli.`desc`), sli.active, CONCAT('lnk_', sli.start_service_id , '_', tv.fk_service_instance_id )  name, 
-                sli.version, sli.start_service_id, tv.fk_service_instance_id  end_service_id, sli.`attributes`, sli.priority 
-            FROM 
+            INSERT INTO service_link_inst(creation_date, modification_date, expiry_date, uuid, objid, `desc`, active, name, version, start_service_id, end_service_id, `attributes`, priority)
+            SELECT tv.creation_date creation_date, tv.modification_date modification_date, sli.expiry_date, UUID() uuid, sli.objid, concat( 'vol_', sli.`desc`), sli.active, CONCAT('lnk_', sli.start_service_id , '_', tv.fk_service_instance_id )  name,
+                sli.version, sli.start_service_id, tv.fk_service_instance_id  end_service_id, sli.`attributes`, sli.priority
+            FROM
                 tmp_volumes_ tv
                 INNER JOIN service_instance si on si.uuid = tv.instance_uuid
                 INNER JOIN service_link_inst sli on sli.end_service_id = si.id
-                LEFT JOIN  service_link_inst sli2 on sli2.end_service_id = tv.fk_service_instance_id  and sli2.start_service_id = sli.start_service_id 
+                LEFT JOIN  service_link_inst sli2 on sli2.end_service_id = tv.fk_service_instance_id  and sli2.start_service_id = sli.start_service_id
             WHERE sli2.id IS NULL """,
         ]
         for statement in sqlstmnts:
