@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from binascii import a2b_base64
 from datetime import datetime, timedelta
@@ -10,6 +10,7 @@ from requests_oauthlib import OAuth2Session
 from beehive.common.jwtclient import JWTClient
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.plugins.auth.controllers.auth import AuthChildController
+from beehive3_cli.translate import _
 
 
 class AuthTokenController(AuthChildController):
@@ -17,8 +18,8 @@ class AuthTokenController(AuthChildController):
         stacked_on = "auth"
         stacked_type = "nested"
         label = "tokens"
-        description = "tokens management"
-        help = "tokens management"
+        description = _("tokens management")
+        help = _("tokens management")
 
         headers = [
             "token",
@@ -42,15 +43,15 @@ class AuthTokenController(AuthChildController):
         ]
 
     @ex(
-        help="get tokens",
-        description="get tokens",
-        example="beehive auth tokens get ;beehive auth tokens get -e <env>",
+        help=_("get tokens"),
+        description=_("get tokens"),
+        example="beehive auth tokens get",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "token uuid",
+                        "help": _("token uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -62,18 +63,18 @@ class AuthTokenController(AuthChildController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/tokens/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/tokens/{oid}"
             res = self.cmp_get(uri)
             self.app.render(res, key="token", details=True)
         else:
             data = self.format_paginated_query([])
-            uri = "%s/tokens" % self.baseuri
+            uri = f"{self.baseuri}/tokens"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="tokens", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="return your own authentication token",
-        description="return your own authentication token",
+        help=_("return your own authentication token"),
+        description=_("return your own authentication token"),
         arguments=ARGS(),
     )
     def get_my_token(self):
@@ -85,25 +86,25 @@ class AuthTokenController(AuthChildController):
         self.app.render(res, details=True)
 
     @ex(
-        help="create keyauth or oauth2 jwt token",
-        description="create keyauth or oauth2 jwt token",
+        help=_("create keyauth or oauth2 jwt token"),
+        description=_("create keyauth or oauth2 jwt token"),
         arguments=ARGS(
             [
                 (
                     ["-type"],
                     {
-                        "help": "can be keyauth, oauth2. oauth2 create a token using a jwt client",
+                        "help": _("can be keyauth, oauth2. oauth2 create a token using a jwt client"),
                         "action": "store",
                         "type": str,
                         "default": "keyauth",
                     },
                 ),
-                (["user"], {"help": "login user", "action": "store", "type": str}),
-                (["pwd"], {"help": "login password", "action": "store", "type": str}),
+                (["user"], {"help": _("login user"), "action": "store", "type": str}),
+                (["pwd"], {"help": _("login password"), "action": "store", "type": str}),
                 (
                     ["-client"],
                     {
-                        "help": "ouath2 client uuid",
+                        "help": _("oauth client uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -112,7 +113,7 @@ class AuthTokenController(AuthChildController):
                 (
                     ["-sub"],
                     {
-                        "help": "sub field for oauth2 jwt login",
+                        "help": _("sub field for oauth2 jwt login"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -134,7 +135,7 @@ class AuthTokenController(AuthChildController):
             token = res["access_token"]
         elif auth_type == "oauth2":
             # get client
-            uri = "/v1.0/oauth2/clients/%s" % client_id
+            uri = f"/v1.0/oauth2/clients/{client_id}"
             client = self.cmp_get(uri).get("client")
 
             client_id = client["uuid"]
@@ -162,18 +163,18 @@ class AuthTokenController(AuthChildController):
             res = client.prepare_request_body(assertion=encoded, client_id=client_id, scope=client_scope)
             token = oauth.fetch_token(token_url=client_token_uri, body=res, verify=False)
 
-        res = {"msg": "Get token %s" % token}
+        res = {"msg": f"Get token {token}"}
         self.app.render(res)
 
     @ex(
-        help="delete token",
-        description="delete token",
+        help=_("delete token"),
+        description=_("delete token"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "token uuid or all for all",
+                        "help": _("token uuid or all for all"),
                         "action": "store",
                         "type": str,
                     },
@@ -184,12 +185,12 @@ class AuthTokenController(AuthChildController):
     def delete(self):
         oid = self.app.pargs.id
         if oid == "all":
-            uri = "%s/tokens" % self.baseuri
+            uri = f"{self.baseuri}/tokens"
             tokens = self.cmp_get(uri, data="").get("tokens")
             for token in tokens:
                 token = token.get("token")
-                uri = "%s/tokens/%s" % (self.baseuri, token)
-                self.cmp_delete(uri, entity="token %s" % token)
+                uri = f"{self.baseuri}/tokens/{token}"
+                self.cmp_delete(uri, entity=f"token {token}")
         else:
-            uri = "%s/tokens/%s" % (self.baseuri, oid)
-            self.cmp_delete(uri, entity="token %s" % oid)
+            uri = f"{self.baseuri}/tokens/{oid}"
+            self.cmp_delete(uri, entity=f"token {oid}")

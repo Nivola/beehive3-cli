@@ -1,111 +1,118 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from base64 import urlsafe_b64decode
-from six import ensure_binary, ensure_text
 from cement import ex
+
 from beecell.crypto_util.fernet import Fernet
-from beecell.types.type_string import str2bool
 from beecell.password import random_password
+from beecell.util import ensure_binary, ensure_text
+from beecell.types.type_string import str2bool
+
 from beehive3_cli.core.controller import CliController
 from beehive3_cli.core.util import list_environments, load_environment_config
 from beehive3_cli.core.version import get_version, get_changelog
+from beehive3_cli.beenv import set_beenv, reset_env, print_env, unset_beenv
+from beehive3_cli.translate import _
 
-VERSION_BANNER = """
-Beehive3 Console %s
-Copyright (c) 2019-2024 CSI Piemonte
-""" % (
-    get_version()
-)
+VERSION_BANNER = f"""
+Beehive3 Console {get_version()}
+Copyright (c) 2019-2025 CSI Piemonte
+"""
 
 
 class Base(CliController):
-    class Meta:
+    class Meta: # type: ignore
         label = "base"
 
         # text displayed at the top of --help output
-        description = "Beehive Console"
+        description = _("Beehive Console")
 
-        # text displayed at the bottom of --help output
-        epilog = "Usage: beehive command1 --foo bar"
+        epilog = VERSION_BANNER
 
-        # controller level arguments. ex: 'beehive --version'
-        arguments = [
-            (["-v", "--version"], {"action": "version", "version": VERSION_BANNER}),
-            (
-                ["--time"],
-                {
-                    "action": "store_true",
-                    "dest": "time",
-                    "help": "Print command execution time",
-                },
-            ),
-        ]
+        arguments = []
 
     def _default(self):
         """Default action if no sub-command is passed."""
         self.app.args.print_help()
 
     @ex(
-        help="changelog command",
-        description="show changelog",
+        help=_("show changelog"),
+        description=_("show changelog"),
         arguments=[
-            (["-a", "--all"], {"action": "store_true", "dest": "all", "help": "Show all content"}),
+            (["-a", "--all"], {"action": "store_true", "dest": "all", "help": _("Show all content")}),
         ],
     )
     def changelog(self):
-        if getattr(self.app.pargs, "all", False) is False:
-            print(get_changelog())
-        else:
-            print(get_changelog(all=True))
+        all_items = getattr(self.app.pargs, "all", False)
+        print(get_changelog(all_items=all_items))
 
     @ex(
-        help="ask command",
-        description="search command",
+        help=_("merry Nivola"),
+        description=_("show merry Nivola"),
+        arguments=[],
+        hide=True,
+    )
+    def merry(self):
+        from beehive3_cli.snow import merry
+
+        merry()
+
+    @ex(
+        help=_("ask command"),
+        description=_("search command"),
         arguments=[
             # (
             #     ["command"],
-            #     {"help": "command to search", "action": "store", "type": str},
+            #     {"help": _("command to search"), "action": "store", "type": str},
             # ),
             (
                 ["-eq"],
-                {"help": "search equal command", "action": "store_true", "dest": "eq"},
+                {"help": _("search equal command"), "action": "store_true", "dest": "eq"},
+            ),
+            (
+                ["-noparam"],
+                {"help": _("search only commands"), "action": "store_true", "dest": "noparam"},
             ),
             (
                 ["-a"],
-                {"help": "command to search", "action": "store", "type": str},
+                {"help": _("command to search"), "action": "store", "type": str},
             ),
-            (["commands"], dict(action="store", nargs="*")),
+            (["commands"], {"action": 'store', "nargs": '*'}),
         ],
     )
     def ask(self):
         command_to_search = None
         # command_to_search = self.app.pargs.command
         # print("command_to_search %s" % command_to_search)
-        # self.app.log.warning("aaa command_to_search %s" % command_to_search)
+        # self.app.log.warning("aaa command_to_search %s", command_to_search)
 
         query = getattr(self.app.pargs, "a", None)
-        self.app.log.debug("aaa query %s" % query)
+        #self.app.log.debug("aaa query %s", query)
 
         commands = getattr(self.app.pargs, "commands", None)
-        self.app.log.debug("aaa commands %s" % commands)
+        #self.app.log.debug("aaa commands %s", commands)
 
-        self.app.log.debug("aaa self.app.pargs %s" % self.app.pargs)
+        #self.app.log.debug("aaa self.app.pargs %s", %self.app.pargs)
 
-        ctrl_idx = {}
+        #ctrl_idx = {}
         fathers = {}
-        # SEP = " -> "
-        SEP = " "
+        sep = " "
 
         eq = True
         if getattr(self.app.pargs, "eq", False) is False:
             eq = False
 
-        # if command_to_search is None:
+        noparam = True
+        if getattr(self.app.pargs, "noparam", False) is False:
+            noparam = False
+
         command_to_search = query
-        if command_to_search is None and len(commands) > 0:
-            command_to_search = commands[0]
+        if command_to_search is None and len(commands) > 0: # type: ignore
+            command_to_search = commands[0] # type: ignore
+
+        results = []
 
         if command_to_search is None:
             print("specify command to search: [-a] command")
@@ -114,9 +121,9 @@ class Base(CliController):
                 from cement.core.meta import Meta
 
                 meta: Meta = c._meta
-                parent = c._meta.stacked_on.replace("_", "-")
-                label: str = c._meta.label.replace("_", "-")
-                description = c._meta.description
+                parent = meta.stacked_on.replace("_", "-")
+                label: str = meta.label.replace("_", "-")
+                #description = meta.description
                 # arguments = meta.arguments # empty list
 
                 # print('label: %s - controller: %s - parent: %s ' % (label, c, parent))
@@ -126,103 +133,85 @@ class Base(CliController):
                     output = ""
                     father = fathers[parent]
                     if father != "base":
-                        output += father + SEP
+                        output += father + sep
 
                     if parent != "base":
-                        output += parent + SEP
+                        output += parent + sep
 
-                    output += label + SEP
-                    print("%s..." % (output))
+                    output += label + sep
+                    results.append(f"{output}...")
 
-                # print('{}'.format(c._meta))
-                # for a in meta.__dict__.items():
-                #     print(a)
-
-                # set child sections
-                # try:
-                #     ctrl_idx[parent].append(label)
-                # except:
-                #     ctrl_idx[parent] = [label]
                 commands = c._collect_commands()
 
                 # set child commands
                 for command in commands:
                     if isinstance(command, dict):
-                        command_label: str = command["label"]
+                        command_label = command["label"]
+                        command_arguments = command["arguments"]
+                        parser_options = command["parser_options"]
                     else:
-                        command_label: str = command.label
+                        command_label = command.label
+                        command_arguments = command.arguments
+                        parser_options = command.parser_options
+
+                    output = ""
+                    father = fathers[parent]
+                    if father != "base":
+                        output += father + sep
+
+                    if parent != "base":
+                        output += parent + sep
+
+                    output += label + sep
 
                     if (eq and command_label == command_to_search != -1) or (
                         eq is False and command_label.find(command_to_search) != -1
                     ):
-                        output = ""
-                        father = fathers[parent]
-                        if father != "base":
-                            output += father + SEP
+                        results.append(f"{output}{command_label}")
 
-                        if parent != "base":
-                            output += parent + SEP
+                    if not noparam:
+                        for command_argument in command_arguments:
+                            args_sintassi = command_argument[0]
+                            # print("args_sintassi: %s" % args_sintassi)
 
-                        output += label + SEP
-                        print("%s%s" % (output, command_label))
+                            sintassi: str = ""
+                            for arg_sintassi in args_sintassi:
+                                sintassi = sintassi + ", " + arg_sintassi
+                            if len(sintassi) > 0:
+                                sintassi = sintassi[2::]
+                            # print("sintassi: %s" % sintassi)
 
-                        # for argument in command.get('arguments', []):
-                        #     action = argument[1].get('action', None)
-                        #     try:
-                        #         for a in argument[0]:
-                        #             if a[0] != '-':
-                        #                 pass
-                        #                 # a = '%s..' % a
-                        #             elif action == 'store':
-                        #                 a = '%s' % a
-                        #             print(a)
-                        #     except:
-                        #         ctrl_idx[label+':'+command_label] = []
-                        #         for a in argument[0]:
-                        #             if a[0] != '-':
-                        #                 pass
-                        #                 # a = '%s..' % a
-                        #             elif action == 'store':
-                        #                 a = '%s' % a
-                        #             print('except ' + a)
+                            if (eq and sintassi == command_to_search != -1) or (
+                                eq is False and sintassi.find(command_to_search) != -1
+                            ):
+                                results.append(f"{output}{command_label} (param {sintassi})")
 
                 # grandfather = parent
 
+            results.sort()
+            for result in results:
+                print(result)
+
     @ex(
-        help="tree command",
-        description="tree command",
+        help=_("tree command"),
+        description=_("tree command"),
         arguments=[
             (
                 ["-f"],
                 {
                     "action": "store",
                     "dest": "format",
-                    "help": "Output format: json, html",
+                    "help": _("Output format: json, html"),
                     "default": "text",
                 },
             ),
-            (["commands"], dict(action="store", nargs="*")),
+            (["commands"], {"action": 'store', "nargs": '*'}),
         ],
     )
     def tree(self):
-        command_to_search = None
-        query = getattr(self.app.pargs, "a", None)
-        # self.app.log.debug("aaa query %s" % query)
-
-        commands = getattr(self.app.pargs, "commands", None)
-        # self.app.log.debug("aaa commands %s" % commands)
-
-        # self.app.log.debug("aaa self.app.pargs %s" % self.app.pargs)
-
-        ctrl_idx = {}
         fathers = {}
-        SEP = "!"  # char before "-" in ascii chars
+        sep = "!"  # char before "-" in ascii chars
         deep = 0
-
-        # if command_to_search is None:
-        command_to_search = query
-        if command_to_search is None and len(commands) > 0:
-            command_to_search = commands[0]
 
         array_path = []
         array_path.clear()
@@ -234,7 +223,7 @@ class Base(CliController):
             meta: Meta = c._meta
             controller_parent = meta.stacked_on.replace("_", "-")
             controller_label: str = meta.label.replace("_", "-")
-            controller_description = meta.description
+            #controller_description = meta.description
             controller_help = meta.help
             # arguments = meta.arguments # empty list
 
@@ -248,7 +237,7 @@ class Base(CliController):
             if len(commands) == 0:
                 if controller_parent == "base":
                     path_obj = {
-                        "key": SEP + controller_label,
+                        "key": sep + controller_label,
                         "array_command": [controller_label],
                         "deep": 1,
                         "type": "folder",
@@ -273,7 +262,7 @@ class Base(CliController):
 
                 # parser_options: str = command["parser_options"]
                 command_help: str = parser_options["help"]
-                command_description: str = parser_options["description"]
+                # command_description: str = parser_options["description"]
 
                 array_command = []
                 array_key = []
@@ -304,7 +293,7 @@ class Base(CliController):
                     array_folder = []
                     for path in array_command:
                         # print(path)
-                        path_key = path_key + SEP + path
+                        path_key = path_key + sep + path
                         array_folder.append(path)
                     # print(path_key)
 
@@ -330,7 +319,7 @@ class Base(CliController):
 
                 for path in array_key:
                     # print(path)
-                    path_key = path_key + SEP + path
+                    path_key = path_key + sep + path
                 # print(path_key)
 
                 command_args = []
@@ -369,7 +358,7 @@ class Base(CliController):
 
         self.format = getattr(self.app.pargs, "format", None)
         if self.format == "json":
-            self.app.output = self.app._resolve_handler("output", "json_output_handler", raise_error=False)
+            self.app.output = self.app._resolve_handler("output", "json_output_handler", raise_error=False) # type: ignore
             self.app.render(array_path)
 
         elif self.format == "html":
@@ -389,9 +378,8 @@ class Base(CliController):
 
             dirname = os.path.dirname(__file__)
 
-            text_file = open(dirname + "/templates/tree_command.html", "r")
-            data_template = text_file.read()
-            text_file.close()
+            with open(f"{dirname}/templates/tree_command.html", "r", encoding="utf-8") as text_file:
+                data_template = text_file.read()
 
             results_filename = "BeehiveCLI.html"
             results_template = environment.from_string(data_template)
@@ -409,8 +397,8 @@ class Base(CliController):
             prev = []
             for path in array_path:
                 # print(path.get("key"))
-                type = path.get("type")
-                if type == "command":
+                l_type = path.get("type")
+                if l_type == "command":
                     index_array = 0
                     for array_command in path.get("array_command"):
                         b_print = True
@@ -426,21 +414,23 @@ class Base(CliController):
                             if index_array == 1:
                                 print("")
 
-                            format = "{:>%s}{:<20}" % (index_array * 5)
-                            print(format.format("", array_command))
+                            l_format = "{:>%s}{:<20}" % (index_array * 5)
+                            print(l_format.format("", array_command))
 
                         index_array = index_array + 1
 
     @ex(
-        help="get bash completion script",
-        description="get bash completion script",
+        help=_("get bash completion script"),
+        description=_("get bash completion script"),
         arguments=[],
     )
     def bash_completion(self):
+        from cement.core.meta import Meta
         ctrl_idx = {}
         for c in self._controllers:
-            parent = c._meta.stacked_on.replace("_", "-")
-            label = c._meta.label.replace("_", "-")
+            meta: Meta = c._meta
+            parent = meta.stacked_on.replace("_", "-")
+            label = meta.label.replace("_", "-")
 
             # set child sections
             try:
@@ -453,10 +443,16 @@ class Base(CliController):
             for command in commands:
                 if isinstance(command, dict):
                     command_label = command["label"]
+                    command_hide = command["hide"]
                     command_arguments = command.get("arguments", [])
                 else:
                     command_label = command.label
+                    command_hide = command.hide
                     command_arguments = command.arguments
+
+                if command_hide is True:
+                    # print("command_label: %s" % command_label)
+                    continue
 
                 try:
                     ctrl_idx[label].append(command_label)
@@ -472,7 +468,7 @@ class Base(CliController):
                                 pass
                                 # a = '%s..' % a
                             elif action == "store":
-                                a = "%s" % a
+                                a = f"{a}"
                                 ctrl_idx[label + ":" + command_label].append(a)
                             else:
                                 ctrl_idx[label + ":" + command_label].append(a)
@@ -483,20 +479,20 @@ class Base(CliController):
                                 pass
                                 # a = '%s..' % a
                             elif action == "store":
-                                a = "%s" % a
+                                a = f"{a}"
                                 ctrl_idx[label + ":" + command_label].append(a)
                             else:
                                 ctrl_idx[label + ":" + command_label].append(a)
 
         script = []
         for k, v in ctrl_idx.items():
-            script.append("CMDS[{key}]='{values}'".format(key=k, values=" ".join(v)))
+            script.append(f"CMDS[{k}]='{' '.join(v)}'")
 
         print("\n".join(script))
 
     @ex(
-        help="get bash completion envs",
-        description="get bash completion envs",
+        help=_("get bash completion envs"),
+        description=_("get bash completion envs"),
         arguments=[],
     )
     def bash_completion_envs(self):
@@ -504,62 +500,40 @@ class Base(CliController):
         print(" ".join(envs))
 
     @ex(
-        help="list available environments",
-        description="list available environments",
+        help=_("list available environments"),
+        description=_("list available environments"),
         arguments=[
             (
                 ["-maxcolwidth"],
                 {
-                    "help": "max column width. default=50",
+                    "help": _("max column width. default=50"),
                     "action": "store",
                     "type": int,
                     "default": 50,
                 },
             ),
             (
-                ["-multichunks"],
-                {
-                    "help": "split the output in chunks",
-                    "action": "store",
-                    "type": int,
-                    "default": None,
-                },
-            ),
-            (
                 ["-current"],
                 {
-                    "help": "list only current environment",
+                    "help": _("show only current environment"),
                     "action": "store_true",
-                },
-            ),
-            (
-                ["-orchestrator_type_name"],
-                {
-                    "help": "Filter by orchestrator type name. e.g. zabbix",
-                    "action": "store",
-                    "type": str,
-                    "default": None,
                 },
             ),
         ],
     )
     def envs(self):
         envs = list_environments(self.app)
-        defualt_env = self.app.config.get("beehive", "default_env")
+        default_env = self.app.config.get("beehive", "default_env")
         current_env = self.app.env
 
-        chunk_size = self.app.pargs.multichunks
         max_col_width = self.app.pargs.maxcolwidth
-        otn = self.app.pargs.orchestrator_type_name
-        if otn:
-            chunk_size = 1
-            max_col_width = 100
+        show_only_current = self.app.pargs.current
 
+        orch_info = {}
         res = []
         headers = ["name", "version", "current", "is_default", "has_cmp"]
-        headers_orch = []
         for env in envs:
-            if self.app.pargs.current and env != current_env:
+            if show_only_current and env != current_env:
                 continue
             try:
                 value = load_environment_config(self.app, env)
@@ -572,9 +546,8 @@ class Base(CliController):
                     "current": False,
                     "is_default": False,
                     "has_cmp": False,
-                    "|": "|",  # vertical divider
                 }
-                if env == defualt_env:
+                if env == default_env:
                     item["is_default"] = True
                 if env == current_env:
                     item["current"] = True
@@ -587,38 +560,128 @@ class Base(CliController):
                     item["has_cmp"] = ",".join(endpoints)
 
                 orchestrators = value.get("orchestrators", {})
-                # if orchestrators is not None:
-                for k in list(orchestrators.keys()):
-                    if otn and otn != k:
-                        continue
-                    v = orchestrators.get(k, {})
-                    if v is None:
-                        v = {}
-                    item[k] = ",".join(v.keys())
-                    if k not in headers_orch:
-                        headers_orch.append(k)
+                if orchestrators and show_only_current:
+                    for k in list(orchestrators.keys()):
+                        orch_labels = ",".join(list(orchestrators.get(k, {})))
+                        orch_info[k] = orch_labels
 
                 res.append(item)
-            except Exception as ex:
-                self.app.log.warning("no correct config found for environment %s" % env)
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.warning("no correct config found for environment %s", env)
+                self.app.log.error(exc, exc_info=True)
 
-        if chunk_size:
-            headers_chunks = [headers_orch[i : i + chunk_size] for i in range(0, len(headers_orch), chunk_size)]
-            for headers_i in headers_chunks:
-                self.app.render(res, headers=headers + ["|"] + headers_i, maxsize=max_col_width)
-                print("")  # empty line
-        else:
-            self.app.render(res, headers=headers + headers_orch, maxsize=max_col_width)
+        self.app.render(res, headers=headers, maxsize=max_col_width)
+        if show_only_current:
+            print()
+            self.app.render(orch_info, details=True)
 
     @ex(
-        help="generate password",
-        description="generate password",
+        help=_("clear local configuration"),
+        description=_("clear local configurtion in file under user home directory"),
+        arguments=[],
+    )
+    def clear_config(self):
+        """Truncate local configurtion in file under user home directory."""
+        reset_env()
+
+    @ex(
+        help=_("print local configuration"),
+        description=_("print local configuration"),
+        arguments=[],
+    )
+    def get_config(self):
+        """Print local confguration."""
+        print_env()
+
+    @ex(
+        help=_("Set target environment in application configuration."),
+        description=_(
+            """Set target environment in application configuration.
+            You can run like this:
+            eval $(beehive set-env -e xxx)
+            But your local configuration, if present, will overide environment variable
+            - Hint: change variabile PS1 adding ':$NIVOLA_CLI_ENV$ '"""
+        ),
+        arguments=[
+            (
+                ["-e"],
+                {
+                    "help": _("env to set"),
+                    "action": "store",
+                    "dest": "env",
+                    "type": str,
+                    "default": None,
+                },
+            ),
+            (
+                ["--save", "-s"],
+                {
+                    "action": "store_true",
+                    "dest": "save",
+                    "help": _("save env in local configuration"),
+                },
+            ),
+        ],
+    )
+    def set_env(self):
+        env = self.app.pargs.env
+        envs = list_environments(self.app)
+        if env in envs:
+            if getattr(self.app.pargs, "save", False) is True:
+                set_beenv("NIVOLA_CLI_ENV", str(env).strip())
+            else :
+                unset_beenv("NIVOLA_CLI_ENV")
+            print(f"export NIVOLA_CLI_ENV={env}")
+        else:
+            self.app.exit_code = 1
+            print(_("Invalid environment. Must be on of ") + ", ".join(envs))
+
+    @ex(
+        help=_("run like this: eval $(beehive set-lang xx)"),
+        description=_(
+            """
+            Set language in application configuration.
+            You can run like this: eval $(beehive set-lang xx)
+            but your local configuration, if present, will overide environment variable"""
+        ),
+        arguments=[
+            (
+                ["lang"],
+                {
+                    "help": _("lang to set: it/en"),
+                    "action": "store",
+                    "type": str,
+                    "default": None,
+                },
+            ),
+            (
+                ["--save", "-s"],
+                {
+                    "action": "store_true",
+                    "dest": "save",
+                    "help": _("save env in local configuration"),
+                },
+            ),
+        ],
+    )
+    def set_lang(self):
+        lang = self.app.pargs.lang
+        if lang not in ('it', 'en'):
+            raise Exception(f"lang error: {lang}")
+        if getattr(self.app.pargs, "save", False) is True:
+            set_beenv("NIVOLA_CLI_LANG", lang)
+        else:
+            unset_beenv("NIVOLA_CLI_LANG")
+        print(f"export NIVOLA_CLI_LANG={lang}")
+
+    @ex(
+        help=_("generate password"),
+        description=_("generate password"),
         arguments=[
             (
                 ["-length"],
                 {
-                    "help": "password length",
+                    "help": _("password length"),
                     "action": "store",
                     "type": str,
                     "default": 12,
@@ -627,7 +690,7 @@ class Base(CliController):
             (
                 ["-strong"],
                 {
-                    "help": "password strong",
+                    "help": _("password strong"),
                     "action": "store",
                     "type": str,
                     "default": "true",
@@ -642,8 +705,8 @@ class Base(CliController):
         self.app.render({"pwd": pwd}, headers=["pwd"], maxsize=500)
 
     @ex(
-        help="generate fernet key for symmetric encryption",
-        description="generate fernet key for symmetric encryption",
+        help=_("generate fernet key for symmetric encryption"),
+        description=_("generate fernet key for symmetric encryption"),
         arguments=[],
     )
     def gen_key(self):
@@ -651,20 +714,21 @@ class Base(CliController):
         key = Fernet.generate_key()
         self.app.render({"key": key}, headers=["key"])
 
-    # @ex(
-    #     help="encrypt data with symmetric encryption",
-    #     description="encrypt data with symmetric encryption",
-    #     arguments=[
-    #         (["data"], {"help": "data to encrypt", "action": "store", "type": str}),
-    #         (
-    #             ["key"],
-    #             {
-    #                 "action": "store",
-    #                 "help": "secret key to use for encryption/decryption",
-    #             },
-    #         ),
-    #     ],
-    # )
+    @ex(
+        help=_("dev: encrypt data with symmetric encryption"),
+        description=_("encrypt data with symmetric encryption"),
+        arguments=[
+            (["data"], {"help": _("data to encrypt"), "action": "store", "type": str}),
+            (
+                ["key"],
+                {
+                    "action": "store",
+                    "help": _("secret key to use for encryption/decryption"),
+                },
+            ),
+        ],
+        hide=True,
+    )
     def encrypt(self):
         # self.check_secret_key()
         data = self.app.pargs.data
@@ -673,23 +737,24 @@ class Base(CliController):
         key = urlsafe_b64decode(key)
         cipher_suite = Fernet(key)
         cipher_text = cipher_suite.encrypt(ensure_binary(data))
-        res = [{"encrypt_data": "$BEEHIVE_VAULT;AES128 | %s" % ensure_text(cipher_text)}]
+        res = [{"encrypt_data": f"$BEEHIVE_VAULT;AES128 | {ensure_text(cipher_text)}"}]
         self.app.render(res, headers=["encrypt_data"], maxsize=400)
 
-    # @ex(
-    #     help="decrypt quoted data with symmetric encryption",
-    #     description="decrypt quoted data with symmetric encryption",
-    #     arguments=[
-    #         (["data"], {"help": "data to decrypt", "action": "store", "type": str}),
-    #         (
-    #             ["key"],
-    #             {
-    #                 "action": "store",
-    #                 "help": "secret key to use for encryption/decryption",
-    #             },
-    #         ),
-    #     ],
-    # )
+    @ex(
+        help=_("dev: decrypt quoted data with symmetric encryption"),
+        description=_("decrypt quoted data with symmetric encryption"),
+        arguments=[
+            (["data"], {"help": _("data to decrypt"), "action": "store", "type": str}),
+            (
+                ["key"],
+                {
+                    "action": "store",
+                    "help": _("secret key to use for encryption/decryption"),
+                },
+            ),
+        ],
+        hide=True,
+    )
     def decrypt(self):
         from beecell.crypto import decrypt_data
 
@@ -703,3 +768,12 @@ class Base(CliController):
         self.app.render({"decrypt_data": cipher_text}, headers=["decrypt_data"], maxsize=200)
         testp = decrypt_data(key, data)
         print("beecel   :", testp)
+
+    @ex(
+        help=_("dev: test dev user"),
+        description=_("test dev user"),
+        arguments=[],
+        hide=True,
+    )
+    def amidev(self):
+        print("Hey dude, you are a dev user!")

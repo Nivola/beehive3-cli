@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from cement import ex
 
 from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_dict import dict_get
 from beecell.types.type_id import id_gen
-from beehive3_cli.core.controller import BaseController, PARGS, ARGS
-from cement import ex
+
+from beehive3_cli.core.controller import BASE_ARGS, BaseController, PARGS, ARGS
+from beehive3_cli.plugins.vsphere.controllers.manage_datasource.app import ManageDatasourceApp
+from beehive3_cli.translate import _
 
 
 class VsphereController(BaseController):
@@ -14,8 +18,8 @@ class VsphereController(BaseController):
         label = "res_vsphere"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "vsphere orchestrator"
-        help = "vsphere orchestrator"
+        description = _("vsphere orchestrator")
+        help = _("vsphere orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/vsphere", "subsystem": "resource"}
 
@@ -184,7 +188,7 @@ class VsphereController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(VsphereController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
@@ -195,14 +199,14 @@ class VsphereController(BaseController):
         return c_idx
 
     @ex(
-        help="get datacenters",
-        description="get datacenters",
+        help=_("get datacenters"),
+        description=_("get datacenters"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "datacenter id",
+                        "help": _("datacenter id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -214,7 +218,7 @@ class VsphereController(BaseController):
     def datacenter_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/datacenters/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/datacenters/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -226,7 +230,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/datacenters" % self.baseuri
+            uri = f"{self.baseuri}/datacenters"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -236,14 +240,14 @@ class VsphereController(BaseController):
             )
 
     @ex(
-        help="get folders",
-        description="get folders",
+        help=_("get folders"),
+        description=_("get folders"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "folder id",
+                        "help": _("folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -255,7 +259,7 @@ class VsphereController(BaseController):
     def folder_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/folders/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/folders/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -267,19 +271,37 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/folders" % self.baseuri
+            uri = f"{self.baseuri}/folders"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="folders", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get datastores",
-        description="get datastores",
+        help=_("get datastores"),
+        description=_("get datastores"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": _("name"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-container"],
+                    {
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -291,7 +313,7 @@ class VsphereController(BaseController):
     def datastore_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/datastores/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/datastores/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -300,10 +322,10 @@ class VsphereController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            params = []
-            mappings = {}
+            params = ["name", "container"]
+            mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/datastores" % self.baseuri
+            uri = f"{self.baseuri}/datastores"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -316,14 +338,14 @@ class VsphereController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="get clusters",
-        description="get clusters",
+        help=_("get clusters"),
+        description=_("get clusters"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -335,7 +357,7 @@ class VsphereController(BaseController):
     def cluster_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/clusters/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/clusters/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -347,7 +369,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/clusters" % self.baseuri
+            uri = f"{self.baseuri}/clusters"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -357,14 +379,14 @@ class VsphereController(BaseController):
             )
 
     @ex(
-        help="get distributed virtual switches",
-        description="get distributed virtual switches",
+        help=_("get distributed virtual switches"),
+        description=_("get distributed virtual switches"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "distributed virtual switch id",
+                        "help": _("distributed virtual switch id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -376,7 +398,7 @@ class VsphereController(BaseController):
     def dvs_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/network/dvss/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/network/dvss/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -388,19 +410,19 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/network/dvss" % self.baseuri
+            uri = f"{self.baseuri}/network/dvss"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="dvss", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get distributed virtual port groups",
-        description="get distributed virtual port groups",
+        help=_("get distributed virtual port groups"),
+        description=_("get distributed virtual port groups"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "distributed virtual port group id",
+                        "help": _("distributed virtual port group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -412,7 +434,7 @@ class VsphereController(BaseController):
     def dvpg_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/network/dvpgs/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/network/dvpgs/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -424,19 +446,19 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/network/dvpgs" % self.baseuri
+            uri = f"{self.baseuri}/network/dvpgs"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="dvpgs", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get nsx managers",
-        description="get nsx managers",
+        help=_("get nsx managers"),
+        description=_("get nsx managers"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "nsx manager id",
+                        "help": _("nsx manager id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -448,7 +470,7 @@ class VsphereController(BaseController):
     def nsx_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/network/nsxs/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/network/nsxs/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -460,19 +482,19 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/network/nsxs" % self.baseuri
+            uri = f"{self.baseuri}/network/nsxs"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="nsxs", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get nsx security groups",
-        description="get nsx security groups",
+        help=_("get nsx security groups"),
+        description=_("get nsx security groups"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -484,7 +506,7 @@ class VsphereController(BaseController):
     def nsx_security_group_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/network/nsx_security_groups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/network/nsx_security_groups/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -496,7 +518,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/network/nsx_security_groups" % self.baseuri
+            uri = f"{self.baseuri}/network/nsx_security_groups"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -519,9 +541,9 @@ class VsphereController(BaseController):
             for k, v in source.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_source.append("%s:%s" % (k, v1))
+                        new_source.append(f"{k}:{v1}")
                 else:
-                    new_source.append("%s:%s" % (k, v))
+                    new_source.append(f"{k}:{v}")
             r["source"] = "\n".join(new_source)
 
             dest = r.get("destination", {})
@@ -529,9 +551,9 @@ class VsphereController(BaseController):
             for k, v in dest.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_dest.append("%s:%s" % (k, v1))
+                        new_dest.append(f"{k}:{v1}")
                 else:
-                    new_dest.append("%s:%s" % (k, v))
+                    new_dest.append(f"{k}:{v}")
             r["destination"] = "\n".join(new_dest)
 
             application = r.get("application", {})
@@ -539,13 +561,13 @@ class VsphereController(BaseController):
             for k, v in application.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_application.append("%s:%s" % (k, v1))
+                        new_application.append(f"{k}:{v1}")
                 if isinstance(v, dict):
-                    new_application.append("%s:" % k)
+                    new_application.append(f"{k}:")
                     for k1, v1 in v.items():
-                        new_application.append("  %s:%s" % (k1, v1))
+                        new_application.append(f"  {k1}:{v1}")
                 else:
-                    new_application.append("%s:%s" % (k, v))
+                    new_application.append(f"{k}:{v}")
             r["application"] = "\n".join(new_application)
 
         self.c("\nFIREWALL", "bold")
@@ -729,11 +751,12 @@ class VsphereController(BaseController):
                     members = [members]
                 res = []
                 for m in members:
-                    m.update({"port": m.get("port", m.get("monitorPort"))})
+                    m["port"] = m.get("port", m.get("monitorPort"))
                     res.append(
-                        "id:{memberId}, name:{name}, ip:{ipAddress}, weight:{weight}, "
-                        "monitorPort:{monitorPort}, port:{port}, maxConn:{maxConn}, minConn:{minConn}, "
-                        "condition:{condition}".format(**m)
+                        f"id:{m['memberId']}, name:{m['name']}, ip:{m['ipAddress']}, "
+                        f"weight:{m['weight']}, monitorPort:{m['monitorPort']}, "
+                        f"port:{m['port']}, maxConn:{m['maxConn']}, "
+                        f"minConn:{m['minConn']}, condition:{m['condition']}"
                     )
                 return "\n".join(res)
 
@@ -785,14 +808,14 @@ class VsphereController(BaseController):
         self.app.render(ospf_areas, headers=headers, maxsize=50)
 
     @ex(
-        help="get nsx edges",
-        description="get nsx edges",
+        help=_("get nsx edges"),
+        description=_("get nsx edges"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -804,7 +827,7 @@ class VsphereController(BaseController):
     def nsx_edge_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/network/nsx_edges/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/network/nsx_edges/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -911,7 +934,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/network/nsx_edges" % self.baseuri
+            uri = f"{self.baseuri}/network/nsx_edges"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -924,14 +947,14 @@ class VsphereController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="get servers",
-        description="get servers",
+        help=_("get servers"),
+        description=_("get servers"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -943,7 +966,7 @@ class VsphereController(BaseController):
     def server_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/servers/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/servers/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1008,7 +1031,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/servers" % self.baseuri
+            uri = f"{self.baseuri}/servers"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -1021,14 +1044,14 @@ class VsphereController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="patch server",
-        description="patch server",
+        help=_("patch server"),
+        description=_("patch server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1039,19 +1062,19 @@ class VsphereController(BaseController):
     )
     def server_patch(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/entities/%s" % oid
+        uri = f"/v1.0/nrs/entities/{oid}"
         self.cmp_patch(uri, data={"resource": {}})
-        self.app.render({"msg": "patch server %s" % oid}, details=True)
+        self.app.render({"msg": f"patch server {oid}"}, details=True)
 
     @ex(
-        help="get server hardware",
-        description="get server hardware",
+        help=_("get server hardware"),
+        description=_("get server hardware"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1062,7 +1085,7 @@ class VsphereController(BaseController):
     )
     def server_hw(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/hw" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/hw"
         res = self.cmp_get(uri)
 
         if self.is_output_text():
@@ -1120,14 +1143,14 @@ class VsphereController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get server console",
-        description="get server console",
+        help=_("get server console"),
+        description=_("get server console"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1138,19 +1161,19 @@ class VsphereController(BaseController):
     )
     def server_console(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/console" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/console"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get server console",
-        description="get server console",
+        help=_("get server console"),
+        description=_("get server console"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1161,19 +1184,19 @@ class VsphereController(BaseController):
     )
     def server_runtime(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/runtime" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/runtime"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get server stats",
-        description="get server stats",
+        help=_("get server stats"),
+        description=_("get server stats"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1184,19 +1207,19 @@ class VsphereController(BaseController):
     )
     def server_stats(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/stats" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/stats"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get server guest",
-        description="get server guest",
+        help=_("get server guest"),
+        description=_("get server guest"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1207,7 +1230,7 @@ class VsphereController(BaseController):
     )
     def server_guest(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/guest" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/guest"
         res = self.cmp_get(uri)
 
         if self.is_output_text():
@@ -1255,14 +1278,14 @@ class VsphereController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get vsphere server snapshots",
-        description="get vsphere server snapshots",
+        help=_("get vsphere server snapshots"),
+        description=_("get vsphere server snapshots"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1273,19 +1296,19 @@ class VsphereController(BaseController):
     )
     def server_snapshot_get(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/snapshots"
         res = self.cmp_get(uri).get("server_snapshots")
         self.app.render(res, headers=["id", "name", "status", "created_at"])
 
     @ex(
-        help="add vsphere server snapshot",
-        description="add vsphere server snapshot",
+        help=_("add vsphere server snapshot"),
+        description=_("add vsphere server snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1294,7 +1317,7 @@ class VsphereController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1306,19 +1329,19 @@ class VsphereController(BaseController):
     def server_snapshot_add(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="delete vsphere server snapshot",
-        description="delete vsphere server snapshot",
+        help=_("delete vsphere server snapshot"),
+        description=_("delete vsphere server snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1327,7 +1350,7 @@ class VsphereController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1339,19 +1362,19 @@ class VsphereController(BaseController):
     def server_snapshot_del(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="revert vsphere server to snapshot",
-        description="revert vsphere server to snapshot",
+        help=_("revert vsphere server to snapshot"),
+        description=_("revert vsphere server to snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1360,7 +1383,7 @@ class VsphereController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1372,19 +1395,19 @@ class VsphereController(BaseController):
     def server_snapshot_revert(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"revert_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="add vsphere server security group",
-        description="add vsphere server security group",
+        help=_("add vsphere server security group"),
+        description=_("add vsphere server security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1393,7 +1416,7 @@ class VsphereController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1405,19 +1428,19 @@ class VsphereController(BaseController):
     def server_sg_add(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="delete vsphere server security group",
-        description="delete vsphere server security group",
+        help=_("delete vsphere server security group"),
+        description=_("delete vsphere server security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1426,7 +1449,7 @@ class VsphereController(BaseController):
                 (
                     ["sg"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1438,19 +1461,19 @@ class VsphereController(BaseController):
     def server_sg_del(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="add volume to server",
-        description="add volume to server",
+        help=_("add volume to server"),
+        description=_("add volume to server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1459,7 +1482,7 @@ class VsphereController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1471,19 +1494,19 @@ class VsphereController(BaseController):
     def server_volume_add(self):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_volume": {"volume": volume}}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="add some volumes to server",
-        description="add some volumes to server",
+        help=_("add some volumes to server"),
+        description=_("add some volumes to server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1492,7 +1515,7 @@ class VsphereController(BaseController):
                 (
                     ["volume_type"],
                     {
-                        "help": "volume type id",
+                        "help": _("volume type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1501,7 +1524,7 @@ class VsphereController(BaseController):
                 (
                     ["-volume_num"],
                     {
-                        "help": "volume number",
+                        "help": _("volume number"),
                         "action": "store",
                         "type": int,
                         "default": 2,
@@ -1516,16 +1539,16 @@ class VsphereController(BaseController):
         vol_num = self.app.pargs.volume_num
 
         # get server
-        uri = "%s/servers/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}"
         server = self.cmp_get(uri).get("server")
 
         container = server.get("container")
         folder = server.get("parent")
         size = 1
-        for idx in range(vol_num):
+        for __ in vol_num:
             name = server.get("name") + "-volume-" + id_gen()
 
-            uri = "%s/volumes" % self.baseuri
+            uri = f"{self.baseuri}/volumes"
             data = {
                 "volume": {
                     "container": str(container),
@@ -1537,22 +1560,22 @@ class VsphereController(BaseController):
                 }
             }
             res = self.cmp_post(uri, data)
-            self.app.render({"msg": "add volume %s" % res.get("uuid")})
+            self.app.render({"msg": f"add volume {res.get('uuid')}"})
 
-            uri = "%s/servers/%s/action" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/servers/{oid}/action"
             data = {"server_action": {"add_volume": {"volume": res.get("uuid")}}}
             self.cmp_put(uri, data=data)
-            self.app.render({"msg": "add volume %s to server %s" % (res.get("uuid"), oid)})
+            self.app.render({"msg": f"add volume {res.get('uuid')} to server {oid}"})
 
     @ex(
-        help="del volume from server",
-        description="del volume from server",
+        help=_("del volume from server"),
+        description=_("del volume from server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1561,7 +1584,7 @@ class VsphereController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1570,7 +1593,7 @@ class VsphereController(BaseController):
                 (
                     ["-propagate"],
                     {
-                        "help": "if true detach and delete volume",
+                        "help": _("if true detach and delete volume"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -1583,24 +1606,24 @@ class VsphereController(BaseController):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
         propagate = str2bool(self.app.pargs.propagate)
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_volume": {"volume": volume}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del volume %s from server %s" % (volume, oid)})
+        self.app.render({"msg": f"del volume {volume} from server {oid}"})
 
         if propagate is True:
-            uri = "%s/volumes/%s" % (self.baseuri, volume)
-            res = self.cmp_delete(uri, entity="del volume %s" % volume, confirm=False)
+            uri = f"{self.baseuri}/volumes/{volume}"
+            self.cmp_delete(uri, entity=f"del volume {volume}", confirm=False)
 
     @ex(
-        help="extend server volume",
-        description="extend server volume",
+        help=_("extend server volume"),
+        description=_("extend server volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1609,13 +1632,13 @@ class VsphereController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["size"], {"help": "volume size", "action": "store", "type": str}),
+                (["size"], {"help": _("volume size"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -1623,20 +1646,20 @@ class VsphereController(BaseController):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
         size = self.app.pargs.size
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"extend_volume": {"volume": volume, "volume_size": size}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "extend volume %s of server %s to size %s GiB" % (volume, oid, size)})
+        self.app.render({"msg": f"extend volume {volume} of server {oid} to size {size} GiB"})
 
     @ex(
-        help="del volumes from server",
-        description="del volumes from server",
+        help=_("del volumes from server"),
+        description=_("del volumes from server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1649,7 +1672,7 @@ class VsphereController(BaseController):
         oid = self.app.pargs.id
 
         # get server
-        uri = "%s/servers/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}"
         server = self.cmp_get(uri).get("server")
 
         for v in dict_get(server, "details.volumes"):
@@ -1657,23 +1680,23 @@ class VsphereController(BaseController):
                 continue
 
             volume = v["uuid"]
-            uri = "%s/servers/%s/action" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/servers/{oid}/action"
             data = {"server_action": {"del_volume": {"volume": volume}}}
             self.cmp_put(uri, data=data)
-            self.app.render({"msg": "del volume %s from server %s" % (volume, oid)})
+            self.app.render({"msg": f"del volume {volume} from server {oid}"})
 
-            uri = "%s/volumes/%s" % (self.baseuri, volume)
-            self.cmp_delete(uri, entity="del volume %s" % volume, confirm=False)
+            uri = f"{self.baseuri}/volumes/{volume}"
+            self.cmp_delete(uri, entity=f"del volume {volume}", confirm=False)
 
     @ex(
-        help="stop server",
-        description="stop server",
+        help=_("stop server"),
+        description=_("stop server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1684,19 +1707,19 @@ class VsphereController(BaseController):
     )
     def server_stop(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"stop": True}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="start sserver",
-        description="start server",
+        help=_("start sserver"),
+        description=_("start server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1707,19 +1730,19 @@ class VsphereController(BaseController):
     )
     def server_start(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"start": True}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="resize server",
-        description="resize server",
+        help=_("resize server"),
+        description=_("resize server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1728,7 +1751,7 @@ class VsphereController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1740,19 +1763,19 @@ class VsphereController(BaseController):
     def server_resize(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"set_flavor": {"flavor": flavor}}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="get flavors",
-        description="get flavors",
+        help=_("get flavors"),
+        description=_("get flavors"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1764,7 +1787,7 @@ class VsphereController(BaseController):
     def flavor_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/flavors/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/flavors/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1776,7 +1799,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/flavors" % self.baseuri
+            uri = f"{self.baseuri}/flavors"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -1786,14 +1809,14 @@ class VsphereController(BaseController):
             )
 
     @ex(
-        help="add flavor",
-        description="add flavor",
+        help=_("add flavor"),
+        description=_("add flavor"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1802,7 +1825,7 @@ class VsphereController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "flavor name",
+                        "help": _("flavor name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1811,7 +1834,7 @@ class VsphereController(BaseController):
                 (
                     ["datacenter"],
                     {
-                        "help": "datacenter id",
+                        "help": _("datacenter id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1820,7 +1843,7 @@ class VsphereController(BaseController):
                 (
                     ["-core_x_socket"],
                     {
-                        "help": "core x socket",
+                        "help": _("core x socket"),
                         "action": "store",
                         "type": int,
                         "default": 1,
@@ -1828,12 +1851,12 @@ class VsphereController(BaseController):
                 ),
                 (
                     ["vcpus"],
-                    {"help": "vcpus", "action": "store", "type": str, "default": None},
+                    {"help": _("vcpus"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-guest_id"],
                     {
-                        "help": "guest id",
+                        "help": _("guest id"),
                         "action": "store",
                         "type": str,
                         "default": "centos64Guest",
@@ -1841,16 +1864,16 @@ class VsphereController(BaseController):
                 ),
                 (
                     ["ram"],
-                    {"help": "ram", "action": "store", "type": int, "default": None},
+                    {"help": _("ram"), "action": "store", "type": int, "default": None},
                 ),
                 (
                     ["disk"],
-                    {"help": "disk", "action": "store", "type": int, "default": None},
+                    {"help": _("disk"), "action": "store", "type": int, "default": None},
                 ),
                 (
                     ["-version"],
                     {
-                        "help": "version",
+                        "help": _("version"),
                         "action": "store",
                         "type": str,
                         "default": "vmx-11",
@@ -1881,19 +1904,19 @@ class VsphereController(BaseController):
             "disk": disk,
             "version": version,
         }
-        uri = "%s/flavors" % self.baseuri
+        uri = f"{self.baseuri}/flavors"
         res = self.cmp_post(uri, data={"flavor": data})
-        self.app.render({"msg": "Add flavor: %s" % truncate(res)})
+        self.app.render({"msg": f"Add flavor: {truncate(res)}"})
 
     @ex(
-        help="get volumetypes",
-        description="get volumetypes",
+        help=_("get volumetypes"),
+        description=_("get volumetypes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volumetype id",
+                        "help": _("volumetype id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1902,7 +1925,7 @@ class VsphereController(BaseController):
                 (
                     ["-container"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1914,14 +1937,14 @@ class VsphereController(BaseController):
     def volumetype_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/volumetypes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/volumetypes/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 res = res.get("volumetype")
                 self.app.render(res, details=True)
 
-                uri = "%s/volumetypes/%s/datastores" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/volumetypes/{oid}/datastores"
                 res = self.cmp_get(uri).get("datastores", [])
                 res = sorted(res, key=lambda i: i["name"])
                 self.c("\ndatastore", "underline")
@@ -1935,7 +1958,7 @@ class VsphereController(BaseController):
             params = ["container"]
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/volumetypes" % self.baseuri
+            uri = f"{self.baseuri}/volumetypes"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -1945,14 +1968,14 @@ class VsphereController(BaseController):
             )
 
     @ex(
-        help="add volumetype",
-        description="add volumetype",
+        help=_("add volumetype"),
+        description=_("add volumetype"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1961,7 +1984,7 @@ class VsphereController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "flavor name",
+                        "help": _("flavor name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1970,7 +1993,7 @@ class VsphereController(BaseController):
                 (
                     ["datacenter"],
                     {
-                        "help": "datacenter id",
+                        "help": _("datacenter id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1979,7 +2002,7 @@ class VsphereController(BaseController):
                 (
                     ["-disk_iops"],
                     {
-                        "help": "disk_iops. -1 set no limit",
+                        "help": _("disk_iops. -1 set no limit"),
                         "action": "store",
                         "type": int,
                         "default": -1,
@@ -2000,19 +2023,19 @@ class VsphereController(BaseController):
             "datacenter": datacenter,
             "disk_iops": disk_iops,
         }
-        uri = "%s/volumetypes" % self.baseuri
+        uri = f"{self.baseuri}/volumetypes"
         res = self.cmp_post(uri, data={"volumetype": data})
-        self.app.render({"msg": "Add volumetype: %s" % truncate(res)})
+        self.app.render({"msg": f"Add volumetype: {truncate(res)}"})
 
     @ex(
-        help="add datastore to volumetype",
-        description="add datastore to volumetype",
+        help=_("add datastore to volumetype"),
+        description=_("add datastore to volumetype"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volumetype id",
+                        "help": _("volumetype id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2021,7 +2044,7 @@ class VsphereController(BaseController):
                 (
                     ["datastore"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2030,7 +2053,7 @@ class VsphereController(BaseController):
                 (
                     ["-tag"],
                     {
-                        "help": "datastore tag",
+                        "help": _("datastore tag"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -2043,20 +2066,20 @@ class VsphereController(BaseController):
         oid = self.app.pargs.id
         datastore = self.app.pargs.datastore
         tag = self.app.pargs.tag
-        uri = "%s/volumetypes/%s/datastores" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumetypes/{oid}/datastores"
         data = {"datastore": {"uuid": datastore, "tag": tag}}
-        res = self.cmp_post(uri, data)
-        self.app.render({"msg": "add datastore %s to volumetype" % datastore})
+        self.cmp_post(uri, data)
+        self.app.render({"msg": f"add datastore {datastore} to volumetype"})
 
     @ex(
-        help="remove datastore from volumetype",
-        description="remove datastore from volumetype",
+        help=_("remove datastore from volumetype"),
+        description=_("remove datastore from volumetype"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volumetype id",
+                        "help": _("volumetype id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2065,7 +2088,7 @@ class VsphereController(BaseController):
                 (
                     ["datastore"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2077,23 +2100,23 @@ class VsphereController(BaseController):
     def volumetype_datastore_del(self):
         oid = self.app.pargs.id
         datastore = self.app.pargs.datastore
-        uri = "%s/volumetypes/%s/datastores" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumetypes/{oid}/datastores"
         data = {
             "datastore": {
                 "uuid": datastore,
             }
         }
-        self.cmp_delete(uri, data, entity="datastore %s" % datastore)
+        self.cmp_delete(uri, data, entity=f"datastore {datastore}")
 
     @ex(
-        help="get volumes",
-        description="get volumes",
+        help=_("get volumes"),
+        description=_("get volumes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2105,7 +2128,7 @@ class VsphereController(BaseController):
     def volume_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/volumes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/volumes/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -2117,7 +2140,7 @@ class VsphereController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/volumes" % self.baseuri
+            uri = f"{self.baseuri}/volumes"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -2130,20 +2153,20 @@ class VsphereController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="add volume",
-        description="add volume",
+        help=_("add volume"),
+        description=_("add volume"),
         arguments=PARGS(
             [
                 (
                     ["container"],
-                    {"help": "vsphere container id", "action": "store", "type": str},
+                    {"help": _("vsphere container id"), "action": "store", "type": str},
                 ),
-                (["name"], {"help": "volume name", "action": "store", "type": str}),
-                (["folder"], {"help": "folder id", "action": "store", "type": str}),
-                (["size"], {"help": "volume size", "action": "store", "type": str}),
+                (["name"], {"help": _("volume name"), "action": "store", "type": str}),
+                (["folder"], {"help": _("folder id"), "action": "store", "type": str}),
+                (["size"], {"help": _("volume size"), "action": "store", "type": str}),
                 (
                     ["volume_type"],
-                    {"help": "volume type", "action": "store", "type": str},
+                    {"help": _("volume type"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -2154,7 +2177,7 @@ class VsphereController(BaseController):
         folder = self.app.pargs.folder
         size = self.app.pargs.size
         volume_type = self.app.pargs.volume_type
-        uri = "%s/volumes" % self.baseuri
+        uri = f"{self.baseuri}/volumes"
         data = {
             "volume": {
                 "container": container,
@@ -2166,4 +2189,15 @@ class VsphereController(BaseController):
             }
         }
         res = self.cmp_post(uri, data)
-        self.app.render({"msg": "add volume %s" % res.get("uuid")})
+        self.app.render({"msg": f"add volume {res.get('uuid')}"})
+
+
+    @ex(
+        help=_("datasource manage"),
+        description=_("datasource manager"),
+        arguments=BASE_ARGS,
+    )
+    def datastore_manage(self):
+        app = ManageDatasourceApp()
+        app.set_parent(self)
+        app.run()

@@ -1,0 +1,23 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  extract_msg:
+    cmds:
+      - cp beehive.pot beehive{{now | date "20060102"}}.pot 
+      - pygettext3  -o beehive.pot -a ..
+  compile_po:
+    cmds:
+      - cp beehive_it.po ../beehive3_cli/locale/it/LC_MESSAGES/beehive.po
+      - cp argparse_it.po ../beehive3_cli/locale/it/LC_MESSAGES/argparse.po
+      - msgfmt beehive_it.po --output-file=../beehive3_cli/locale/it/LC_MESSAGES/beehive.mo
+      - msgfmt argparse_it.po --output-file=../beehive3_cli/locale/it/LC_MESSAGES/argparse.mo
+
+  default:
+    cmds:
+      - task -a
+    silent: true

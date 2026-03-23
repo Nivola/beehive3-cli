@@ -1,29 +1,27 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from pygments import format
-from pygments.formatters.terminal256 import Terminal256Formatter
-from pygments.token import Token
 from cement.ext.ext_argparse import ex
-from beehive3_cli.core.controller import CliController, BaseController, ARGS
-from beehive3_cli.core.util import TreeStyle
 
+from beehive3_cli.core.controller import CliController, BaseController, ARGS
+from beehive3_cli.translate import _
 
 class AuthController(CliController):
-    class Meta:
+    class Meta: # type: ignore
         label = "auth"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "authorization management"
-        help = "authorization management"
+        description = _("authorization management")
+        help = _("authorization management")
 
     def _default(self):
         self._parser.print_help()
 
 
 class AuthChildController(BaseController):
-    class Meta:
+
+    class Meta: # type: ignore
         stacked_on = "auth"
         stacked_type = "nested"
 
@@ -109,62 +107,23 @@ class AuthChildController(BaseController):
         act_fields = ["id", "value"]
 
     def pre_command_run(self):
-        super(AuthChildController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
-    def __print_tree(self, resource, space="   "):
-        for child in resource.get("children", []):
-            relation = child.get("relation")
-            if relation is None:
-
-                def create_data():
-                    yield (Token.Text.Whitespace, space)
-                    yield (Token.Operator, "=>")
-                    yield (Token.Name, " [%s] " % child.get("type"))
-                    yield (Token.Literal.String, child.get("name"))
-                    yield (Token.Text.Whitespace, " - ")
-                    yield (
-                        Token.Literal.String,
-                        "%s {%s}" % (child.get("id"), child.get("ext_id")),
-                    )
-                    yield (Token.Literal.String, " [%s]" % child.get("state"))
-                    yield (Token.Literal.String, " (%s)" % child.get("reuse"))
-
-                data = format(create_data(), Terminal256Formatter(style=TreeStyle))
-            else:
-
-                def create_data():
-                    yield (Token.Text.Whitespace, space)
-                    yield (Token.Operator, "--%s-->" % relation)
-                    yield (Token.Operator, " (%s) " % child.get("container_name"))
-                    yield (Token.Name, "[%s] " % child.get("type"))
-                    yield (Token.Literal.String, child.get("name"))
-                    yield (Token.Text.Whitespace, " - ")
-                    yield (
-                        Token.Literal.String,
-                        "%s {%s}" % (child.get("id"), child.get("ext_id")),
-                    )
-                    yield (Token.Literal.String, " [%s]" % child.get("state"))
-                    yield (Token.Literal.String, " (%s)" % child.get("reuse"))
-
-                data = format(create_data(), Terminal256Formatter(style=TreeStyle))
-                print(data)
-            self.__print_tree(child, space=space + "   ")
-
 
 class ProviderController(AuthChildController):
-    class Meta:
+    class Meta: # type: ignore
         label = "providers"
-        description = "authentication provider management"
-        help = "authentication provider management"
+        description = _("authentication provider management")
+        help = _("authentication provider management")
 
     @ex(
-        help="get authentication providers",
-        description="get authentication providers",
+        help=_("get authentication providers"),
+        description=_("get authentication providers"),
         arguments=ARGS([]),
     )
     def get(self):
-        uri = "%s/providers" % self.baseuri
+        uri = f"{self.baseuri}/providers"
         res = self.cmp_get(uri)
         self.app.render(res, key="providers", headers=["type", "name"])

@@ -1,23 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement import ex
 from beecell.simple import merge_list
 from beedrones.elk.client_kibana import KibanaManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, PAGINATION_ARGS
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.main import CliManager
+from beehive3_cli.translate import _
 
 
-def KIBANA_ARGS(*list_args):
+def kibana_args(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "kibana platform reference label",
+                "help": _("kibana platform reference label"),
             },
         )
     ]
@@ -33,11 +35,11 @@ class KibanaPlatformController(BaseController):
         stacked_on = "platform"
         stacked_type = "nested"
         label = "kibana"
-        description = "kibana platform management"
-        help = "kibana platform  management"
+        description = _("kibana platform management")
+        help = _("kibana platform  management")
 
     def pre_command_run(self):
-        super(KibanaPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -50,34 +52,35 @@ class KibanaPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No kibana default platform is available for this environment. Select " "another environment"
+                    "No kibana default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         self.conf = orchestrators.get(label)
 
-        uri = "%s://%s:%s%s" % (
-            self.conf.get("proto"),
-            self.conf.get("hosts")[0],
-            self.conf.get("port"),
-            self.conf.get("path"),
-        )
-        self.app.log.debug("pre_command_run - uri: %s" % uri)
+
+        proto = self.conf.get("proto")
+        host = self.conf.get("hosts")[0]
+        port = self.conf.get("port")
+        path = self.conf.get("path")
+        uri = f"{proto}://{host}:{port}{path}"
+
+        self.app.log.debug(f"pre_command_run - uri: {uri}")
 
         user = self.conf.get("user")
         password = self.conf.get("pwd")
         self.client = KibanaManager(uri, user, password)
 
-    @ex(help="ping kibana", description="ping kibana", arguments=KIBANA_ARGS())
+    @ex(help=_("ping kibana"), description=_("ping kibana"), arguments=kibana_args())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get kibana version",
-        description="get kibana version",
-        arguments=KIBANA_ARGS(),
+        help=_("get kibana version"),
+        description=_("get kibana version"),
+        arguments=kibana_args(),
     )
     def version(self):
         res = self.client.version()
@@ -87,14 +90,14 @@ class KibanaPlatformController(BaseController):
     # ----- SPACE -----
     # -----------------
     @ex(
-        help="add space",
-        description="add space",
-        arguments=KIBANA_ARGS(
+        help=_("add space"),
+        description=_("add space"),
+        arguments=kibana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -103,7 +106,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "space name",
+                        "help": _("space name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -112,7 +115,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["-description"],
                     {
-                        "help": "space description",
+                        "help": _("space description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -121,7 +124,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["-color"],
                     {
-                        "help": "space color",
+                        "help": _("space color"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -130,7 +133,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["-initials"],
                     {
-                        "help": "space initials",
+                        "help": _("space initials"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -140,12 +143,12 @@ class KibanaPlatformController(BaseController):
         ),
     )
     def space_add(self):
-        id = self.app.pargs.id
+        l_id = self.app.pargs.id
         name = self.app.pargs.name
         description = self.app.pargs.description
         color = self.app.pargs.color
         initials = self.app.pargs.initials
-        res = self.client.space.add(id, name, description=description, color=color, initials=initials)
+        res = self.client.space.add(l_id, name, description=description, color=color, initials=initials)
         self.app.render(
             res,
             headers=[
@@ -159,14 +162,14 @@ class KibanaPlatformController(BaseController):
         )
 
     @ex(
-        help="delete space",
-        description="delete space",
-        arguments=KIBANA_ARGS(
+        help=_("delete space"),
+        description=_("delete space"),
+        arguments=kibana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -178,17 +181,17 @@ class KibanaPlatformController(BaseController):
     def space_del(self):
         space_id = self.app.pargs.id
         self.client.space.delete(space_id)
-        self.app.render({"msg": "delete space %s" % space_id}, headers=["msg"])
+        self.app.render({"msg": f"delete space {space_id}"}, headers=["msg"])
 
     @ex(
-        help="get space",
-        description="get space",
-        arguments=KIBANA_ARGS(
+        help=_("get space"),
+        description=_("get space"),
+        arguments=kibana_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -229,14 +232,14 @@ class KibanaPlatformController(BaseController):
     # ----- ROLE -----
     # ----------------
     @ex(
-        help="add role",
-        description="add role",
-        arguments=KIBANA_ARGS(
+        help=_("add role"),
+        description=_("add role"),
+        arguments=kibana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -244,12 +247,12 @@ class KibanaPlatformController(BaseController):
                 ),
                 (
                     ["indice"],
-                    {"help": "indice", "action": "store", "type": str, "default": None},
+                    {"help": _("indice"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["space_id"],
                     {
-                        "help": "space_id",
+                        "help": _("space_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -266,14 +269,14 @@ class KibanaPlatformController(BaseController):
         self.app.render(res, headers=["name", "indice", "space_id"])
 
     @ex(
-        help="delete role",
-        description="delete role",
-        arguments=KIBANA_ARGS(
+        help=_("delete role"),
+        description=_("delete role"),
+        arguments=kibana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -285,17 +288,17 @@ class KibanaPlatformController(BaseController):
     def role_del(self):
         role_name = self.app.pargs.name
         self.client.role.delete(role_name)
-        self.app.render({"msg": "delete role %s" % role_name}, headers=["msg"])
+        self.app.render({"msg": f"delete role {role_name}"}, headers=["msg"])
 
     @ex(
-        help="get role",
-        description="get role",
-        arguments=KIBANA_ARGS(
+        help=_("get role"),
+        description=_("get role"),
+        arguments=kibana_args(
             [
                 (
                     ["-name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -326,14 +329,14 @@ class KibanaPlatformController(BaseController):
     # --- DASHBOARD ---
     # -----------------
     @ex(
-        help="get space dashboard",
-        description="get space dashboard",
-        arguments=KIBANA_ARGS(
+        help=_("get space dashboard"),
+        description=_("get space dashboard"),
+        arguments=kibana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -356,14 +359,14 @@ class KibanaPlatformController(BaseController):
         )
 
     @ex(
-        help="get dashboard",
-        description="get dashboard",
-        arguments=KIBANA_ARGS(
+        help=_("get dashboard"),
+        description=_("get dashboard"),
+        arguments=kibana_args(
             [
                 (
                     ["-search"],
                     {
-                        "help": "dashboard to search",
+                        "help": _("dashboard to search"),
                         "action": "store",
                         "type": str,
                         "default": "*",
@@ -372,7 +375,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["-spaceid"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -394,6 +397,11 @@ class KibanaPlatformController(BaseController):
             "updated_at",
         ]
 
+        if dashboard_to_search is not None:
+            from urllib.parse import unquote_plus
+
+            dashboard_to_search = unquote_plus(dashboard_to_search)
+
         res = self.client.space.get_dashboard(space_id, dashboard_to_search, size)
         self.app.render(
             res,
@@ -404,47 +412,127 @@ class KibanaPlatformController(BaseController):
         )
 
     @ex(
-        help="get dashboard",
-        description="get dashboard",
-        arguments=KIBANA_ARGS(
+        help=_("add dashboard"),
+        description=_("add dashboard"),
+        arguments=kibana_args(
             [
                 (
-                    ["dashboard_to_search"],
+                    ["search"],
                     {
-                        "help": "dashboard to search",
+                        "help": _("dashboard to search"),
                         "action": "store",
                         "type": str,
-                        "default": None,
                     },
                 ),
                 (
-                    ["-spaceid"],
+                    ["space_id_from"],
                     {
-                        "help": "space id",
+                        "help": _("space id from"),
                         "action": "store",
                         "type": str,
-                        "default": None,
+                    },
+                ),
+                (
+                    ["space_id_to"],
+                    {
+                        "help": _("space id to"),
+                        "action": "store",
+                        "type": str,
                     },
                 ),
             ]
         ),
     )
-    def dashboard_get_id(self):
-        dashboard_to_search = self.app.pargs.dashboard_to_search
-        space_id = self.app.pargs.spaceid
+    def dashboard_add(self):
+        dashboard_to_search = self.app.pargs.search
+        space_id_from = self.app.pargs.space_id_from
+        space_id_to = self.app.pargs.space_id_to
 
-        dashboard_id = self.client.space.find_dashboard(dashboard_to_search, space_id)
-        print("dashboard_id: %s" % dashboard_id)
+        if dashboard_to_search is not None:
+            from urllib.parse import unquote_plus
+
+            dashboard_to_search = unquote_plus(dashboard_to_search)
+
+        res = self.client.space.add_dashboard(space_id_from, dashboard_to_search, space_id_to, index_pattern=None)
+        self.app.render(res)
 
     @ex(
-        help="delete dashboard",
-        description="delete dashboard",
-        arguments=KIBANA_ARGS(
+        help=_("del space dashboard"),
+        description=_("del space dashboard"),
+        arguments=kibana_args(
+            [
+                (
+                    ["search"],
+                    {
+                        "help": _("dashboard to search"),
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["space_id"],
+                    {
+                        "help": _("space id"),
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+            ]
+        ),
+    )
+    def space_dashboard_del(self):
+        dashboard_to_search = self.app.pargs.search
+        space_id = self.app.pargs.space_id
+
+        if dashboard_to_search is not None:
+            from urllib.parse import unquote_plus
+
+            dashboard_to_search = unquote_plus(dashboard_to_search)
+
+        self.client.space.delete_space_dashboard(dashboard_to_search, space_id)
+
+    @ex(
+        help=_("get dashboard for definition"),
+        description=_("get dashboard for definition"),
+        arguments=kibana_args([]),
+    )
+    def dashboard_for_definition_get(self):
+        dashboard_to_search = "*"
+        space_id = "template"
+        size = 100
+
+        title_list = []
+        res = self.client.space.get_dashboard(space_id, dashboard_to_search, size)
+        dashboards = res["dashboards"]
+        for dashboard in dashboards:
+            title: str = dashboard["attributes"]["title"]
+            filebeat = title[1 : title.index("]")]
+            if filebeat not in title_list:
+                title_list.append(filebeat)
+
+        title_list.sort()
+        self.app.render(title_list)
+
+        defs = []
+        for title in title_list:
+            name = title.lower().replace(" ", "-")
+            logtype = title[title.index(" ") + 1 :].lower().replace(" ", "-")
+            obj = {"name": name, "title": title, "logtype": logtype}
+            defs.append(obj)
+
+        # self.app.format = "yaml"
+        cli_manager: CliManager = self.app
+        cli_manager.render(defs)
+
+    @ex(
+        help=_("delete dashboard"),
+        description=_("delete dashboard"),
+        arguments=kibana_args(
             [
                 (
                     ["space_id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -453,7 +541,7 @@ class KibanaPlatformController(BaseController):
                 (
                     ["dashboard_id"],
                     {
-                        "help": "dashboard id",
+                        "help": _("dashboard id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -466,4 +554,4 @@ class KibanaPlatformController(BaseController):
         space_id = self.app.pargs.space_id
         dashboard_id = self.app.pargs.dashboard_id
         self.client.space.delete_dashboard(space_id, dashboard_id)
-        self.app.render({"msg": "delete dashboard %s" % dashboard_id}, headers=["msg"])
+        self.app.render({"msg": f"delete dashboard {dashboard_id}"}, headers=["msg"])

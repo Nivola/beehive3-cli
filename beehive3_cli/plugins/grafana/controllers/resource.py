@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beehive3_cli.core.controller import BaseController, PARGS
 from cement import ex
+from beehive3_cli.translate import _
+from beehive3_cli.core.controller import BaseController, PARGS
 
 
 class GrafanaResourceController(BaseController):
@@ -12,8 +13,8 @@ class GrafanaResourceController(BaseController):
         label = "res_grafana"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "grafana orchestrator"
-        help = "grafana orchestrator"
+        description = _("grafana orchestrator")
+        help = _("grafana orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/grafana", "subsystem": "resource"}
 
@@ -39,21 +40,21 @@ class GrafanaResourceController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(GrafanaResourceController, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     # -----------------
     # ----- FOLDER -----
     # -----------------
     @ex(
-        help="get folders",
-        description="get folders",
+        help=_("get folders"),
+        description=_("get folders"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "folder id",
+                        "help": _("folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -65,7 +66,7 @@ class GrafanaResourceController(BaseController):
     def folder_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/folders/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/folders/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -77,20 +78,20 @@ class GrafanaResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/folders" % self.baseuri
-            self.app.log.debug("+++++ folder_get '%s' " % uri)
+            uri = f"{self.baseuri}/folders"
+            self.app.log.debug(f"+++++ folder_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="folders", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add folders",
-        description="add folders",
+        help=_("add folders"),
+        description=_("add folders"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -99,7 +100,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "folder name",
+                        "help": _("folder name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -108,7 +109,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "folder desc",
+                        "help": _("folder desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -122,8 +123,8 @@ class GrafanaResourceController(BaseController):
         name = self.app.pargs.name
         desc = self.app.pargs.desc
 
-        uri = "%s/folders" % (self.baseuri)
-        self.app.log.debug("+++++ folder_add '%s' " % uri)
+        uri = f"{self.baseuri}/folders"
+        self.app.log.debug(f"+++++ folder_add '{uri}' ")
 
         data_folder = {
             "container": container,
@@ -138,14 +139,14 @@ class GrafanaResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete folders",
-        description="delete folders",
+        help=_("delete folders"),
+        description=_("delete folders"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource folder id",
+                        "help": _("resource folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -157,8 +158,8 @@ class GrafanaResourceController(BaseController):
     def folder_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/folders/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ folder_delete '%s' " % uri)
+        uri = f"{self.baseuri}/folders/{oid}"
+        self.app.log.debug(f"+++++ folder_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -168,14 +169,14 @@ class GrafanaResourceController(BaseController):
     # ----- TEAM -----
     # -----------------
     @ex(
-        help="get teams",
-        description="get teams",
+        help=_("get teams"),
+        description=_("get teams"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -187,7 +188,7 @@ class GrafanaResourceController(BaseController):
     def team_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/teams/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/teams/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -199,20 +200,20 @@ class GrafanaResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/teams" % self.baseuri
-            self.app.log.debug("+++++ team_get '%s' " % uri)
+            uri = f"{self.baseuri}/teams"
+            self.app.log.debug(f"+++++ team_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="teams", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add teams",
-        description="add teams",
+        help=_("add teams"),
+        description=_("add teams"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -221,7 +222,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "team name",
+                        "help": _("team name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -230,7 +231,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "team desc",
+                        "help": _("team desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -244,8 +245,8 @@ class GrafanaResourceController(BaseController):
         name = self.app.pargs.name
         desc = self.app.pargs.desc
 
-        uri = "%s/teams" % (self.baseuri)
-        self.app.log.debug("+++++ team_add '%s' " % uri)
+        uri = f"{self.baseuri}/teams"
+        self.app.log.debug(f"+++++ team_add '{uri}' ")
 
         data_team = {
             "container": container,
@@ -260,14 +261,14 @@ class GrafanaResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete teams",
-        description="delete teams",
+        help=_("delete teams"),
+        description=_("delete teams"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource team id",
+                        "help": _("resource team id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -279,8 +280,8 @@ class GrafanaResourceController(BaseController):
     def team_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/teams/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ team_delete '%s' " % uri)
+        uri = f"{self.baseuri}/teams/{oid}"
+        self.app.log.debug(f"+++++ team_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -290,14 +291,14 @@ class GrafanaResourceController(BaseController):
     # ----- ALERT NOTIFICATION -----
     # ------------------------------
     @ex(
-        help="get alert_notifications",
-        description="get alert_notifications",
+        help=_("get alert_notifications"),
+        description=_("get alert_notifications"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "alert_notification id",
+                        "help": _("alert_notification id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -309,7 +310,7 @@ class GrafanaResourceController(BaseController):
     def alert_notification_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/alert_notifications/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/alert_notifications/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -321,8 +322,8 @@ class GrafanaResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/alert_notifications" % self.baseuri
-            self.app.log.debug("+++++ alert_notification_get '%s' " % uri)
+            uri = f"{self.baseuri}/alert_notifications"
+            self.app.log.debug(f"+++++ alert_notification_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -332,14 +333,14 @@ class GrafanaResourceController(BaseController):
             )
 
     @ex(
-        help="add alert_notifications",
-        description="add alert_notifications",
+        help=_("add alert_notifications"),
+        description=_("add alert_notifications"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -348,7 +349,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "alert_notification name",
+                        "help": _("alert_notification name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -357,7 +358,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["email"],
                     {
-                        "help": "alert_notification email",
+                        "help": _("alert_notification email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -366,7 +367,7 @@ class GrafanaResourceController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "alert_notification desc",
+                        "help": _("alert_notification desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -381,8 +382,8 @@ class GrafanaResourceController(BaseController):
         desc = self.app.pargs.desc
         email = self.app.pargs.email
 
-        uri = "%s/alert_notifications" % (self.baseuri)
-        self.app.log.debug("+++++ alert_notification_add '%s' " % uri)
+        uri = f"{self.baseuri}/alert_notifications"
+        self.app.log.debug(f"+++++ alert_notification_add '{uri}' ")
 
         data_alert_notification = {
             "container": container,
@@ -398,14 +399,14 @@ class GrafanaResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete alert_notifications",
-        description="delete alert_notifications",
+        help=_("delete alert_notifications"),
+        description=_("delete alert_notifications"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource alert_notification id",
+                        "help": _("resource alert_notification id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -417,8 +418,8 @@ class GrafanaResourceController(BaseController):
     def alert_notification_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/alert_notifications/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ alert_notification_delete '%s' " % uri)
+        uri = f"{self.baseuri}/alert_notifications/{oid}"
+        self.app.log.debug(f"+++++ alert_notification_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:

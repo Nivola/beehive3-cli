@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from base64 import b64decode
 from urllib.parse import urlencode
-from six import ensure_text
 from cement import ex
+from beecell.util import ensure_text
 from beecell.types.type_string import str2bool
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
+from beehive3_cli.translate import _
 
 
 class SshUserController(SshControllerChild):
@@ -16,14 +17,14 @@ class SshUserController(SshControllerChild):
         stacked_on = "ssh"
         stacked_type = "nested"
         label = "node_users"
-        description = "node user management"
-        help = "node user management"
+        description = _("node user management")
+        help = _("node user management")
 
         headers = ["id", "name", "date", "node", "key"]
         fields = ["uuid", "username", "date.creation", "node_name", "key_name"]
 
     def pre_command_run(self):
-        super(SshUserController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
@@ -34,25 +35,25 @@ class SshUserController(SshControllerChild):
         :return: (user, node)
         """
         # get user
-        uri = "%s/users/%s" % (self.baseuri, user)
+        uri = f"{self.baseuri}/users/{user}"
         user = self.cmp_get(uri).get("user")
 
         # get node
-        uri = "%s/nodes/%s" % (self.baseuri, user["node_id"])
+        uri = f"{self.baseuri}/nodes/{user['node_id']}"
         node = self.cmp_get(uri).get("node")
 
         return user, node
 
     @ex(
-        help="get node users",
-        description="get node users",
-        example="beehive ssh node-users get -id <uuid>;beehive ssh node-users get-password <uuid> -e <env>",
+        help=_("get node users"),
+        description=_("get node users"),
+        example="beehive ssh node-users get -id <uuid>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "node user uuid",
+                        "help": _("node user uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -61,7 +62,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-username"],
                     {
-                        "help": "node user name",
+                        "help": _("node user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -70,7 +71,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-node"],
                     {
-                        "help": "node uuid",
+                        "help": _("node uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -84,15 +85,21 @@ class SshUserController(SshControllerChild):
         node = getattr(self.app.pargs, "node", None)
         username = getattr(self.app.pargs, "username", None)
         if oid is not None:
-            uri = "%s/users/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/users/{oid}"
             res = self.cmp_get(uri)
             self.app.render(res, key="user", details=True)
+
+            # uncomment to check if all permissions are present:
+            # uri = f"{self.baseuri}/users/{oid}/perms"
+            # perms = self.cmp_get(uri).get("perms")
+            # self.c("\nperms", "underline")
+            # self.app.render(perms, headers=["oid","objid","subsystem","type","id", "aid", "action","desc"])
         elif node is not None and username is None:
-            uri = "%s/nodes/%s" % (self.baseuri, node)
+            uri = f"{self.baseuri}/nodes/{node}"
             node = self.cmp_get(uri).get("node")["id"]
 
             data = {"node_id": node}
-            uri = "%s/users" % self.baseuri
+            uri = f"{self.baseuri}/users"
             res = self.cmp_get(uri, data=urlencode(data, doseq=True)).get("users")
             res_users = {i["username"]: i for i in res}
 
@@ -103,7 +110,7 @@ class SshUserController(SshControllerChild):
             resp = []
             for item in users:
                 # 'centos:x:1001:1001:Cloud User:/home/centos:/bin/bash'
-                name, t1, uid, gid, desc, home, shell = item.split(":")
+                name, __, uid, gid, desc, home, shell = item.split(":")
                 res_user = res_users.get(name, {})
                 resp.append(
                     {
@@ -147,33 +154,33 @@ class SshUserController(SshControllerChild):
             params = ["username", "node"]
             aliases = {"node": "node_id"}
             data = self.format_paginated_query(params, aliases=aliases)
-            uri = "%s/users" % self.baseuri
+            uri = f"{self.baseuri}/users"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="users", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get node user password",
-        description="get node user password",
-        example="beehive ssh node-users get-password <uuid>;beehive ssh node-users get-password filippo-win01.site01.nivolapiemonte.it -e <env> ",
-        arguments=PARGS([(["id"], {"help": "user uuid", "action": "store", "type": str})]),
+        help=_("get node user password"),
+        description=_("get node user password"),
+        example="beehive ssh node-users get-password filippo-win01.site01.nivolapiemonte.it -e <env> ",
+        arguments=PARGS([(["id"], {"help": _("user uuid"), "action": "store", "type": str})]),
     )
     def get_password(self):
         oid = self.app.pargs.id
-        uri = "%s/users/%s/password" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}/password"
         res = self.cmp_get(uri).get("password", None)
-        self.app.render({"msg": "get node user %s password: %s" % (oid, res)})
+        self.app.render({"msg": f"get node user {oid} password: {res}"})
 
     @ex(
-        help="set node user password",
-        description="set node user password",
+        help=_("set node user password"),
+        description=_("set node user password"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
-                (["pwd"], {"help": "user password", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
+                (["pwd"], {"help": _("user password"), "action": "store", "type": str}),
                 (
                     ["-propagate"],
                     {
-                        "help": "propagate user password set on vm",
+                        "help": _("propagate user password set on vm"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -192,45 +199,45 @@ class SshUserController(SshControllerChild):
         # add user using paramiko
         if propagate is True:
             res = self.run_cmd(
-                'echo -e "%s\n%s" | passwd %s' % (pwd, pwd, user["username"]),
+                f"echo -e \"{pwd}\n{pwd}\" | passwd {user['username']}",
                 node=node["id"],
             ).values()
             self.app.log.debug(res)
 
         # remove user via api
         data = {"user": {"password": pwd}}
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "set node %s user %s password" % (node["uuid"], user["username"])})
+        self.app.render({"msg": f"set node {node['uuid']} user {user['username']} password"})
 
     def __set_public_key(self, user, node, key_string):
         res = self.run_cmd(
-            "echo {key} >> /home/{name}/.ssh/authorized_keys".format(name=user, key=key_string),
+            f"echo {key_string} >> /home/{user}/.ssh/authorized_keys",
             node=node,
         ).values()
         self.app.log.debug(res)
 
     @ex(
-        help="add new ssh user",
-        description="add new ssh user",
-        example="beehive ssh node-users add root <uuid> -sshkey cmp-key;beehive ssh node-users add ansible <uuid> -sshkey cmp-key",
+        help=_("add new ssh user"),
+        description=_("add new ssh user"),
+        example="beehive ssh node-users add ansible <uuid> -sshkey cmp-key",
         arguments=PARGS(
             [
-                (["name"], {"help": "user name", "action": "store", "type": str}),
+                (["name"], {"help": _("user name"), "action": "store", "type": str}),
                 (
                     ["-pwd"],
                     {
-                        "help": "user password",
+                        "help": _("user password"),
                         "action": "store",
                         "type": str,
                         "default": "",
                     },
                 ),
-                (["node"], {"help": "node uuid", "action": "store", "type": str}),
+                (["node"], {"help": _("node uuid"), "action": "store", "type": str}),
                 (
                     ["-sshkey"],
                     {
-                        "help": "ssh key uuid",
+                        "help": _("ssh key uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -239,7 +246,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-desc"],
                     {
-                        "help": "user description",
+                        "help": _("user description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -248,7 +255,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-attrib"],
                     {
-                        "help": "user attributes",
+                        "help": _("user attributes"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -257,7 +264,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-propagate"],
                     {
-                        "help": "if True create user also in node",
+                        "help": _("if True create user also in node"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -276,19 +283,19 @@ class SshUserController(SshControllerChild):
         propagate = str2bool(self.app.pargs.propagate)
 
         # get node
-        uri = "%s/nodes/%s" % (self.baseuri, node_id)
+        uri = f"{self.baseuri}/nodes/{node_id}"
         node = self.cmp_get(uri, data="").get("node")
 
         # check user already exists
         data = {"node_id": node_id, "username": name}
-        uri = "%s/users" % self.baseuri
+        uri = f"{self.baseuri}/users"
         count = self.cmp_get(uri, data=urlencode(data)).get("count")
         if count > 0:
-            raise Exception("node %s user %s already exist" % (node["uuid"], name))
+            raise Exception(f"node {node['uuid']} user {name} already exist")
 
         # get key
         if key_id is not None:
-            uri = "%s/keys/%s" % (self.baseuri, key_id)
+            uri = f"{self.baseuri}/keys/{key_id}"
             key = self.cmp_get(uri, data="").get("key", {})
             pub_key = key.get("pub_key", "")
             if pub_key != "":
@@ -316,7 +323,7 @@ class SshUserController(SshControllerChild):
 
         data = {
             "user": {
-                "name": "%s-%s" % (node.get("name"), name),
+                "name": f"{node.get('name')}-{name}",
                 "desc": desc,
                 "attribute": attribute,
                 "node_id": node_id,
@@ -325,20 +332,20 @@ class SshUserController(SshControllerChild):
                 "password": password,
             }
         }
-        uri = "%s/users" % self.baseuri
+        uri = f"{self.baseuri}/users"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add user %s" % res["uuid"]})
+        self.app.render({"msg": f"add user {res['uuid']}"})
 
     @ex(
-        help="delete node user",
-        description="delete node user",
+        help=_("delete node user"),
+        description=_("delete node user"),
         example="beehive ssh node-users delete <uuid>",
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "node user uuid",
+                        "help": _("node user uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -347,7 +354,7 @@ class SshUserController(SshControllerChild):
                 (
                     ["-propagate"],
                     {
-                        "help": "if True create user also in node",
+                        "help": _("if True create user also in node"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -365,9 +372,9 @@ class SshUserController(SshControllerChild):
         # remove user using ansible
         if propagate:
             # self.ansible_user_remove(user['username'], group=None, node=node['name'])
-            res = self.run_cmd("userdel -rf %s" % user["username"], node=node["id"]).values()
+            res = self.run_cmd(f"userdel -rf {user['username']}", node=node["id"]).values()
             self.app.log.debug(res)
 
         # remove node from cmp
-        uri = "%s/users/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, data="", entity="node user %s" % oid)
+        uri = f"{self.baseuri}/users/{oid}"
+        self.cmp_delete(uri, data="", entity=f"node user {oid}")

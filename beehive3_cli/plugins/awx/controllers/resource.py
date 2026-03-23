@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+
+from cement import ex
 
 from beehive3_cli.core.controller import BaseController, PARGS
-from cement import ex
+from beehive3_cli.translate import _
 
 
 class AwxController(BaseController):
@@ -11,8 +14,8 @@ class AwxController(BaseController):
         label = "res_awx"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "awx orchestrator"
-        help = "awx orchestrator"
+        description = _("awx orchestrator")
+        help = _("awx orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/awx", "subsystem": "resource"}
 
@@ -38,19 +41,18 @@ class AwxController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(AwxController, self).pre_command_run()
-
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     @ex(
-        help="get projects",
-        description="get projects",
+        help=_("get projects"),
+        description=_("get projects"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -62,7 +64,7 @@ class AwxController(BaseController):
     def project_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/projects/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/projects/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -74,7 +76,7 @@ class AwxController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/projects" % self.baseuri
+            uri = f"{self.baseuri}/projects"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -84,14 +86,14 @@ class AwxController(BaseController):
             )
 
     @ex(
-        help="get job templates",
-        description="get job templates",
+        help=_("get job templates"),
+        description=_("get job templates"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "job template id",
+                        "help": _("job template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -103,7 +105,7 @@ class AwxController(BaseController):
     def job_template_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/job_templates/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/job_templates/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -115,7 +117,7 @@ class AwxController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/job_templates" % self.baseuri
+            uri = f"{self.baseuri}/job_templates"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,

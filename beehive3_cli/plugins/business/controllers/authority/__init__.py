@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive3_cli.plugins.business.controllers.business import BusinessControllerChild
+from beehive3_cli.translate import _
 
 
 class AuthorityControllerChild(BusinessControllerChild):

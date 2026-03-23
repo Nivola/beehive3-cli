@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from oauthlib.oauth2.rfc6749.clients.backend_application import BackendApplicationClient
@@ -9,6 +9,7 @@ from cement.ext.ext_argparse import ex
 from requests_oauthlib.oauth2_session import OAuth2Session
 from beehive3_cli.core.controller import ARGS, PARGS
 from beehive3_cli.plugins.auth.controllers.auth import AuthChildController
+from beehive3_cli.translate import _
 
 logger = getLogger(__name__)
 
@@ -54,21 +55,25 @@ class Oauth2ControllerChild(AuthChildController):
 class Oauth2TokenController(Oauth2ControllerChild):
     class Meta:
         label = "oauth2_tokens"
-        description = "oauth2 token"
-        help = "oauth2 token"
+        description = _("oauth2 token")
+        help = _("oauth2 token")
 
     @ex(
-        help="create oauth2 access token using resource_owner or client_credentials grant. For resource_owner grant "
-        "specify user and pwd. For client_credentials specify client secret.",
-        description="create oauth2 access token using resource_owner or client_credentials grant. For resource_owner "
-        "grant specify user and pwd. For client_credentials specify client secret.",
+        help=_(
+            "create oauth2 access token using resource_owner or client_credentials grant. For resource_owner grant "
+            "specify user and pwd. For client_credentials specify client secret."
+        ),
+        description=_(
+            "create oauth2 access token using resource_owner or client_credentials grant. For resource_owner "
+            "grant specify user and pwd. For client_credentials specify client secret."
+        ),
         arguments=ARGS(
             [
-                (["client"], {"help": "client id", "action": "store", "type": str}),
+                (["client"], {"help": _("client id"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "login user",
+                        "help": _("login user"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -77,7 +82,7 @@ class Oauth2TokenController(Oauth2ControllerChild):
                 (
                     ["-pwd"],
                     {
-                        "help": "user password",
+                        "help": _("user password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -86,7 +91,7 @@ class Oauth2TokenController(Oauth2ControllerChild):
                 (
                     ["-secret"],
                     {
-                        "help": "client secret",
+                        "help": _("client secret"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -102,11 +107,11 @@ class Oauth2TokenController(Oauth2ControllerChild):
         client_secret = self.app.pargs.secret
 
         # get client
-        uri = "%s/clients/%s" % (self.baseuri, client_id)
+        uri = f"{self.baseuri}/clients/{client_id}"
         client = self.cmp_get(uri).get("client")
 
         client_id = client["uuid"]
-        client_scope = client["scopes"]
+        #client_scope = client["scopes"]
         client_token_uri = client["token_uri"]
         auth_type = ""
 
@@ -132,27 +137,27 @@ class Oauth2TokenController(Oauth2ControllerChild):
                 verify=False,
             )
 
-        logger.debug("Get %s token: %s" % (auth_type, token))
-        self.app.render({"msg": "Get token %s" % token})
+        logger.debug("Get %s token: %s", auth_type, token)
+        self.app.render({"msg": f"Get token {token}"})
 
 
 class Oauth2SessionController(Oauth2ControllerChild):
     class Meta:
         label = "oauth2_user_sessions"
-        description = "oauth2 user session"
-        help = "oauth2 user session"
+        description = _("oauth2 user session")
+        help = _("oauth2 user session")
 
         headers = ["sid", "ttl", "oauth2_user", "oauth2_credentials"]
 
     @ex(
-        help="get oauth2 sessions",
-        description="get oauth2 sessions",
+        help=_("get oauth2 sessions"),
+        description=_("get oauth2 sessions"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "session id",
+                        "help": _("session id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -164,7 +169,7 @@ class Oauth2SessionController(Oauth2ControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/user_sessions/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/user_sessions/{oid}"
             res = self.cmp_get(uri)
 
             # if self.is_output_text():
@@ -175,19 +180,19 @@ class Oauth2SessionController(Oauth2ControllerChild):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/user_sessions" % self.baseuri
+            uri = f"{self.baseuri}/user_sessions"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="user_sessions", headers=self._meta.headers)
 
     @ex(
-        help="delete oauth2 session",
-        description="delete oauth2 session",
+        help=_("delete oauth2 session"),
+        description=_("delete oauth2 session"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "comma separated session ids",
+                        "help": _("comma separated session ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -198,27 +203,27 @@ class Oauth2SessionController(Oauth2ControllerChild):
     def delete(self):
         oids = self.app.pargs.id
         for oid in oids.split(","):
-            uri = "%s/user_sessions/%s" % (self.baseuri, oid)
-            self.cmp_delete(uri, entity="user session %s" % oid)
+            uri = f"{self.baseuri}/user_sessions/{oid}"
+            self.cmp_delete(uri, entity=f"user session {oid}")
 
 
 class AuthorizationCodeController(Oauth2ControllerChild):
     class Meta:
         label = "oauth2_authorization_codes"
-        description = "oauth2 authorization code"
-        help = "oauth2 authorization code"
+        description = _("oauth2 authorization code")
+        help = _("oauth2 authorization code")
 
         headers = ["id", "code", "expires_at", "client", "user", "scope", "expired"]
 
     @ex(
-        help="get oauth2 authorization codes",
-        description="get oauth2 authorization codes",
+        help=_("get oauth2 authorization codes"),
+        description=_("get oauth2 authorization codes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "authorization code id",
+                        "help": _("authorization code id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -226,15 +231,15 @@ class AuthorizationCodeController(Oauth2ControllerChild):
                 ),
                 (
                     ["-valid"],
-                    {"help": "valid", "action": "store", "type": str, "default": None},
+                    {"help": _("valid"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-client"],
-                    {"help": "client", "action": "store", "type": str, "default": None},
+                    {"help": _("client"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-user"],
-                    {"help": "", "action": "store", "type": str, "default": None},
+                    {"help": _(""), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -242,7 +247,7 @@ class AuthorizationCodeController(Oauth2ControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/authorization_codes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/authorization_codes/{oid}"
             res = self.cmp_get(uri)
 
             # if self.is_output_text():
@@ -253,19 +258,19 @@ class AuthorizationCodeController(Oauth2ControllerChild):
             params = ["valid", "client", "user"]
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/authorization_codes" % self.baseuri
+            uri = f"{self.baseuri}/authorization_codes"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="authorization_codes", headers=self._meta.headers)
 
     @ex(
-        help="delete oauth2 authorization code",
-        description="delete oauth2 authorization code",
+        help=_("delete oauth2 authorization code"),
+        description=_("delete oauth2 authorization code"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "comma separated authorization code ids",
+                        "help": _("comma separated authorization code ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -276,30 +281,32 @@ class AuthorizationCodeController(Oauth2ControllerChild):
     def delete(self):
         oids = self.app.pargs.id
         for oid in oids.split(","):
-            uri = "%s/authorization_codes/%s" % (self.baseuri, oid)
-            self.cmp_delete(uri, entity="user session %s" % oid)
+            uri = f"{self.baseuri}/authorization_codes/{oid}"
+            self.cmp_delete(uri, entity=f"user session {oid}")
 
 
 class ClientController(Oauth2ControllerChild):
     class Meta:
         label = "oauth2_clients"
-        description = "oauth2 client"
-        help = "oauth2 client"
+        description = _("oauth2 client")
+        help = _("oauth2 client")
 
         headers = ["id", "uuid", "name", "response_type", "grant_type", "scopes"]
         fields = ["id", "uuid", "name", "response_type", "grant_type", "scopes"]
 
     @ex(
-        help="add oauth2 client",
-        description="add oauth2 client",
+        help=_("add oauth2 client"),
+        description=_("add oauth2 client"),
         arguments=ARGS(
             [
-                (["name"], {"help": "client name", "action": "store", "type": str}),
+                (["name"], {"help": _("client name"), "action": "store", "type": str}),
                 (
                     ["grant_type"],
                     {
-                        "help": "valid grant_type: authorization_code, implicit, password, client_credentials, "
-                        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                        "help": _(
+                            "valid grant_type: authorization_code, implicit, password, client_credentials, "
+                            "urn:ietf:params:oauth:grant-type:jwt-bearer"
+                        ),
                         "action": "store",
                         "type": str,
                     },
@@ -307,7 +314,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-redirect_uri"],
                     {
-                        "help": "redirect_uri",
+                        "help": _("redirect_uri"),
                         "action": "store",
                         "type": str,
                         "default": "http://localhost",
@@ -316,7 +323,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-scopes"],
                     {
-                        "help": "comma separated list of scopes",
+                        "help": _("comma separated list of scopes"),
                         "action": "store",
                         "type": str,
                         "default": "beehive",
@@ -325,7 +332,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-expirydate"],
                     {
-                        "help": "client expire date. Syntax yyyy-mm-dd",
+                        "help": _("client expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -347,26 +354,26 @@ class ClientController(Oauth2ControllerChild):
                 "name": name,
                 "grant_type": grant_type,
                 "redirect_uri": redirect_uri,
-                "desc": "Client %s" % name,
+                "desc": f"Client {name}",
                 "response_type": "code",
                 "scopes": scopes,
                 "expirydate": expiry_date,
             }
         }
-        uri = "%s/clients" % self.baseuri
+        uri = f"{self.baseuri}/clients"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add client %s" % res["uuid"]})
+        self.app.render({"msg": f"add client {res['uuid']}"})
 
     @ex(
-        help="get oauth2 clients",
-        description="get oauth2 clients",
-        example="beehive auth oauth2-clients get -id uuid;beehive auth oauth2-clients get -id uuid",
+        help=_("get oauth2 clients"),
+        description=_("get oauth2 clients"),
+        example="beehive auth oauth2-clients get -id uuid",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "client uuid",
+                        "help": _("client uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -375,7 +382,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-role"],
                     {
-                        "help": "role uuid",
+                        "help": _("role uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -384,7 +391,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-group"],
                     {
-                        "help": "group uuid",
+                        "help": _("group uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -393,7 +400,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-name"],
                     {
-                        "help": "name filter",
+                        "help": _("name filter"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -402,7 +409,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-desc"],
                     {
-                        "help": "client desc",
+                        "help": _("client desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -411,7 +418,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "email address",
+                        "help": _("email address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -420,7 +427,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-expiry-date "],
                     {
-                        "help": "expiry date. Syntax YYYY-MM-DD",
+                        "help": _("expiry date. Syntax YYYY-MM-DD"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -429,7 +436,7 @@ class ClientController(Oauth2ControllerChild):
                 (
                     ["-perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -441,7 +448,7 @@ class ClientController(Oauth2ControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/clients/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/clients/{oid}"
             res = self.cmp_get(uri)
 
             # if self.is_output_text():
@@ -452,55 +459,55 @@ class ClientController(Oauth2ControllerChild):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/clients" % self.baseuri
+            uri = f"{self.baseuri}/clients"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="clients", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="delete oauth2 client",
-        description="delete oauth2 client",
+        help=_("delete oauth2 client"),
+        description=_("delete oauth2 client"),
         arguments=ARGS(
             [
-                (["id"], {"help": "client uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("client uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/clients/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="client %s" % oid)
+        uri = f"{self.baseuri}/clients/{oid}"
+        self.cmp_delete(uri, entity=f"client {oid}")
 
 
 class ScopeController(Oauth2ControllerChild):
     class Meta:
         label = "oauth2_scopes"
-        description = "oauth2 scope"
-        help = "oauth2 scope"
+        description = _("oauth2 scope")
+        help = _("oauth2 scope")
 
         headers = ["id", "uuid", "name", "active", "date.creation"]
         fields = ["id", "uuid", "name", "active", "date.creation"]
 
     @ex(
-        help="add oauth2 scope",
-        description="add oauth2 scope",
-        arguments=ARGS([(["name"], {"help": "scope name", "action": "store", "type": str})]),
+        help=_("add oauth2 scope"),
+        description=_("add oauth2 scope"),
+        arguments=ARGS([(["name"], {"help": _("scope name"), "action": "store", "type": str})]),
     )
     def add(self):
         name = self.app.pargs.name
-        data = {"scope": {"name": name, "desc": "Scope %s" % name}}
-        uri = "%s/scopes" % self.baseuri
+        data = {"scope": {"name": name, "desc": f"Scope {name}"}}
+        uri = f"{self.baseuri}/scopes"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add scope %s" % res["uuid"]})
+        self.app.render({"msg": f"add scope {res['uuid']}"})
 
     @ex(
-        help="get oauth2 scopes",
-        description="get oauth2 scopes",
+        help=_("get oauth2 scopes"),
+        description=_("get oauth2 scopes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "scope uuid",
+                        "help": _("scope uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -512,7 +519,7 @@ class ScopeController(Oauth2ControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/scopes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/scopes/{oid}"
             res = self.cmp_get(uri)
 
             # if self.is_output_text():
@@ -523,20 +530,20 @@ class ScopeController(Oauth2ControllerChild):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/scopes" % self.baseuri
+            uri = f"{self.baseuri}/scopes"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="scopes", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="delete oauth2 scope",
-        description="delete oauth2 scope",
+        help=_("delete oauth2 scope"),
+        description=_("delete oauth2 scope"),
         arguments=ARGS(
             [
-                (["id"], {"help": "scope uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("scope uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/scopes/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="scope %s" % oid)
+        uri = f"{self.baseuri}/scopes/{oid}"
+        self.cmp_delete(uri, entity=f"scope {oid}")

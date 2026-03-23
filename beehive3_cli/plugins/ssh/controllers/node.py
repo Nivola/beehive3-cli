@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from getpass import getpass
 from ujson import dumps
@@ -11,13 +11,14 @@ from beehive3_cli.core.connect import SshConnectionManager
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.core.util import load_config
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
+from beehive3_cli.translate import _
 
 
 class SshNodeController(SshControllerChild):
     class Meta:
         label = "nodes"
-        description = "server management"
-        help = "server management"
+        description = _("server management")
+        help = _("server management")
 
         headers = ["uuid", "name", "desc", "ip_address", "date"]
         fields = ["uuid", "name", "desc", "ip_address", "date.creation"]
@@ -27,15 +28,15 @@ class SshNodeController(SshControllerChild):
     #     self.configure_cmp_api_client()
 
     @ex(
-        help="get nodes",
-        description="get nodes",
-        example="beehive ssh nodes get > mauro01;beehive ssh nodes get -e <env>",
+        help=_("get nodes"),
+        description=_("get nodes"),
+        example="beehive ssh nodes get -e <env>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "node name or uuid",
+                        "help": _("node name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -44,7 +45,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-nodegroup"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -53,7 +54,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-names"],
                     {
-                        "help": "node name like",
+                        "help": _("node name like"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -62,7 +63,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-ip_address"],
                     {
-                        "help": "node ip address",
+                        "help": _("node ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -71,7 +72,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-key"],
                     {
-                        "help": "ssh key name or uuid",
+                        "help": _("ssh key name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -83,7 +84,7 @@ class SshNodeController(SshControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/nodes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/nodes/{oid}"
             res = self.cmp_get(uri)
             if self.is_output_text():
                 res = res.get("node", {})
@@ -102,30 +103,33 @@ class SshNodeController(SshControllerChild):
             aliases = {"nodegroup": "group_id", "key": "key_id"}
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-            uri = "%s/nodes" % self.baseuri
+            uri = f"{self.baseuri}/nodes"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="nodes", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add node",
-        description="add node",
-        example="beehive ssh nodes add k8sm01-indire-prod01.site02.nivolapiemonte.it podto2 admin-platform ###.###.###.###;beehive ssh nodes add k8s-lb-priv01-csi-prod01.site02.nivolapiemonte.it podto2 admin-platform ###.###.###.###",
+        help=_("add node"),
+        description=_("add node"),
+        example=(
+            "beehive ssh nodes add k8s-lb-priv01-csi-prod01.site02.nivolapiemonte.it podto2 "
+            "admin-platform ###.###.###.###"
+        ),
         arguments=ARGS(
             [
-                (["name"], {"help": "node group name", "action": "store", "type": str}),
+                (["name"], {"help": _("node group name"), "action": "store", "type": str}),
                 (
                     ["nodegroup"],
-                    {"help": "node group name or uuid", "action": "store", "type": str},
+                    {"help": _("node group name or uuid"), "action": "store", "type": str},
                 ),
-                (["type"], {"help": "node type", "action": "store", "type": str}),
+                (["type"], {"help": _("node type"), "action": "store", "type": str}),
                 (
                     ["ip_address"],
-                    {"help": "node ip address", "action": "store", "type": str},
+                    {"help": _("node ip address"), "action": "store", "type": str},
                 ),
                 (
                     ["-desc"],
                     {
-                        "help": "node description",
+                        "help": _("node description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -134,7 +138,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-attrib"],
                     {
-                        "help": "node attributes",
+                        "help": _("node attributes"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -160,20 +164,20 @@ class SshNodeController(SshControllerChild):
                 "ip_address": ip_address,
             }
         }
-        uri = "%s/nodes" % self.baseuri
+        uri = f"{self.baseuri}/nodes"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add node %s" % res.get("uuid")})
+        self.app.render({"msg": f"add node {res.get('uuid')}"})
 
     @ex(
-        help="update node",
-        description="update node",
+        help=_("update node"),
+        description=_("update node"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "node group name",
+                        "help": _("node group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -182,7 +186,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-type"],
                     {
-                        "help": "node type",
+                        "help": _("node type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -191,7 +195,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-ip_address"],
                     {
-                        "help": "node ip address",
+                        "help": _("node ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -200,7 +204,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-desc"],
                     {
-                        "help": "node description",
+                        "help": _("node description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -209,7 +213,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-attribute"],
                     {
-                        "help": "node attributes",
+                        "help": _("node attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -225,28 +229,28 @@ class SshNodeController(SshControllerChild):
         self.add_field_from_pargs_to_data("attribute", data, "attribute", reject_value=None, format=None)
         self.add_field_from_pargs_to_data("type", data, "node_type", reject_value=None, format=None)
         self.add_field_from_pargs_to_data("ip_address", data, "ip_address", reject_value=None, format=None)
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         res = self.cmp_put(uri, data={"node": data})
-        self.app.render({"msg": "update node %s" % res.get("uuid")})
+        self.app.render({"msg": f"update node {res.get('uuid')}"})
 
     @ex(
-        help="delete node",
-        description="delete node",
-        example="beehive ssh nodes delete <uuid>;beehive ssh nodes delete <uuid>",
-        arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
+        help=_("delete node"),
+        description=_("delete node"),
+        example="beehive ssh nodes delete <uuid>",
+        arguments=ARGS([(["id"], {"help": _("node name or uuid"), "action": "store", "type": str})]),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="node %s" % oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
+        self.cmp_delete(uri, entity=f"node {oid}")
 
     @ex(
-        help="set node ssh gateway. Use to access node with private address",
-        description="set node ssh gateway. Use to access node with private address",
+        help=_("set node ssh gateway. Use to access node with private address"),
+        description=_("set node ssh gateway. Use to access node with private address"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
-                (["node"], {"help": "gateway node id", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
+                (["node"], {"help": _("gateway node id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -254,30 +258,30 @@ class SshNodeController(SshControllerChild):
         oid = self.app.pargs.id
         node = self.app.pargs.node
         data = {"attribute": dumps({"gateway": node})}
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         res = self.cmp_put(uri, data={"node": data})
-        self.app.render({"msg": "update node %s" % res.get("uuid")})
+        self.app.render({"msg": f"update node {res.get('uuid')}"})
 
     @ex(
-        help="open ssh connection to node",
-        description="open ssh connection to node",
-        example="beehive ssh nodes connect ###.###.###.###;beehive ssh nodes connect dbs-gamopera-prd-001p.site03.nivolapiemonte.it",
+        help=_("open ssh connection to node"),
+        description=_("open ssh connection to node"),
+        example="beehive ssh nodes connect dbs-gamopera-prd-001p.site03.nivolapiemonte.it",
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "node group name or uuid", "action": "store", "type": str},
+                    {"help": _("node group name or uuid"), "action": "store", "type": str},
                 ),
                 (
                     ["-user"],
                     {
-                        "help": "node user name, if set use this username",
+                        "help": _("node user name, if set use this username"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["-pwd"], {"help": "if set request password", "action": "store_true"}),
+                (["-pwd"], {"help": _("if set request password"), "action": "store_true"}),
             ]
         ),
     )
@@ -299,11 +303,13 @@ class SshNodeController(SshControllerChild):
 
     def __node_run_cmd(self, scm: SshConnectionManager, node: dict, user, cmd, timeout=30):
         """[DEPRECATED]"""
-        self.app.print("[%s@%s]$ %s" % (user, node["name"], cmd), color="GRAY")
+        self.app.print(f"[{user}@{node['name']}]$ {cmd}", color="GRAY")
         try:
-            res = scm.sshcmd2node(node=node, user="root", cmd=cmd, timeout=timeout)
-        except Exception as ex:
-            res = {"stderr": str(ex)}
+            if not user:
+                user = "root"
+            res = scm.sshcmd2node(node=node, user=user, cmd=cmd, timeout=timeout)
+        except Exception as exc:
+            res = {"stderr": str(exc)}
 
         error = res.get("stderr", "")
         output = res.get("stdout", [])
@@ -326,20 +332,20 @@ class SshNodeController(SshControllerChild):
                 break
 
     @ex(
-        help="execute command(s) on node",
-        description="execute command(s) on node",
-        example="beehive ssh nodes cmd $NODE.$ZONE commands;beehive ssh nodes cmd <uuid> script-ssh-test.sh -e <env>",
+        help=_("execute command(s) on node"),
+        description=_("execute command(s) on node"),
+        example="beehive ssh nodes cmd $NODE.$ZONE commands; beehive ssh nodes cmd <uuid> script-ssh-test.sh -e <env>",
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "node group name or uuid", "action": "store", "type": str},
+                    {"help": _("node group name or uuid"), "action": "store", "type": str},
                 ),
-                (["cmd"], {"help": "file with shell command script", "type": str}),
+                (["cmd"], {"help": _("file with shell command script"), "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "node user name",
+                        "help": _("node user name"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -353,7 +359,7 @@ class SshNodeController(SshControllerChild):
         cmd = self.app.pargs.cmd
         user = self.app.pargs.user
         scm = SshConnectionManager(self)
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         node = self.cmp_get(uri).get("node", {})
 
         cmds = load_config(cmd).split("\n")
@@ -370,16 +376,16 @@ class SshNodeController(SshControllerChild):
         #         break
 
     @ex(
-        help="get node admin user password",
-        description="get node admin user password",
-        example="beehive ssh nodes admin-password-get <uuid>;beehive ssh nodes admin-password-get ",
+        help=_("get node admin user password"),
+        description=_("get node admin user password"),
+        example="beehive ssh nodes admin-password-get <uuid>; beehive ssh nodes admin-password-get ",
         arguments=PARGS(
             [
-                (["id"], {"help": "node id", "action": "store", "type": str}),
+                (["id"], {"help": _("node id"), "action": "store", "type": str}),
                 (
                     ["-admin"],
                     {
-                        "help": "node admin name [default=root]",
+                        "help": _("node admin name [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -392,26 +398,26 @@ class SshNodeController(SshControllerChild):
         oid = self.app.pargs.id
         admin = self.app.pargs.admin
 
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         res = self.cmp_get(uri).get("node")
         users = [u for u in res.pop("users", []) if u["name"] == admin]
 
         if len(users) > 0:
-            uri = "%s/users/%s/password" % (self.baseuri, users[0]["id"])
+            uri = f"{self.baseuri}/users/{users[0]['id']}/password"
             res = self.cmp_get(uri).get("password", None)
-            self.app.render({"msg": "get node %s user %s password: %s" % (oid, admin, res)})
+            self.app.render({"msg": f"get node {oid} user {admin} password: {res}"})
 
     @ex(
-        help="set node admin user password",
-        description="set node admin user password",
+        help=_("set node admin user password"),
+        description=_("set node admin user password"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node id", "action": "store", "type": str}),
-                (["pwd"], {"help": "user password", "action": "store", "type": str}),
+                (["id"], {"help": _("node id"), "action": "store", "type": str}),
+                (["pwd"], {"help": _("user password"), "action": "store", "type": str}),
                 (
                     ["-admin"],
                     {
-                        "help": "node admin name [default=root]",
+                        "help": _("node admin name [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -420,7 +426,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-propagate"],
                     {
-                        "help": "propagate user password set on vm",
+                        "help": _("propagate user password set on vm"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -435,7 +441,7 @@ class SshNodeController(SshControllerChild):
         admin = self.app.pargs.admin
         propagate = str2bool(self.app.pargs.propagate)
 
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         res = self.cmp_get(uri).get("node")
         users = [u for u in res.pop("users", []) if u["name"] == admin]
 
@@ -443,29 +449,27 @@ class SshNodeController(SshControllerChild):
             # add user using paramiko
             # enc_pwd = sha512_crypt.using(rounds=5000).hash(pwd)
             if propagate is True:
-                res = self.run_cmd('echo -e "%s\n%s" | passwd %s' % (pwd, pwd, admin), node=oid).values()
+                res = self.run_cmd(f'echo -e "{pwd}\n{pwd}" | passwd {admin}', node=oid).values()
                 self.app.log.debug(res)
-
-            "/usr/sbin/usermod --password $(echo '%s' | openssl passwd -1 -stdin) ubuntu"
 
             # remove user via api
             data = {"user": {"password": pwd}}
-            uri = "%s/users/%s" % (self.baseuri, users[0]["id"])
+            uri = f"{self.baseuri}/users/{users[0]['id']}"
             self.cmp_put(uri, data=data)
-            self.app.render({"msg": "set node %s user %s password" % (oid, admin)})
+            self.app.render({"msg": f"set node {oid} user {admin} password"})
 
     @ex(
-        help="set node user password",
-        description="set node user password",
+        help=_("set node user password"),
+        description=_("set node user password"),
         example="beehive ssh nodes user-password-set",
         arguments=ARGS(
             [
-                (["id"], {"help": "node id", "action": "store", "type": str}),
-                (["pwd"], {"help": "user password", "action": "store", "type": str}),
+                (["id"], {"help": _("node id"), "action": "store", "type": str}),
+                (["pwd"], {"help": _("user password"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "node admin name [default=root]",
+                        "help": _("node admin name [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "ubuntu",
@@ -474,7 +478,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-store"],
                     {
-                        "help": "store password in cmp",
+                        "help": _("store password in cmp"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -483,7 +487,7 @@ class SshNodeController(SshControllerChild):
                 (
                     ["-so"],
                     {
-                        "help": "operating system",
+                        "help": _("operating system"),
                         "action": "store",
                         "type": str,
                         "default": "ubuntu",
@@ -496,14 +500,14 @@ class SshNodeController(SshControllerChild):
         oid = self.app.pargs.id
         user = self.app.pargs.user
         pwd = self.app.pargs.pwd
-        store = str2bool(self.app.pargs.store)
+        #store = str2bool(self.app.pargs.store)
         so = self.app.pargs.so
 
         if so == "centos":
-            res = self.run_cmd('echo -e "%s\n%s" | passwd %s' % (pwd, pwd, user), node=oid).values()
+            res = self.run_cmd(f'echo -e "{pwd}\n{pwd}" | passwd {user}', node=oid).values()
             self.app.log.debug(res)
         elif so == "ubuntu":
-            cmd = "/usr/sbin/usermod --password $(echo '%s' | openssl passwd -1 -stdin) %s" % (pwd, user)
+            cmd = f"/usr/sbin/usermod --password $(echo '{pwd}' | openssl passwd -1 -stdin) {user}"
             res = self.run_cmd(cmd, node=oid).values()
             self.app.log.debug(res)
 
@@ -511,30 +515,30 @@ class SshNodeController(SshControllerChild):
 class SshNodeAuthController(SshControllerChild):
     class Meta:
         label = "nodes_auth"
-        description = "manage node authorization"
-        help = "manage node authorization"
+        description = _("manage node authorization")
+        help = _("manage node authorization")
 
     @ex(
-        help="get node roles",
-        description="get node roles",
-        example="beehive ssh nodes-auth role-get <uuid>;beehive ssh nodes-auth role-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
+        help=_("get node roles"),
+        description=_("get node roles"),
+        example="beehive ssh nodes-auth role-get <uuid>",
+        arguments=ARGS([(["id"], {"help": _("node name or uuid"), "action": "store", "type": str})]),
     )
     def role_get(self):
         oid = self.app.pargs.id
-        uri = "%s/nodes/%s/roles" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}/roles"
         res = self.cmp_get(uri)
         self.app.render(res, key="roles", headers=["name", "desc"], maxsize=200)
 
     @ex(
-        help="get node users",
-        description="get node users",
-        example="beehive ssh nodes-auth user-get;beehive ssh nodes-auth user-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
+        help=_("get node users"),
+        description=_("get node users"),
+        example="beehive ssh nodes-auth user-get <uuid>",
+        arguments=ARGS([(["id"], {"help": _("node name or uuid"), "action": "store", "type": str})]),
     )
     def user_get(self):
         oid = self.app.pargs.id
-        uri = "%s/nodes/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}/users"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -545,19 +549,19 @@ class SshNodeAuthController(SshControllerChild):
         )
 
     @ex(
-        help="add node role to a user",
-        description="add node role to a user",
-        example="beehive ssh nodes-auth user-add <uuid> connect.root abd.def@ghi.lmn -e <env>;beehive ssh nodes-auth user-add <uuid> connect.root abc.def@ghi.lmno",
+        help=_("add node role to a user"),
+        description=_("add node role to a user"),
+        example="beehive ssh nodes-auth user-add <uuid> connect.root abd.def@ghi.lmn",
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -567,23 +571,23 @@ class SshNodeAuthController(SshControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/nodes/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}/users"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove node role from a user",
-        description="remove node role from a user",
+        help=_("remove node role from a user"),
+        description=_("remove node role from a user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -593,19 +597,19 @@ class SshNodeAuthController(SshControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/nodes/%s/users" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data, entity="role %s from user %s" % (role, user))
+        uri = f"{self.baseuri}/nodes/{oid}/users"
+        res = self.cmp_delete(uri, data, entity=f"role {role} from user {user}")
         self.app.render({"msg": res})
 
     @ex(
-        help="get node groups",
-        description="get node groups",
-        example="beehive ssh nodes-auth group-get <uuid>;beehive ssh nodes-auth group-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "node name or uuid", "action": "store", "type": str})]),
+        help=_("get node groups"),
+        description=_("get node groups"),
+        example="beehive ssh nodes-auth group-get <uuid>",
+        arguments=ARGS([(["id"], {"help": _("node name or uuid"), "action": "store", "type": str})]),
     )
     def group_get(self):
         oid = self.app.pargs.id
-        uri = "%s/nodes/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}/groups"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -616,19 +620,19 @@ class SshNodeAuthController(SshControllerChild):
         )
 
     @ex(
-        help="add node role to a group",
-        description="add node role to a group",
-        example="beehive ssh nodes-auth group-add <uuid> connect.root GR-sdptoolc-jv-sdpqueryapi;beehive ssh nodes-auth group-add <uuid> connect.root GR-sdptoolc-jv-sdpqueryapi",
+        help=_("add node role to a group"),
+        description=_("add node role to a group"),
+        example="beehive ssh nodes-auth group-add <uuid> connect.root GR-sdptoolc-jv-sdpqueryapi",
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -638,23 +642,23 @@ class SshNodeAuthController(SshControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/nodes/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}/groups"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove node role from a group",
-        description="remove node role from a group",
+        help=_("remove node role from a group"),
+        description=_("remove node role from a group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node name or uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node name or uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -664,16 +668,16 @@ class SshNodeAuthController(SshControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/nodes/%s/groups" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data, entity="role %s from group %s" % (role, group))
+        uri = f"{self.baseuri}/nodes/{oid}/groups"
+        res = self.cmp_delete(uri, data, entity=f"role {role} from group {group}")
         self.app.render({"msg": res})
 
 
 class SshNodeActionController(SshControllerChild):
     class Meta:
         label = "nodes_action"
-        description = "manage node action"
-        help = "manage node action"
+        description = _("manage node action")
+        help = _("manage node action")
 
         headers = [
             "id",
@@ -701,15 +705,15 @@ class SshNodeActionController(SshControllerChild):
         ]
 
     @ex(
-        help="get nodes actions",
-        description="get nodes actions",
-        example="beehive ssh nodes-action get <uuid> -date 2021.05.04 -size 100;beehive ssh nodes-action get <uuid> -date 2021.04.31 -size -1",
+        help=_("get nodes actions"),
+        description=_("get nodes actions"),
+        example="beehive ssh nodes-action get <uuid> -date 2021.05.04 -size 100",
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "node name or uuid",
+                        "help": _("node name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": "any",
@@ -718,7 +722,7 @@ class SshNodeActionController(SshControllerChild):
                 (
                     ["-date"],
                     {
-                        "help": "date to. Syntax YYYY.MM.DD",
+                        "help": _("date to. Syntax YYYY.MM.DD"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -732,7 +736,7 @@ class SshNodeActionController(SshControllerChild):
         params = ["date"]
         mappings = {}
         data = self.format_paginated_query(params, mappings=mappings)
-        uri = "%s/nodes/%s/actions" % (self.baseuri, node)
+        uri = f"{self.baseuri}/nodes/{node}/actions"
         res = self.cmp_get(uri, data=data)
         self.app.render(res, key="actions", headers=self._meta.headers, fields=self._meta.fields)
 
@@ -744,20 +748,23 @@ class SshNodeFileController(SshControllerChild):
         # aliases_only = True
         # stacked_on = 'nodes'
         # stacked_type = 'nested'
-        description = "Manage connection manager node files"
-        help = "Manage connection manager node files"
+        description = _("Manage connection manager node files")
+        help = _("Manage connection manager node files")
 
     @ex(
-        help="copy file to node",
-        description="copy file to node",
-        example="beehive ssh nodes-files put dbs-reflex-prd-001m.site01.nivolapiemonte.it /home/DOMNT/2067/indire/filebeat.yml /etc/filebeat/filebeat.yml;beehive ssh nodes-files put <uuid> /home/DOMNT/2067/esenzione/filebeat.yml /etc/filebeat/filebeat.yml",
+        help=_("copy file to node"),
+        description=_("copy file to node"),
+        example=(
+            "beehive ssh nodes-files put dbs-reflex-prd-001m.site01.nivolapiemonte.it "
+            "/home/DOMNT/2067/indire/filebeat.yml /etc/filebeat/filebeat.yml"
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node uuid"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "connection user [default=root]",
+                        "help": _("connection user [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -766,14 +773,14 @@ class SshNodeFileController(SshControllerChild):
                 (
                     ["local_file"],
                     {
-                        "help": "full path of local file to copy to node",
+                        "help": _("full path of local file to copy to node"),
                         "action": "store",
                         "type": str,
                     },
                 ),
                 (
                     ["remote_file"],
-                    {"help": "ull path of remote file", "action": "store", "type": str},
+                    {"help": _("ull path of remote file"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -783,22 +790,26 @@ class SshNodeFileController(SshControllerChild):
         local_file = self.app.pargs.local_file
         remote_file = self.app.pargs.remote_file
         user = self.app.pargs.user
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         node = self.cmp_get(uri).get("node", {})
         scm = SshConnectionManager(self)
         scm.sshfile2node(node=node, user=user, cmd="put", source=local_file, dest=remote_file)
 
     @ex(
-        help="copy file from node",
-        description="copy file from node",
-        example="beehive ssh nodes-files get w22-gw-apimint.site01.nivolapiemonte.it /appserv/wso2carbon/apim-gateway/wso2am-4.1.0/repository/logs/CSI_audit-08-30-2023.log /home/DOMNT/2067/3/2/CSI_audit-08-30-2023.log;beehive ssh nodes-files get jb2-esenzione.site01.nivolapiemonte.it /etc/filebeat/filebeat.yml /home/DOMNT/2067/esenzione/filebeat.yml",
+        help=_("copy file from node"),
+        description=_("copy file from node"),
+        example=(
+            "beehive ssh nodes-files get w22-gw-apimint.site01.nivolapiemonte.it "
+            "/appserv/wso2carbon/apim-gateway/wso2am-4.1.0/repository/logs/CSI_audit-08-30-2023.log "
+            "/home/DOMNT/2067/3/2/CSI_audit-08-30-2023.log"
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node uuid"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "connection user [default=root]",
+                        "help": _("connection user [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -807,14 +818,14 @@ class SshNodeFileController(SshControllerChild):
                 (
                     ["local_file"],
                     {
-                        "help": "full path of local file to copy to node",
+                        "help": _("full path of local file to copy to node"),
                         "action": "store",
                         "type": str,
                     },
                 ),
                 (
                     ["remote_file"],
-                    {"help": "ull path of remote file", "action": "store", "type": str},
+                    {"help": _("ull path of remote file"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -824,21 +835,21 @@ class SshNodeFileController(SshControllerChild):
         local_file = self.app.pargs.local_file
         remote_file = self.app.pargs.remote_file
         user = self.app.pargs.user
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         node = self.cmp_get(uri).get("node", {})
         scm = SshConnectionManager(self)
         scm.sshfile2node(node=node, user=user, cmd="get", source=local_file, dest=remote_file)
 
     @ex(
-        help="list file in a directory. Return : st_size, st_uid, st_gid, st_mode, st_atime, st_mtime",
-        description="list file in a directory. Return : st_size, st_uid, st_gid, st_mode, st_atime, st_mtime",
+        help=_("list file in a directory. Return : st_size, st_uid, st_gid, st_mode, st_atime, st_mtime"),
+        description=_("list file in a directory. Return : st_size, st_uid, st_gid, st_mode, st_atime, st_mtime"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node uuid"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "connection user [default=root]",
+                        "help": _("connection user [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -847,7 +858,7 @@ class SshNodeFileController(SshControllerChild):
                 (
                     ["path"],
                     {
-                        "help": "full path of remote file or dir to list",
+                        "help": _("full path of remote file or dir to list"),
                         "action": "store",
                         "type": str,
                     },
@@ -859,7 +870,7 @@ class SshNodeFileController(SshControllerChild):
         oid = self.app.pargs.id
         path = self.app.pargs.path
         user = self.app.pargs.user
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         node = self.cmp_get(uri).get("node", {})
         scm = SshConnectionManager(self)
         res = scm.sshfile2node(node=node, user=user, cmd="list", source=path)
@@ -867,15 +878,15 @@ class SshNodeFileController(SshControllerChild):
             print(item)
 
     @ex(
-        help="tail -f a file o the node",
-        description="tail -f a file o the node",
+        help=_("tail -f a file o the node"),
+        description=_("tail -f a file o the node"),
         arguments=ARGS(
             [
-                (["id"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("node uuid"), "action": "store", "type": str}),
                 (
                     ["-user"],
                     {
-                        "help": "connection user [default=root]",
+                        "help": _("connection user [default=root]"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -883,7 +894,7 @@ class SshNodeFileController(SshControllerChild):
                 ),
                 (
                     ["file"],
-                    {"help": "name of file to tail", "action": "store", "type": str},
+                    {"help": _("name of file to tail"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -892,7 +903,7 @@ class SshNodeFileController(SshControllerChild):
         oid = self.app.pargs.id
         file = self.app.pargs.file
         user = self.app.pargs.user
-        uri = "%s/nodes/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/nodes/{oid}"
         node = self.cmp_get(uri).get("node", {})
         scm = SshConnectionManager(self)
         scm.open_sshnode_file(node=node, user=user, filename=file)
@@ -901,19 +912,19 @@ class SshNodeFileController(SshControllerChild):
 class SshNodeAnsibleController(SshControllerChild):
     class Meta:
         label = "nodes_ansible"
-        description = "Manage node ansible inventory"
-        help = "Manage node ansible inventory"
+        description = _("Manage node ansible inventory")
+        help = _("Manage node ansible inventory")
 
     @ex(
-        help="get inventory",
-        description="get inventory",
+        help=_("get inventory"),
+        description=_("get inventory"),
         example="beehive ssh nodes-ansible inventory-get",
         arguments=ARGS(
             [
                 (
                     ["-node_name"],
                     {
-                        "help": "node name pattern",
+                        "help": _("node name pattern"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -922,7 +933,7 @@ class SshNodeAnsibleController(SshControllerChild):
                 (
                     ["-node"],
                     {
-                        "help": "node uuid",
+                        "help": _("node uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -931,7 +942,7 @@ class SshNodeAnsibleController(SshControllerChild):
                 (
                     ["-group"],
                     {
-                        "help": "group uuid or name",
+                        "help": _("group uuid or name"),
                         "action": "store",
                         "type": str,
                         "default": None,

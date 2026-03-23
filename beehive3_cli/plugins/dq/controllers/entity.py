@@ -1,15 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from pygments.formatters.terminal256 import Terminal256Formatter
-from pygments import format
-from pygments.token import Token
 from cement import ex
 from tinydb import TinyDB, Query
+
+from pygments.formatters.terminal256 import Terminal256Formatter
+from pygments import format as pyg_format
+from pygments.token import Token
+
 from beecell.simple import dict_get
+
 from beehive3_cli.core.controller import BaseController, PARGS
 from beehive3_cli.core.util import TreeStyle
+from beehive3_cli.translate import _
 
 
 class DqResourceEntityController(BaseController):
@@ -17,8 +21,8 @@ class DqResourceEntityController(BaseController):
         stacked_on = "dq_res"
         stacked_type = "nested"
         label = "dq_entities"
-        description = "entities data quality"
-        help = "entities data quality"
+        description = _("entities data quality")
+        help = _("entities data quality")
 
         cmp = {"baseuri": "/v1.0/nrs", "subsystem": "resource"}
 
@@ -90,7 +94,7 @@ class DqResourceEntityController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(DqResourceEntityController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
@@ -98,67 +102,81 @@ class DqResourceEntityController(BaseController):
         self.table_resource = db.table("resources")
         self.query = Query()
 
-    def __print_tree(self, resource, space="   ", print_header=False):
-        if print_header is True:
+    def __print_tree(self, resource, space="    ", print_header=False):
+        """
+        Recursively prints a resource tree, formatting the output with Pygments.
+        It uses a unified helper to generate tokens for child nodes based on their relation.
+        """
 
-            def create_data():
-                yield (Token.Name, " [%s] " % resource.get("type"))
+        def _get_formatted_child_tokens(child, space="    "):
+            """
+            Generates Pygments tokens for a single child node in the tree,
+            extracting data from the 'child' itself and handling the relation logic.
+            """
+            # Extract necessary data from the child node
+            child_type = child.get("type")
+            child_name = child.get("name")
+            child_id = child.get("id")
+            child_ext_id = child.get("ext_id")
+            child_state = child.get("state")
+            child_reuse = child.get("reuse")
+            relation = child.get("relation")
+            link = child.get("link")
+            container_name = child.get("container_name")
+
+            yield (Token.Text.Whitespace, space)
+
+            if relation is None:
+                # Case: direct relation (=>)
+                yield (Token.Operator, "=>")
+            else:
+                # Case: linked relation (--link:relation-->)
+                yield (Token.Operator, f"--{link}:{relation}-->")
+                # Add container_name only if a linked relation exists and a name is present
+                if container_name:
+                    yield (Token.Operator, f" ({container_name}) ")
+
+            yield (Token.Name, f" [{child_type}] ")
+            yield (Token.Literal.String, child_name)
+            yield (Token.Text.Whitespace, " - ")
+            yield (Token.Literal.String, f"{child_id} {{{child_ext_id}}}")
+            yield (Token.Literal.String, f" [{child_state}]")
+            yield (Token.Literal.String, f" ({child_reuse})")
+
+        # --- Header Logic (specific to the main resource) ---
+        if print_header:
+            def _create_header_data():
+                """Generates tokens for the main resource header line."""
+                yield (Token.Name, f" [{resource.get('type')}] ")
                 yield (Token.Literal.String, resource.get("name"))
                 yield (Token.Text.Whitespace, " - ")
                 yield (Token.Literal.Number, str(resource.get("id")))
-                yield (Token.Literal.String, " [%s]" % resource.get("state"))
+                yield (Token.Literal.String, f" [{resource.get('state')}]")
 
-            data = format(create_data(), Terminal256Formatter(style=TreeStyle))
-            print(data)
+            header_data = pyg_format(_create_header_data(), Terminal256Formatter(style=TreeStyle))
+            print(header_data)
 
-        for child in resource.get("children", []):
-            relation = child.get("relation")
-            link = child.get("link")
-            if relation is None:
+        # --- Child Nodes Logic ---
+        for child_item in resource.get("children", []):
+            # Pass the current 'child_item' and 'space' to the helper method
+            child_data = pyg_format(
+                _get_formatted_child_tokens(child_item, space),
+                Terminal256Formatter(style=TreeStyle)
+            )
+            print(child_data)
 
-                def create_data():
-                    yield (Token.Text.Whitespace, space)
-                    yield (Token.Operator, "=>")
-                    yield (Token.Name, " [%s] " % child.get("type"))
-                    yield (Token.Literal.String, child.get("name"))
-                    yield (Token.Text.Whitespace, " - ")
-                    yield (
-                        Token.Literal.String,
-                        "%s {%s}" % (child.get("id"), child.get("ext_id")),
-                    )
-                    yield (Token.Literal.String, " [%s]" % child.get("state"))
-                    yield (Token.Literal.String, " (%s)" % child.get("reuse"))
-
-                data = format(create_data(), Terminal256Formatter(style=TreeStyle))
-            else:
-
-                def create_data():
-                    yield (Token.Text.Whitespace, space)
-                    yield (Token.Operator, "--%s:%s-->" % (link, relation))
-                    yield (Token.Operator, " (%s) " % child.get("container_name"))
-                    yield (Token.Name, "[%s] " % child.get("type"))
-                    yield (Token.Literal.String, child.get("name"))
-                    yield (Token.Text.Whitespace, " - ")
-                    yield (
-                        Token.Literal.String,
-                        "%s {%s}" % (child.get("id"), child.get("ext_id")),
-                    )
-                    yield (Token.Literal.String, " [%s]" % child.get("state"))
-                    yield (Token.Literal.String, " (%s)" % child.get("reuse"))
-
-                data = format(create_data(), Terminal256Formatter(style=TreeStyle))
-            print(data)
-            self.__print_tree(child, space=space + "   ")
+            # Recursive call for the children of the current node
+            self.__print_tree(child_item, space=space + "    ")
 
     @ex(
-        help="check resource entities",
-        description="check resource entities",
+        help=_("check resource entities"),
+        description=_("check resource entities"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "entity id",
+                        "help": _("entity id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -167,7 +185,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -176,7 +194,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -185,7 +203,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-container"],
                     {
-                        "help": "container uuid or name",
+                        "help": _("container uuid or name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -194,7 +212,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "entity type",
+                        "help": _("entity type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -203,7 +221,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-objid"],
                     {
-                        "help": "entity authorization id",
+                        "help": _("entity authorization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -212,7 +230,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-ext_id"],
                     {
-                        "help": "entity physical id",
+                        "help": _("entity physical id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -221,7 +239,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -230,7 +248,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -239,7 +257,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -248,7 +266,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -260,7 +278,7 @@ class DqResourceEntityController(BaseController):
     def check(self):
         oid = self.app.pargs.id
         if oid is not None:
-            uri = "%s/entities/%s/check" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/entities/{oid}/check"
             item = self.cmp_get(uri).get("resource")
             check = item.get("check")
             if check.get("check") is False:
@@ -280,18 +298,17 @@ class DqResourceEntityController(BaseController):
             ]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/entities" % self.baseuri
+            uri = f"{self.baseuri}/entities"
             res = self.cmp_get(uri, data=data)
 
             if "page" in res:
-                print("Page: %s" % res["page"])
-                print("Count: %s" % res["count"])
-                print("Total: %s" % res["total"])
-                print("From: %s To: %s" % (res["page"] * res["count"], (res["page"] + 1) * res["count"]))
-                print("Order: %s %s" % (res.get("sort").get("field"), res.get("sort").get("order")))
+                print(f"Page: {res['page']}")
+                print(f"Count: {res['count']}")
+                print(f"Total: {res['total']}")
+                print(f"From: {res['page'] * res['count']} To: {(res['page'] + 1) * res['count']}")
+                print(f"Order: {res.get('sort').get('field')} {res.get('sort').get('order')}")
 
             tmpl = "{idx:6} {id:8} {name:60.60} {container:10} {parent:10} {active:7} {state:10.10}"
-            line = "".join(["-" for i in range(40)])
             headers = {
                 "idx": "idx",
                 "id": "id",
@@ -305,7 +322,7 @@ class DqResourceEntityController(BaseController):
 
             idx = res["page"] * res["count"] + 1
             for item in res.get("resources", []):
-                uri = "%s/entities/%s/check" % (self.baseuri, item["id"])
+                uri = f"{self.baseuri}/entities/{item['id']}/check"
                 item = self.cmp_get(uri).get("resource")
 
                 if item.get("state") != "ACTIVE":
@@ -316,19 +333,19 @@ class DqResourceEntityController(BaseController):
                 item["idx"] = idx
                 self.app.log.warning(item)
                 check = item.pop("check")
-                repr = tmpl.format(**item) + str(check)
-                print(repr)
+                lrepr = tmpl.format(**item) + str(check)
+                print(lrepr)
                 idx += 1
 
     @ex(
-        help="get bad resources",
-        description="get bad resources",
+        help=_("get bad resources"),
+        description=_("get bad resources"),
         arguments=PARGS(
             [
                 (
                     ["-definition"],
                     {
-                        "help": "entity definition",
+                        "help": _("entity definition"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -366,14 +383,14 @@ class DqResourceEntityController(BaseController):
         self.app.render(items, headers=headers, fields=fields, showindex="always")
 
     @ex(
-        help="get bad resources",
-        description="get bad resources",
+        help=_("get bad resources"),
+        description=_("get bad resources"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "entity id",
+                        "help": _("entity id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -389,14 +406,14 @@ class DqResourceEntityController(BaseController):
             self.table_resource.remove(doc_ids=[data[0].doc_id])
 
     @ex(
-        help="remove bad resource",
-        description="remove bad resource",
+        help=_("remove bad resource"),
+        description=_("remove bad resource"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "entity id",
+                        "help": _("entity id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -407,7 +424,7 @@ class DqResourceEntityController(BaseController):
     )
     def remove(self):
         oid = self.app.pargs.id
-        uri = "%s/entities/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/entities/{oid}"
         self.cmp_delete(uri, data="")
 
         data = self.table_resource.search(self.query.id == oid)
@@ -415,14 +432,14 @@ class DqResourceEntityController(BaseController):
             self.table_resource.remove(doc_ids=[data[0].doc_id])
 
     @ex(
-        help="repair compute volume tree",
-        description="repair compute volume tree",
+        help=_("repair compute volume tree"),
+        description=_("repair compute volume tree"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "entity id",
+                        "help": _("entity id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -431,7 +448,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-definition"],
                     {
-                        "help": "entity definition",
+                        "help": _("entity definition"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -455,16 +472,16 @@ class DqResourceEntityController(BaseController):
             oid = item["id"]
             name = item["name"]
             server_name = name[: name.find("-volume")]
-            uri = "%s/entities/%s/check" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/entities/{oid}/check"
             res = self.cmp_get(uri, data="").get("resource", {})
 
             print("################################################")
-            print("# compute volume uuid:       %s" % res["uuid"])
-            print("# compute volume name:       %s" % name)
-            print("# compute volume hypervisor: %s" % res["hypervisor"])
-            print("# compute volume usage:      %s" % res["used"])
-            print("# compute volume attachment: %s" % res["attachment"])
-            print("# check:                     %s" % res["check"])
+            print(f"# compute volume uuid:       {res['uuid']}")
+            print(f"# compute volume name:       {name}")
+            print(f"# compute volume hypervisor: {res['hypervisor']}")
+            print(f"# compute volume usage:      {res['used']}")
+            print(f"# compute volume attachment: {res['attachment']}")
+            print(f"# check:                     {res['check']}")
 
             if res["check"] is True:
                 data = self.table_resource.search(self.query.id == oid)
@@ -472,13 +489,13 @@ class DqResourceEntityController(BaseController):
                     self.table_resource.remove(doc_ids=[data[0].doc_id])
                 continue
 
-            uri = "/v1.0/nrs/provider/instances/%s" % server_name
+            uri = f"/v1.0/nrs/provider/instances/{server_name}"
             instance = self.cmp_get(uri).get("instance", [])
 
             server_type = instance.get("hypervisor")
 
             # get tree
-            uri = "%s/entities/%s/tree" % (self.baseuri, server_name)
+            uri = f"{self.baseuri}/entities/{server_name}/tree"
             tree = self.cmp_get(uri, data="").get("resourcetree", {})
             self.c("\ncompute instance tree", "underline")
             self.__print_tree(tree, print_header=True)
@@ -502,11 +519,17 @@ class DqResourceEntityController(BaseController):
                 ],
             )
 
+            child = None
             # physical server volumes
             for child in main["children"]:
                 if dict_get(child, "__meta__.definition") == "Vsphere.DataCenter.Folder.Server":
                     break
-            uri = "/v1.0/nrs/%s/servers/%s" % (server_type, child["id"])
+
+            if child is None:
+                print("Child is None")
+                return
+
+            uri = f"/v1.0/nrs/{server_type}/servers/{child['id']}"
             server = self.cmp_get(uri).get("server")
             details = server.pop("details")
             volumes = details.pop("volumes")
@@ -527,21 +550,17 @@ class DqResourceEntityController(BaseController):
                 maxsize=200,
             )
 
-            # if res['used'] is False and res['attachment'] is None:
-            #     uri = '%s/entities/%s' % (self.baseuri, oid)
-            #     self.cmp_delete(uri, entity='compute volume %s' % oid, confirm=False)
-
             input()
 
     @ex(
-        help="repair compute volume tree",
-        description="repair compute volume tree",
+        help=_("repair compute volume tree"),
+        description=_("repair compute volume tree"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "entity id",
+                        "help": _("entity id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -550,7 +569,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-definition"],
                     {
-                        "help": "entity definition",
+                        "help": _("entity definition"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -573,9 +592,12 @@ class DqResourceEntityController(BaseController):
         for item in items:
             oid = item["id"]
             name = item["name"]
-            uri = "%s/entities/%s/tree" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/entities/{oid}/tree"
             res = self.cmp_get(uri, data="").get("resourcetree", {})
             main = None
+            if len(res["children"]) < 1:
+                self.app.log.warning("Compute volume %s has not children", oid)
+                continue
             for children in res["children"]:
                 if dict_get(children, "attributes.main", default=False):
                     main = children
@@ -584,27 +606,30 @@ class DqResourceEntityController(BaseController):
 
             if main is not None:
                 print("################################################")
-                print("# compute volume id:         %s" % oid)
-                print("# compute volume uuid:       %s" % res["uuid"])
-                print("# compute volume name:       %s" % name)
+                print(f"# compute volume id:         {oid}")
+                print(f"# compute volume uuid:       {res['uuid']}")
+                print(f"# compute volume name:       {name}")
                 # print('# compute volume hypervisor: %s' % res['hypervisor'])
                 # print('# compute volume usage:      %s' % res['used'])
                 # print('# compute volume attachment: %s' % res['attachment'])
-                print("# zone volume:               %s - %s" % (main["id"], main["name"]))
+                print(f"# zone volume:               {main['id']} - {main['name']}")
 
                 # get container
-                site_id = children.get("relation").split(".")[1]
-                uri = "/v1.0/nrs/provider/sites/%s" % site_id
+                relation = children.get("relation")
+                if relation is None or len(relation) < 1:
+                    continue
+                site_id = relation.split(".")[1]
+                uri = f"/v1.0/nrs/provider/sites/{site_id}"
                 site = self.cmp_get(uri).get("site")
                 orchestrators = site.pop("orchestrators")
                 container = [o for o in orchestrators if o["type"] == dict_get(children, "attributes.type")][0]["id"]
 
-                uri = "%s/entities" % self.baseuri
+                uri = f"{self.baseuri}/entities"
 
                 # first search
                 data = {
                     "container": container,
-                    "name": "%s-%s-volume" % (main["name"], container),
+                    "name": f"{main['name']}-{container}-volume",
                 }
                 phyres = self.cmp_get(uri, data=data).get("resources", [])
 
@@ -627,20 +652,20 @@ class DqResourceEntityController(BaseController):
 
                     if p["name"].find("volume") > 0 and vol_size == size:
                         # check volume is already linked
-                        uri = "%s/links" % self.baseuri
+                        uri = f"{self.baseuri}/links"
                         data = {"end_resource": p["id"], "type": "relation"}
                         links = self.cmp_get(uri, data=data).get("count", 0)
                         if links > 0:
                             continue
 
-                        print("# physical resource:         %s - %s" % (p["id"], p["name"]))
+                        print(f"# physical resource:         {p['id']} - {p['name']}")
                         find_vol = p
                         find_num += 1
                 if find_num == 0:
-                    self.app.error("physical volume for %s in container %s does not exist" % (main["name"], container))
+                    self.app.error(f"physical volume for {main['name']} in container {container} does not exist")
                     continue
-                elif find_num > 1:
-                    indata = input("\nrepair entity %s? " % oid)
+                if find_num > 1:
+                    indata = input(f"\nrepair entity {oid}? ")
                     try:
                         indata = int(indata)
                     except:
@@ -651,24 +676,24 @@ class DqResourceEntityController(BaseController):
                 if indata == "s":
                     print("skip")
                     continue
-                elif isinstance(indata, int):
+                if isinstance(indata, int):
                     data = {
                         "type": "relation",
-                        "name": "%s-%s-link" % (main["id"], indata),
+                        "name": f"{main['id']}-{indata}-link",
                         "attributes": {},
                         "start_resource": str(main["id"]),
                         "end_resource": str(indata),
                     }
-                    uri = "%s/links" % self.baseuri
+                    uri = f"{self.baseuri}/links"
                     res = self.cmp_post(uri, data={"resourcelink": data})
-                    print("MSG: create link: %s" % res["uuid"])
+                    print(f"MSG: create link: {res['uuid']}")
 
                     data = self.table_resource.search(self.query.id == oid)
                     if len(data) > 0:
                         self.table_resource.remove(doc_ids=[data[0].doc_id])
 
                 # print check
-                uri = "%s/entities/%s/check" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/entities/{oid}/check"
                 item = self.cmp_get(uri).get("resource")
                 check = item.get("check")
                 if check.get("check") is True:
@@ -677,21 +702,21 @@ class DqResourceEntityController(BaseController):
                     self.app.error(check.get("msg"))
 
                 # print tree
-                uri = "%s/entities/%s/tree" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/entities/{oid}/tree"
                 res = self.cmp_get(uri, data="").get("resourcetree", {})
                 self.__print_tree(res, print_header=True)
 
                 # input()
 
     @ex(
-        help="check compute instance",
-        description="check compute instance",
+        help=_("check compute instance"),
+        description=_("check compute instance"),
         arguments=PARGS(
             [
                 (
                     ["-hypervisor"],
                     {
-                        "help": "hypervisor",
+                        "help": _("hypervisor"),
                         "action": "store",
                         "type": str,
                         "default": "vsphere",
@@ -700,7 +725,7 @@ class DqResourceEntityController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "name filter",
+                        "help": _("name filter"),
                         "action": "store",
                         "type": str,
                         "default": "vsphere",
@@ -724,7 +749,7 @@ class DqResourceEntityController(BaseController):
             oid = instance.get("id")
 
             # get tree
-            uri = "%s/entities/%s/tree" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/entities/{oid}/tree"
             tree = self.cmp_get(uri, data="").get("resourcetree", {})
             self.c("\ncompute instance tree", "underline")
             self.__print_tree(tree, print_header=True)
@@ -748,11 +773,17 @@ class DqResourceEntityController(BaseController):
                 ],
             )
 
+            child = None
             # physical server volumes
             for child in main["children"]:
                 if dict_get(child, "__meta__.definition") == "Vsphere.DataCenter.Folder.Server":
                     break
-            uri = "/v1.0/nrs/%s/servers/%s" % (server_type, child["id"])
+
+            if child is None:
+                print("Child is None")
+                return
+
+            uri = f"/v1.0/nrs/{server_type}/servers/{child['id']}"
             server = self.cmp_get(uri).get("server")
             details = server.pop("details")
             volumes = details.pop("volumes")
@@ -777,129 +808,7 @@ class DqResourceEntityController(BaseController):
                 # indata = 'p'
 
                 if indata == "p":
-                    uri = "%s/entities/%s" % (self.baseuri, oid)
+                    uri = f"{self.baseuri}/entities/{oid}"
                     data = {"resource": {}}
                     self.cmp_patch(uri, data=data)
                     print("patch compute instance")
-
-    # @ex(
-    #     help='repair vsphere server',
-    #     description='repair vsphere server',
-    #     arguments=PARGS([
-    #         (['-id'], {'help': 'entity id', 'action': 'store', 'type': int, 'default': None}),
-    #         (['-definition'], {'help': 'entity definition', 'action': 'store', 'type': str, 'default': None}),
-    #     ])
-    # )
-    # def repair_vsphere_server(self):
-    #     oid = self.app.pargs.id
-    #     definition = 'Vsphere.DataCenter.Folder.Server'
-    #
-    #     if oid is not None:
-    #         items = self.table_resource.search(self.query.id == oid)
-    #     else:
-    #         items = self.table_resource.search(self.query.__meta__.definition == definition)
-    #
-    #     for item in items:
-    #         oid = item['id']
-    #
-    #     print('found %s servers' % len(items))
-    #     idx = 1
-    #     for item in items:
-    #         oid = item['id']
-    #         print('#########################################')
-    #         print('idx: %s - id: %s - name: %s' % (idx, oid, item['name']))
-    #
-    #         uri = '/v1.0/nrs/vsphere/servers/%s' % oid
-    #         server = self.cmp_get(uri).get('server')
-    #         details = server.pop('details')
-    #         volumes = details.pop('volumes', [])
-    #
-    #         check = True
-    #         for vol in volumes:
-    #             if vol.get('uuid') is None:
-    #                 check = False
-    #
-    #         idx += 1
-    #
-    #         if check is True:
-    #             print(' skip')
-    #             continue
-    #
-    #         self.app.render(volumes, headers=['uuid', 'id', 'name', 'storage', 'size', 'unit_number', 'bootable',
-    #                                           'thin', 'mode'], maxsize=50)
-    #
-    #         try:
-    #             uri = '%s/entities/%s' % (self.baseuri, oid)
-    #             data = {'resource': {}}
-    #             res = self.cmp_patch(uri, data=data)
-    #         except Exception as ex:
-    #             self.app.error(ex)
-    #
-    #         uri = '/v1.0/nrs/vsphere/servers/%s' % oid
-    #         server = self.cmp_get(uri).get('server')
-    #         details = server.pop('details')
-    #         volumes = details.pop('volumes', [])
-    #         self.app.render(volumes, headers=['uuid', 'id', 'name', 'storage', 'size', 'unit_number', 'bootable',
-    #                                           'thin', 'mode'], maxsize=50)
-    #
-    #         if len(volumes) == len([v for v in volumes if v.get('uuid', None) is not None]):
-    #             data = self.table_resource.search(self.query.id == oid)
-    #             if len(data) > 0:
-    #                 self.table_resource.remove(doc_ids=[data[0].doc_id])
-    #
-    #         # input()
-
-    # @ex(
-    #     help='repair vsphere server',
-    #     description='repair vsphere server',
-    #     arguments=PARGS([
-    #         (['-id'], {'help': 'entity id', 'action': 'store', 'type': int, 'default': None}),
-    #         (['-definition'], {'help': 'entity definition', 'action': 'store', 'type': str, 'default': None}),
-    #     ])
-    # )
-    # def repair_volume(self):
-    #     oid = self.app.pargs.id
-    #     definition = 'Provider.ComputeZone.ComputeVolume'
-    #
-    #     if oid is not None:
-    #         items = self.table_resource.search(self.query.id == oid)
-    #     else:
-    #         items = self.table_resource.search(self.query.__meta__.definition == definition)
-    #
-    #     for item in items:
-    #         oid = item['id']
-    #
-    #     print('found %s volume' % len(items))
-    #     idx = 1
-    #     for item in items:
-    #         oid = item['id']
-    #         print('#########################################')
-    #         print('idx: %s - id: %s - name: %s' % (idx, oid, item['name']))
-    #
-    #         oid = item['id']
-    #         uri = '%s/entities/%s/tree' % (self.baseuri, oid)
-    #         res = self.cmp_get(uri, data='').get('resourcetree', {})
-    #         main = None
-    #         for children in res['children']:
-    #             if dict_get(children, 'attributes.main', default=False):
-    #                 main = children
-    #         if main is not None:
-    #             for child in main.get('children', []):
-    #                 if dict_get(child, 'type') == 'Vsphere.DataCenter.Folder.Server' or \
-    #                         dict_get(child, 'type') == 'Openstack.Domain.Project.Server':
-    #                     uri = '%s/links/%s' % (self.baseuri, child['link'])
-    #                     self.cmp_delete(uri, confirm=False)
-    #                     print('MSG: delete link: %s' % child['link'])
-    #
-    #                     data = self.table_resource.search(self.query.id == oid)
-    #                     if len(data) > 0:
-    #                         self.table_resource.remove(doc_ids=[data[0].doc_id])
-    #
-    #         # print tree
-    #         uri = '%s/entities/%s/tree' % (self.baseuri, oid)
-    #         res = self.cmp_get(uri, data='').get('resourcetree', {})
-    #         self.__print_tree(res, print_header=True)
-    #
-    #         # input()
-
-    # funzione di rimozione di ruoli associati a account, division e org

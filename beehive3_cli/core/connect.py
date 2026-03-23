@@ -1,18 +1,23 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from base64 import b64decode
 from logging import getLogger
 from time import time
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 from beecell.paramiko_shell.shell import ParamikoShell
 from beecell.simple import id_gen, dict_get
+if TYPE_CHECKING:
+    from beehive3_cli.core.controller import BaseController
 
 logger = getLogger(__name__)
 
 
-class SshConnectionManager(object):
+class SshConnectionManager():
+    ctrl: 'BaseController'
+
     def __init__(self, controller):
         self.ctrl = controller
 
@@ -21,12 +26,12 @@ class SshConnectionManager(object):
             "action": "login",
             "action_id": ssh_session_id,
             "params": {
-                "user": "%s.%s" % (user, key.get("uuid", "")),
+                "user": f"{user}.{key.get('uuid', '')}",
             },
         }
-        uri = "/v1.0/gas/nodes/%s/action" % node["id"]
+        uri = f"/v1.0/gas/nodes/{node['id']}/action"
         action = self.ctrl.cmp_put(uri, data=data)
-        logger.debug("Send action: %s" % action)
+        logger.debug("Send action: %s", action)
 
     def __node_post_logout(self, ssh_session_id, start_time, node, user, key, status=None):
         elapsed = round(time() - start_time, 2)
@@ -36,27 +41,27 @@ class SshConnectionManager(object):
             "action_id": ssh_session_id,
             "status": status,
             "params": {
-                "user": "%s.%s" % (user, key.get("uuid", "")),
+                "user": f"{user}.{key.get('uuid', '')}",
                 "elapsed": elapsed,
             },
         }
-        uri = "/v1.0/gas/nodes/%s/action" % node["id"]
+        uri = f"/v1.0/gas/nodes/{node['id']}/action"
         action = self.ctrl.cmp_put(uri, data=data)
-        logger.debug("Send action: %s" % action)
+        logger.debug("Send action: %s", action)
 
     def __node_post_action(self, ssh_session_id, node, user, key, status=None, cmd="", elapsed=0):
         data = {
-            "action": "cmd: %s" % cmd,
+            "action": f"cmd: {cmd}",
             "action_id": ssh_session_id,
             "status": status,
             "params": {
-                "user": "%s.%s" % (user, key.get("uuid", "")),
+                "user": f"{user}.{key.get('uuid', '')}",
                 "elapsed": elapsed,
             },
         }
-        uri = "/v1.0/gas/nodes/%s/action" % node["id"]
+        uri = f"/v1.0/gas/nodes/{node['id']}/action"
         action = self.ctrl.cmp_put(uri, data=data)
-        logger.debug("Send action: %s" % action)
+        logger.debug("Send action: %s", action)
 
     def __get_ipaddress(self, node):
         ip_address = node["ip_address"].split(":")
@@ -77,12 +82,12 @@ class SshConnectionManager(object):
             return None
 
         # fetch node
-        uri = "/v1.0/gas/nodes/%s" % gateway_node_id
+        uri = f"/v1.0/gas/nodes/{gateway_node_id}"
         try:
             node = self.ctrl.cmp_get(uri).get("node", {})
             ip_address, port = node["ip_address"].split(":")
-        except:
-            raise Exception("no gateway found")
+        except Exception as exc:
+            raise Exception("no gateway found") from exc
 
         # fetch node user
         data = {"node_id": node["id"], "username": user}
@@ -90,7 +95,7 @@ class SshConnectionManager(object):
         users = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("users", [])
         if len(users) < 1:
             raise Exception("no gateway user found")
-        uri = "/v1.0/gas/users/%s/password" % users[0]["id"]
+        uri = f"/v1.0/gas/users/{users[0]['id']}/password"
         user = self.ctrl.cmp_get(uri)
         password = user.get("password")
 
@@ -133,9 +138,9 @@ class SshConnectionManager(object):
         if host_ip is not None:
             data["ip_address"] = host_ip
         elif host_name is not None:
-            uri = "/v1.0/gas/nodes/%s" % host_name
+            uri = f"/v1.0/gas/nodes/{host_name}"
         elif host_id is not None:
-            uri = "/v1.0/gas/nodes/%s" % host_id
+            uri = f"/v1.0/gas/nodes/{host_id}"
         node = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True))
         if host_id is not None or host_name is not None:
             node = node.get("node", None)
@@ -145,7 +150,7 @@ class SshConnectionManager(object):
                 name = host_ip
                 if name is None:
                     name = host_name
-                raise Exception("Host %s not found in managed ssh nodes" % name)
+                raise Exception(f"Host {name} not found in managed ssh nodes")
             node = node[0]
 
         # get ssh user
@@ -157,7 +162,7 @@ class SshConnectionManager(object):
         uri = "/v1.0/gas/users"
         users = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("users", [])
         if len(users) == 0:
-            raise Exception("Host %s user %s not found" % (node["name"], user))
+            raise Exception(f"Host {node['name']} user {user} not found")
 
         user = users[0]
 
@@ -173,7 +178,7 @@ class SshConnectionManager(object):
                 uri = "/v1.0/gas/keys"
                 key = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("keys", [])
                 if len(key) == 0:
-                    raise Exception("You are not authorized to use key %s" % key)
+                    raise Exception(f"You are not authorized to use key {key}")
 
                 key = key[0]
                 # print("key: %s" % key)
@@ -184,8 +189,8 @@ class SshConnectionManager(object):
 
                 try:
                     key_string = b64decode(priv_key)
-                except:
-                    raise Exception("private key %s is malformed" % key.get("uuid", ""))
+                except Exception as exc:
+                    raise Exception(f"private key {key.get('uuid', '')} is malformed") from exc
 
         ssh_session_id = id_gen()
         start_time = time()
@@ -220,9 +225,10 @@ class SshConnectionManager(object):
             tunnel=gateway,
         )
 
+        res = None
         if action is not None:
             res = action(client)
-            logger.debug("Exec action %s" % action)
+            logger.debug("Exec action %s", action)
         else:
             logger.debug("No action defined")
 
@@ -253,18 +259,18 @@ class SshConnectionManager(object):
             uri = "/v1.0/gas/keys"
             key = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("keys", [])
             if len(key) == 0:
-                raise Exception("You are not authorized to use key %s" % key)
+                raise Exception(f"You are not authorized to use key {key}")
 
             key = key[0]
 
             try:
                 priv_key = key.get("priv_key")
                 key_string = b64decode(priv_key)
-            except:
-                raise Exception("private key %s is malformed" % key.get("uuid", ""))
+            except Exception as exc:
+                raise Exception(f"private key {key.get('uuid', '')} is malformed") from exc
 
         ssh_session_id = id_gen()
-        start_time = time()
+        #start_time = time()
 
         def pre_login():
             pass
@@ -294,7 +300,7 @@ class SshConnectionManager(object):
 
         if action is not None:
             res = action(client)
-            logger.debug("Exec action %s" % action)
+            logger.debug("Exec action %s", action)
         else:
             logger.debug("No action defined")
 
@@ -316,11 +322,11 @@ class SshConnectionManager(object):
 
         # get ssh ksy
         if key_file is None and key_string is None:
-            data = {"user_id": "%s-%s" % (node.get("name"), user)}
+            data = {"user_id": f"{node.get('name')}-{user}"}
             uri = "/v1.0/gas/keys"
             key = self.ctrl.cmp_get(uri, data=urlencode(data, doseq=True)).get("keys", [])
             if len(key) == 0:
-                raise Exception("You are not authorized to use key %s" % key)
+                raise Exception(f"You are not authorized to use key {key}")
 
             key = key[0]
 
@@ -328,7 +334,7 @@ class SshConnectionManager(object):
             key_string = b64decode(priv_key)
 
         ssh_session_id = id_gen()
-        start_time = time()
+        #start_time = time()
 
         def pre_login():
             pass
@@ -383,7 +389,6 @@ class SshConnectionManager(object):
 
         def connect(client):
             client.run()
-            return None
 
         return self.__ssh2node(
             host_id,
@@ -418,6 +423,7 @@ class SshConnectionManager(object):
             if cmd is not None:
                 res = client.cmd(cmd, timeout=timeout)
                 return res
+            return None
 
         return self.__ssh2node2(node, user, key_file, key_string, action=runcmd)
 
@@ -449,11 +455,12 @@ class SshConnectionManager(object):
             if cmd is not None and cmd == "put":
                 res = client.file_put(source, dest)
                 return res
-            elif cmd is not None and cmd == "get":
+            if cmd is not None and cmd == "get":
                 res = client.file_get(source, dest)
                 return res
-            elif cmd is not None and cmd == "list":
+            if cmd is not None and cmd == "list":
                 res = client.file_list_dir(source)
                 return res
+            return None
 
         return self.__ssh2node2(node, user, key_file, key_string, action=runcmd)

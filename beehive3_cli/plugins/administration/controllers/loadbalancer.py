@@ -1,23 +1,24 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from json import loads
 from ipaddress import ip_address, ip_network
 from cement.ext.ext_argparse import ex
-from beehive3_cli.core.controller import ARGS
 from beecell.types.type_dict import dict_get
 from beecell.types.type_id import is_name, is_uuid
 from beecell.types.type_string import str2bool
 from beecell.types.type_ip import ip2cidr
+from beehive3_cli.core.controller import ARGS
+from beehive3_cli.translate import _
 from .child import AdminChildController, AdminError
 
 
 class LoadBalancerAdminController(AdminChildController):
     class Meta:
         label = "loadbalancers"
-        description = "loadbalancer administration commands"
-        help = "loadbalancer administration commands"
+        description = _("loadbalancer administration commands")
+        help = _("loadbalancer administration commands")
 
     default_listeners = ["default_tcp_profile", "default_http_profile", "default_https_profile"]
 
@@ -232,7 +233,7 @@ class LoadBalancerAdminController(AdminChildController):
 
         if fw_rule is None:
             raise AdminError("any2lb firewall rule not found")
-        print("discovered any2lb fw rule: %s" % fw_rule.get("id"))
+        print(f"discovered any2lb fw rule: {fw_rule.get('id')}")
         self.lb_data["fw_rules"].update({"any2lb": fw_rule})
 
     def discover_edge2backend_fw_rule(self):
@@ -340,7 +341,7 @@ class LoadBalancerAdminController(AdminChildController):
                     break
         if fw_rule is None:
             raise AdminError("edge2backend firewall rule not found")
-        print("discovered edge2backend fw rule: %s" % fw_rule.get("id"))
+        print(f"discovered edge2backend fw rule: {fw_rule.get('id')}")
         self.lb_data["fw_rules"].update({"edge2backend": fw_rule})
 
     def discover_interpod_fw_rule(self):
@@ -437,7 +438,7 @@ class LoadBalancerAdminController(AdminChildController):
             account_triplet = desc.get("account")
             is_vip_static = desc.get("is_vip_static", False)
             if account_triplet is None:
-                raise AdminError("Unable to get account in virtual server %s" % k)
+                raise AdminError(f"Unable to get account in virtual server {k}")
             res = self.get_account(account_triplet)
             account_id = res["uuid"]
             if account is not None and account != account_id:
@@ -538,6 +539,7 @@ class LoadBalancerAdminController(AdminChildController):
             return True
         if len(internet_gateways) > 1:
             raise AdminError(f"Account {self.account} with more than an internet gateway")
+        return None
 
     def check_account(self):
         """
@@ -607,7 +609,7 @@ class LoadBalancerAdminController(AdminChildController):
             ]
             health_monitor = health_monitor[0]
             hm_id = health_monitor.get("healthMonitorId")
-            print("select predefined health monitor: %s" % hm_id)
+            print(f"select predefined health monitor: {hm_id}")
         # import custom health monitor
         else:
             hm_id = self.api.business.netaas.health_monitor.load(self.account, **hm_data)
@@ -661,7 +663,7 @@ class LoadBalancerAdminController(AdminChildController):
             ]
             listener = listener[0]
             li_id = listener.get("listenerId")
-            print("select predefined listener: %s" % li_id)
+            print(f"select predefined listener: {li_id}")
         # import custom listener
         else:
             li_data["template"] = li_traffic_type
@@ -701,13 +703,13 @@ class LoadBalancerAdminController(AdminChildController):
         tg_id = self.import_srv_target_group(hm_id)
 
         # - register targets if any
-        targets_id = self.register_targets(tg_id)
+        self.register_targets(tg_id)
 
         # - import listener
         li_id = self.import_srv_listener()
 
         # - import load balancer
-        lb_id = self.import_srv_load_balancer(li_id, tg_id, resource_id)
+        self.import_srv_load_balancer(li_id, tg_id, resource_id)
 
     def get_lb_template(self):
         """
@@ -746,15 +748,15 @@ class LoadBalancerAdminController(AdminChildController):
         return self.api.resource.tag.list(resource=oid).get("resourcetags")
 
     @ex(
-        help="import load balancer",
-        description="import load balancer",
+        help=_("import load balancer"),
+        description=_("import load balancer"),
         arguments=ARGS(
             [
-                (["appliance"], {"help": "network appliance (e.g. nsx edge) uuid", "action": "store", "type": str}),
+                (["appliance"], {"help": _("network appliance (e.g. nsx edge) uuid"), "action": "store", "type": str}),
                 (
                     ["-account"],
                     {
-                        "help": "the uuid of the account owner of the virtual server(s) to import",
+                        "help": _("the uuid of the account owner of the virtual server(s) to import"),
                         "action": "store",
                         "type": str,
                     },
@@ -762,7 +764,7 @@ class LoadBalancerAdminController(AdminChildController):
                 (
                     ["-virtual-server"],
                     {
-                        "help": "the name of the virtual server to import",
+                        "help": _("the name of the virtual server to import"),
                         "action": "store",
                         "type": str,
                         "dest": "virtual_server",
@@ -778,11 +780,11 @@ class LoadBalancerAdminController(AdminChildController):
 
         go_ahead = True
         if account_uuid is None and vs_name is None:
-            s1 = "WARNING: You are about to import ALL load balancer configured on network appliance %s\n" % appl_uuid
+            s1 = f"WARNING: You are about to import ALL load balancer configured on network appliance {appl_uuid}\n"
             s2 = "Use -account or -virtual_server options to narrow the amount of imports\n"
             s3 = "Are you sure to proceed? [y/n] "
-            PROMPT_ASK_CONFIRM = s1 + s2 + s3
-            check = self.ask(PROMPT_ASK_CONFIRM, yn=True)
+            prompt_ask_confirm = s1 + s2 + s3
+            check = self.ask(prompt_ask_confirm, yn=True)
             print()
             if check == "N":
                 go_ahead = False
@@ -840,16 +842,18 @@ class LoadBalancerAdminController(AdminChildController):
                 print("end")
 
     @ex(
-        help="delete load balancer",
-        description="delete load balancer",
+        help=_("delete load balancer"),
+        description=_("delete load balancer"),
         arguments=ARGS(
             [
-                (["id"], {"help": "load balancer id", "action": "store", "type": str}),
+                (["id"], {"help": _("load balancer id"), "action": "store", "type": str}),
                 (
                     ["-no-linked-objs"],
                     {
-                        "help": "Use this option to avoid deleting service instances like target group and custom "
-                        "listener linked to load balancer",
+                        "help": _(
+                            "Use this option to avoid deleting service instances like target group and custom "
+                            "listener linked to load balancer"
+                        ),
                         "action": "store_true",
                         "dest": "no_linked_objs",
                     },
@@ -857,7 +861,7 @@ class LoadBalancerAdminController(AdminChildController):
                 (
                     ["-no-physical-resources"],
                     {
-                        "help": "Use this option to delete only CMP metadata without deleting physical resources",
+                        "help": _("Use this option to delete only CMP metadata without deleting physical resources"),
                         "action": "store_true",
                         "dest": "no_physical_resources",
                     },
@@ -871,15 +875,15 @@ class LoadBalancerAdminController(AdminChildController):
         no_physical_res = self.app.pargs.no_physical_resources
 
         go_ahead = True
-        s1 = "WARNING: You are about to delete load balancer %s\n" % lb_uuid
+        s1 = f"WARNING: You are about to delete load balancer {lb_uuid}\n"
         s2 = "Use -no-physical-resources option to delete CMP metadata only, without deleting physical resources\n"
         s3 = (
             "Use -no-linked-objs option to delete load balancer without deleting target group and custom listener "
             "linked to it\n"
         )
         s4 = "Are you sure to proceed? [y/n] "
-        PROMPT_ASK_CONFIRM = s1 + s2 + s3 + s4
-        check = self.ask(PROMPT_ASK_CONFIRM, yn=True)
+        prompt_ask_confirm = s1 + s2 + s3 + s4
+        check = self.ask(prompt_ask_confirm, yn=True)
         print()
         if check == "N":
             go_ahead = False

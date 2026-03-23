@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from beehive3_cli.plugins.business.controllers.ecaas import (
+    ContainerServiceNamespaceController,
+    ContaineraaServiceController
+)
+
+from beehive3_cli.translate import _
+
+from beehive3_cli.plugins.business.controllers.service import ServiceStatusController
 
 
 def add_template_dir(app):
@@ -14,6 +23,7 @@ def load(app):
         AppEngineServiceController,
         AppEngineInstanceController,
     )
+    from beehive3_cli.plugins.business.controllers.authority.user import UserController
     from beehive3_cli.plugins.business.controllers.authority.account import (
         AccountController,
         AccountAuthController,
@@ -62,6 +72,7 @@ def load(app):
     )
     from beehive3_cli.plugins.business.controllers.netaas import (
         NetaaServiceController,
+        DeprecatedServiceController,
         VpcNetServiceController,
         SubnetNetServiceController,
         SecurityGroupNetServiceController,
@@ -71,6 +82,7 @@ def load(app):
         ListenerNetServiceController,
         LoadBalancerNetServiceController,
         SshGatewayNetServiceController,
+        LbaasController,
     )
     from beehive3_cli.plugins.business.controllers.service import (
         ServiceTypeController,
@@ -86,8 +98,12 @@ def load(app):
         STaaServiceController,
         STaaServiceEfsController,
     )
+    #general
+    app.handler.register(TagServiceController)
+    app.handler.register(DeprecatedServiceController)
 
     app.handler.register(BusinessController)
+    # cpaas
     app.handler.register(CPaaServiceController)
     app.handler.register(ImageServiceController)
     app.handler.register(VolumeServiceController)
@@ -97,17 +113,6 @@ def load(app):
     # app.handler.register(VpcServiceController)
     # app.handler.register(SubnetServiceController)
     # app.handler.register(SecurityGroupServiceController)
-    app.handler.register(TagServiceController)
-    app.handler.register(NetaaServiceController)
-    app.handler.register(VpcNetServiceController)
-    app.handler.register(SubnetNetServiceController)
-    app.handler.register(SecurityGroupNetServiceController)
-    app.handler.register(GatewayNetServiceController)
-    app.handler.register(HealthMonitorNetServiceController)
-    app.handler.register(TargetGroupNetServiceController)
-    app.handler.register(ListenerNetServiceController)
-    app.handler.register(LoadBalancerNetServiceController)
-    app.handler.register(DBaaServiceController)
     app.handler.register(DBServiceInstanceController)
     app.handler.register(STaaServiceController)
     app.handler.register(STaaServiceEfsController)
@@ -122,6 +127,7 @@ def load(app):
     app.handler.register(ServiceInstanceController)
     app.handler.register(ServiceDefinitionController)
     app.handler.register(ServiceTypeController)
+    app.handler.register(ServiceStatusController)
     app.handler.register(CatalogAuthController)
     app.handler.register(CatalogController)
     app.handler.register(AccountCapabilitiesController)
@@ -133,13 +139,33 @@ def load(app):
     app.handler.register(DivisionController)
     app.handler.register(OrganizationAuthController)
     app.handler.register(OrganizationController)
+    app.handler.register(UserController)
+    # netaas
+    app.handler.register(NetaaServiceController)
+    app.handler.register(VpcNetServiceController)
+    app.handler.register(SubnetNetServiceController)
+    app.handler.register(SecurityGroupNetServiceController)
+    app.handler.register(GatewayNetServiceController)
+    app.handler.register(HealthMonitorNetServiceController)
+    app.handler.register(TargetGroupNetServiceController)
+    app.handler.register(ListenerNetServiceController)
+    app.handler.register(LoadBalancerNetServiceController)
+    app.handler.register(DBaaServiceController)
+    app.handler.register(SshGatewayNetServiceController)
+    app.handler.register(LbaasController)
+ 
+    # logaas
     app.handler.register(LogaaServiceController)
     app.handler.register(LoggingServiceInstanceController)
     app.handler.register(LoggingServiceSpaceController)
+    # maas
     app.handler.register(MonitoraaServiceController)
     app.handler.register(MonitoringServiceInstanceController)
     app.handler.register(MonitoringServiceFolderController)
     app.handler.register(MonitoringServiceAlertController)
-    app.handler.register(SshGatewayNetServiceController)
+    # ecaas
+    app.handler.register(ContaineraaServiceController)
+    app.handler.register(ContainerServiceNamespaceController)
+    #
 
     app.hook.register("post_setup", add_template_dir)

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from re import findall
 from cement import ex
+
 from beecell.simple import read_file
 from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.translate import _
 
 
 class DnsController(BaseController):
@@ -13,8 +15,8 @@ class DnsController(BaseController):
         label = "res_dns"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "dns orchestrator"
-        help = "dns orchestrator"
+        description = _("dns orchestrator")
+        help = _("dns orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/dns", "subsystem": "resource"}
 
@@ -40,19 +42,19 @@ class DnsController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(DnsController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
     @ex(
-        help="get zones",
-        description="get zones",
+        help=_("get zones"),
+        description=_("get zones"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -64,7 +66,7 @@ class DnsController(BaseController):
     def zone_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/zones/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/zones/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -72,7 +74,7 @@ class DnsController(BaseController):
                 self.app.render(res, details=True)
 
                 self.c("\nnameservers", "underline")
-                uri = "%s/zones/%s/nameservers" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/zones/{oid}/nameservers"
                 res = self.cmp_get(uri, data="")
                 self.app.render(
                     res,
@@ -81,7 +83,7 @@ class DnsController(BaseController):
                 )
 
                 self.c("\nauthority", "underline")
-                uri = "%s/zones/%s/authority" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/zones/{oid}/authority"
                 res = self.cmp_get(uri, data="")
                 headers = [
                     "rname",
@@ -100,21 +102,21 @@ class DnsController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/zones" % self.baseuri
+            uri = f"{self.baseuri}/zones"
             res = self.cmp_get(uri, data=data)
             headers = ["id", "name", "state", "container", "creation"]
             fields = ["uuid", "name", "state", "container", "date.creation"]
             self.app.render(res, key="zones", headers=headers, fields=fields)
 
     @ex(
-        help="fetch a zone record",
-        description="fetch a zone record",
+        help=_("fetch a zone record"),
+        description=_("fetch a zone record"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "zone id",
+                        "help": _("zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -123,7 +125,7 @@ class DnsController(BaseController):
                 (
                     ["record"],
                     {
-                        "help": "record name",
+                        "help": _("record name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -135,7 +137,7 @@ class DnsController(BaseController):
     def zone_query(self):
         oid = self.app.pargs.id
         record = self.app.pargs.record
-        uri = "%s/zones/%s/query" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/zones/{oid}/query"
         res = self.cmp_get(uri, data={"name": record})
         self.app.render(
             res,
@@ -145,14 +147,14 @@ class DnsController(BaseController):
         )
 
     @ex(
-        help="import record in a zone reading from a file",
-        description="import record in a zone reading from a file",
+        help=_("import record in a zone reading from a file"),
+        description=_("import record in a zone reading from a file"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "zone id",
+                        "help": _("zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -161,7 +163,7 @@ class DnsController(BaseController):
                 (
                     ["filename"],
                     {
-                        "help": "file name",
+                        "help": _("file name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -194,19 +196,19 @@ class DnsController(BaseController):
             if len(m) > 0:
                 records.append({"name": m[0], "type": m[1], "value": m[2]})
 
-        uri = "%s/zones/%s/import" % (self.baseuri, oid)
-        res = self.cmp_put(uri, data={"records": records})
-        self.app.render({"msg": "import records: %s" % records})
+        uri = f"{self.baseuri}/zones/{oid}/import"
+        self.cmp_put(uri, data={"records": records})
+        self.app.render({"msg": f"import records: {records}"})
 
     @ex(
-        help="get dns recordas",
-        description="get dns recordas",
+        help=_("get dns recordas"),
+        description=_("get dns recordas"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -215,7 +217,7 @@ class DnsController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "dns name",
+                        "help": _("dns name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -224,7 +226,7 @@ class DnsController(BaseController):
                 (
                     ["-ip_addr"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -233,7 +235,7 @@ class DnsController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "zone name",
+                        "help": _("zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -242,7 +244,7 @@ class DnsController(BaseController):
                 (
                     ["-show_expired"],
                     {
-                        "help": "if True show record DELETED",
+                        "help": _("if True show record DELETED"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -254,7 +256,7 @@ class DnsController(BaseController):
     def recorda_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/recordas/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/recordas/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -270,7 +272,7 @@ class DnsController(BaseController):
             params = ["name", "ip_addr", "parent", "show_expired"]
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/recordas" % self.baseuri
+            uri = f"{self.baseuri}/recordas"
 
             def render(self, res, **kwargs):
                 headers = [
@@ -296,14 +298,14 @@ class DnsController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
-        help="create new record A (ip address -> hostname.zone)",
-        description="create new record A (ip address -> hostname.zone)",
+        help=_("create new record A (ip address -> hostname.zone)"),
+        description=_("create new record A (ip address -> hostname.zone)"),
         arguments=PARGS(
             [
                 (
                     ["ipaddress"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -312,7 +314,7 @@ class DnsController(BaseController):
                 (
                     ["hostname"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -321,7 +323,7 @@ class DnsController(BaseController):
                 (
                     ["zone"],
                     {
-                        "help": "zone name",
+                        "help": _("zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -330,7 +332,7 @@ class DnsController(BaseController):
                 (
                     ["-ttl"],
                     {
-                        "help": "time to livee",
+                        "help": _("time to livee"),
                         "action": "store",
                         "type": int,
                         "default": 86400,
@@ -346,10 +348,10 @@ class DnsController(BaseController):
         ttl = self.app.pargs.ttl
 
         # get zone
-        uri = "%s/zones/%s" % (self.baseuri, zone)
+        uri = f"{self.baseuri}/zones/{zone}"
         zone = self.cmp_get(uri, data="").get("zone", {})
 
-        uri = "%s/recordas" % self.baseuri
+        uri = f"{self.baseuri}/recordas"
         data = {
             "container": str(zone.get("container")),
             "zone": zone.get("name"),
@@ -358,18 +360,18 @@ class DnsController(BaseController):
             "ttl": ttl,
         }
         self.cmp_post(uri, data={"recorda": data})
-        resp = {"msg": "Create new record A (%s, %s, %s)" % (ip_addr, host_name, zone.get("name"))}
+        resp = {"msg": f"Create new record A ({ip_addr}, {host_name}, {zone.get('name')})"}
         self.app.render(resp, headers=["msg"])
 
     @ex(
-        help="delete an existing record A (ip address -> hostname.zone)",
-        description="delete an existing record A (ip address -> hostname.zone)",
+        help=_("delete an existing record A (ip address -> hostname.zone)"),
+        description=_("delete an existing record A (ip address -> hostname.zone)"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "record id",
+                        "help": _("record id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -380,18 +382,18 @@ class DnsController(BaseController):
     )
     def recorda_delete(self):
         record_id = self.app.pargs.id
-        uri = "%s/recordas/%s" % (self.baseuri, record_id)
-        self.cmp_delete(uri, data="", entity="record A %s" % record_id)
+        uri = f"{self.baseuri}/recordas/{record_id}"
+        self.cmp_delete(uri, data="", entity=f"record A {record_id}")
 
     @ex(
-        help="get dns record cnames",
-        description="get dns record cnames",
+        help=_("get dns record cnames"),
+        description=_("get dns record cnames"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -400,7 +402,7 @@ class DnsController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "dns name",
+                        "help": _("dns name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -409,7 +411,7 @@ class DnsController(BaseController):
                 (
                     ["-host_name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -418,7 +420,7 @@ class DnsController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "zone name",
+                        "help": _("zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -427,7 +429,7 @@ class DnsController(BaseController):
                 (
                     ["-show_expired"],
                     {
-                        "help": "if True show record DELETED",
+                        "help": _("if True show record DELETED"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -439,7 +441,7 @@ class DnsController(BaseController):
     def record_cname_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/record_cnames/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/record_cnames/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -455,7 +457,7 @@ class DnsController(BaseController):
             params = ["name", "base_fqdn", "parent", "show_expired"]
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/record_cnames" % self.baseuri
+            uri = f"{self.baseuri}/record_cnames"
 
             def render(self, res, **kwargs):
                 headers = [
@@ -481,14 +483,14 @@ class DnsController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
-        help="create new record CNAME (alias -> hostname.zone)",
-        description="create new record CNAME (alias -> hostname.zone)",
+        help=_("create new record CNAME (alias -> hostname.zone)"),
+        description=_("create new record CNAME (alias -> hostname.zone)"),
         arguments=PARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "alias to set",
+                        "help": _("alias to set"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -497,7 +499,7 @@ class DnsController(BaseController):
                 (
                     ["hostname"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -506,7 +508,7 @@ class DnsController(BaseController):
                 (
                     ["zone"],
                     {
-                        "help": "zone name",
+                        "help": _("zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -515,7 +517,7 @@ class DnsController(BaseController):
                 (
                     ["-ttl"],
                     {
-                        "help": "time to live",
+                        "help": _("time to live"),
                         "action": "store",
                         "type": int,
                         "default": 86400,
@@ -531,10 +533,10 @@ class DnsController(BaseController):
         ttl = self.app.pargs.ttl
 
         # get zone
-        uri = "%s/zones/%s" % (self.baseuri, zone)
+        uri = f"{self.baseuri}/zones/{zone}"
         zone = self.cmp_get(uri, data="").get("zone", {})
 
-        uri = "%s/record_cnames" % self.baseuri
+        uri = f"{self.baseuri}/record_cnames"
         data = {
             "container": str(zone.get("container")),
             "zone": zone.get("name"),
@@ -543,18 +545,18 @@ class DnsController(BaseController):
             "ttl": ttl,
         }
         self.cmp_post(uri, data={"record_cname": data})
-        resp = {"msg": "Create new record cname (%s, %s, %s)" % (name, host_name, zone.get("name"))}
+        resp = {"msg": f"Create new record cname ({name}, {host_name}, {zone.get('name')})"}
         self.app.render(resp, headers=["msg"])
 
     @ex(
-        help="delete an existing record CNAME",
-        description="delete an existing record CNAME",
+        help=_("delete an existing record CNAME"),
+        description=_("delete an existing record CNAME"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "record id",
+                        "help": _("record id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -565,5 +567,5 @@ class DnsController(BaseController):
     )
     def record_cname_delete(self):
         record_id = self.app.pargs.id
-        uri = "%s/record_cnames/%s" % (self.baseuri, record_id)
-        self.cmp_delete(uri, data="", entity="record cname %s" % record_id)
+        uri = f"{self.baseuri}/record_cnames/{record_id}"
+        self.cmp_delete(uri, data="", entity=f"record cname {record_id}")

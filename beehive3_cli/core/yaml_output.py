@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from yaml import safe_dump
 from cement.ext.ext_yaml import YamlOutputHandler as OriginalYamlOutputHandler
@@ -11,7 +11,7 @@ LOG = minimal_logger(__name__)
 
 
 class YamlOutputHandler(OriginalYamlOutputHandler):
-    class Meta:
+    class Meta: # type: ignore
         label = "yaml_output_handler"
 
     def render(self, data, *args, **kwargs):
@@ -31,5 +31,5 @@ class YamlOutputHandler(OriginalYamlOutputHandler):
             str: A JSON encoded string.
 
         """
-        LOG.debug("rendering output as Json via %s" % self.__module__)
-        return safe_dump(data, default_flow_style=False) + "\n"
+        LOG.debug(f"rendering output as Yaml via {self.__module__}")
+        return safe_dump(data, default_flow_style=False) + "\n" # type: ignore

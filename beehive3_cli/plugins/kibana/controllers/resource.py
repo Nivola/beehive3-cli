@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beehive3_cli.core.controller import BaseController, PARGS
 from cement import ex
+from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.translate import _
 
 
 class ElkResourceController(BaseController):
@@ -12,8 +13,8 @@ class ElkResourceController(BaseController):
         label = "res_elk"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "elk orchestrator"
-        help = "elk orchestrator"
+        description = _("elk orchestrator")
+        help = _("elk orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/elk", "subsystem": "resource"}
 
@@ -39,21 +40,21 @@ class ElkResourceController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(ElkResourceController, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     # -----------------
     # ----- SPACE -----
     # -----------------
     @ex(
-        help="get spaces",
-        description="get spaces",
+        help=_("get spaces"),
+        description=_("get spaces"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -65,7 +66,7 @@ class ElkResourceController(BaseController):
     def space_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/spaces/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/spaces/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -77,20 +78,20 @@ class ElkResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/spaces" % self.baseuri
-            self.app.log.debug("-+-+- space_get '%s' " % uri)
+            uri = f"{self.baseuri}/spaces"
+            self.app.log.debug(f"-+-+- space_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="spaces", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add spaces",
-        description="add spaces",
+        help=_("add spaces"),
+        description=_("add spaces"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -99,7 +100,7 @@ class ElkResourceController(BaseController):
                 (
                     ["id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -108,7 +109,7 @@ class ElkResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "space name",
+                        "help": _("space name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -117,7 +118,7 @@ class ElkResourceController(BaseController):
                 (
                     ["-description"],
                     {
-                        "help": "space description",
+                        "help": _("space description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -126,7 +127,7 @@ class ElkResourceController(BaseController):
                 (
                     ["-color"],
                     {
-                        "help": "space color",
+                        "help": _("space color"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -135,7 +136,7 @@ class ElkResourceController(BaseController):
                 (
                     ["-initials"],
                     {
-                        "help": "space initials",
+                        "help": _("space initials"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -146,16 +147,16 @@ class ElkResourceController(BaseController):
     )
     def space_add(self):
         container = self.app.pargs.container
-        id = self.app.pargs.id
+        space_id = self.app.pargs.id
         name = self.app.pargs.name
         description = self.app.pargs.description
         color = self.app.pargs.color
         initials = self.app.pargs.initials
 
-        uri = "%s/spaces" % (self.baseuri)
-        self.app.log.debug("-+-+- space_add '%s' " % uri)
+        uri = f"{self.baseuri}/spaces"
+        self.app.log.debug(f"-+-+- space_add '{uri}' ")
 
-        data_space = {"container": container, "space_id": id, "name": name}
+        data_space = {"container": container, "space_id": space_id, "name": name}
 
         if description is not None:
             data_space.update({"desc": description})
@@ -169,14 +170,14 @@ class ElkResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete spaces",
-        description="delete spaces",
+        help=_("delete spaces"),
+        description=_("delete spaces"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource space id",
+                        "help": _("resource space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -188,8 +189,8 @@ class ElkResourceController(BaseController):
     def space_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/spaces/%s" % (self.baseuri, oid)
-        self.app.log.debug("-+-+- space_delete '%s' " % uri)
+        uri = f"{self.baseuri}/spaces/{oid}"
+        self.app.log.debug(f"-+-+- space_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -199,14 +200,14 @@ class ElkResourceController(BaseController):
     # ----- ROLE -----
     # ----------------
     @ex(
-        help="get roles",
-        description="get roles",
+        help=_("get roles"),
+        description=_("get roles"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "role id",
+                        "help": _("role id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -218,7 +219,7 @@ class ElkResourceController(BaseController):
     def role_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/roles/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/roles/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -230,20 +231,20 @@ class ElkResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/roles" % self.baseuri
-            self.app.log.debug("-+-+- role_get '%s' " % uri)
+            uri = f"{self.baseuri}/roles"
+            self.app.log.debug(f"-+-+- role_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="roles", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add roles",
-        description="add roles",
+        help=_("add roles"),
+        description=_("add roles"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -252,7 +253,7 @@ class ElkResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -260,12 +261,12 @@ class ElkResourceController(BaseController):
                 ),
                 (
                     ["indice"],
-                    {"help": "indice", "action": "store", "type": str, "default": None},
+                    {"help": _("indice"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["space_id"],
                     {
-                        "help": "space id",
+                        "help": _("space id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -278,12 +279,12 @@ class ElkResourceController(BaseController):
         container = self.app.pargs.container
         # id = self.app.pargs.id
         name = self.app.pargs.name
-        desc = "Desc %s" % name
+        desc = f"Desc {name}"
         indice = self.app.pargs.indice
         space_id = self.app.pargs.space_id
 
-        uri = "%s/roles" % (self.baseuri)
-        self.app.log.debug("-+-+- role_add '%s' " % uri)
+        uri = f"{self.baseuri}/roles"
+        self.app.log.debug(f"-+-+- role_add '{uri}' ")
 
         data_role = {
             "container": container,
@@ -297,14 +298,14 @@ class ElkResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete roles",
-        description="delete roles",
+        help=_("delete roles"),
+        description=_("delete roles"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource role id",
+                        "help": _("resource role id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -316,8 +317,8 @@ class ElkResourceController(BaseController):
     def role_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/roles/%s" % (self.baseuri, oid)
-        self.app.log.debug("-+-+- role_delete '%s' " % uri)
+        uri = f"{self.baseuri}/roles/{oid}"
+        self.app.log.debug(f"-+-+- role_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -327,14 +328,14 @@ class ElkResourceController(BaseController):
     # -- ROLE MAPPING --
     # ------------------
     @ex(
-        help="get role_mappings",
-        description="get role_mappings",
+        help=_("get role_mappings"),
+        description=_("get role_mappings"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "role_mapping id",
+                        "help": _("role_mapping id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -346,7 +347,7 @@ class ElkResourceController(BaseController):
     def role_mapping_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/role_mappings/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/role_mappings/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -358,8 +359,8 @@ class ElkResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/role_mappings" % self.baseuri
-            self.app.log.debug("-+-+- role_mapping_get '%s' " % uri)
+            uri = f"{self.baseuri}/role_mappings"
+            self.app.log.debug(f"-+-+- role_mapping_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -369,14 +370,14 @@ class ElkResourceController(BaseController):
             )
 
     @ex(
-        help="add role_mappings",
-        description="add role_mappings",
+        help=_("add role_mappings"),
+        description=_("add role_mappings"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -385,7 +386,7 @@ class ElkResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "role_mapping name",
+                        "help": _("role_mapping name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -394,7 +395,7 @@ class ElkResourceController(BaseController):
                 (
                     ["role_name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -403,7 +404,7 @@ class ElkResourceController(BaseController):
                 (
                     ["users_email"],
                     {
-                        "help": "users email",
+                        "help": _("users email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -412,7 +413,7 @@ class ElkResourceController(BaseController):
                 (
                     ["realm_name"],
                     {
-                        "help": "realm name",
+                        "help": _("realm name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -425,13 +426,13 @@ class ElkResourceController(BaseController):
         container = self.app.pargs.container
         # id = self.app.pargs.id
         name = self.app.pargs.name
-        desc = "Desc %s" % name
+        desc = f"Desc {name}"
         role_name = self.app.pargs.role_name
         users_email = self.app.pargs.users_email
         realm_name = self.app.pargs.realm_name
 
-        uri = "%s/role_mappings" % (self.baseuri)
-        self.app.log.debug("-+-+- role_mapping_add '%s' " % uri)
+        uri = f"{self.baseuri}/role_mappings"
+        self.app.log.debug(f"-+-+- role_mapping_add '{uri}' ")
 
         data_role_mapping = {
             "container": container,
@@ -446,14 +447,14 @@ class ElkResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete role_mappings",
-        description="delete role_mappings",
+        help=_("delete role_mappings"),
+        description=_("delete role_mappings"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource role_mapping id",
+                        "help": _("resource role_mapping id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -465,8 +466,8 @@ class ElkResourceController(BaseController):
     def role_mapping_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/role_mappings/%s" % (self.baseuri, oid)
-        self.app.log.debug("-+-+- role_mapping_delete '%s' " % uri)
+        uri = f"{self.baseuri}/role_mappings/{oid}"
+        self.app.log.debug(f"-+-+- role_mapping_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:

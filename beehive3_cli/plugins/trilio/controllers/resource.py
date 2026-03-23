@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+
+from beehive3_cli.translate import _
 from beehive3_cli.core.controller import BaseController
 
 
@@ -10,8 +12,8 @@ class OpenstackTrilioController(BaseController):
         label = "res_trilio"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "openstack trilio orchestrator"
-        help = "openstack trilio orchestrator"
+        description = _("openstack trilio orchestrator")
+        help = _("openstack trilio orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/openstack", "subsystem": "resource"}
 
@@ -19,6 +21,6 @@ class OpenstackTrilioController(BaseController):
         fields = ["id", "ext_id", "name", "desc", "parent", "container", "state"]
 
     def pre_command_run(self):
-        super(OpenstackTrilioController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()

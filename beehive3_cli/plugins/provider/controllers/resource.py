@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
 from time import time
-
-from six.moves.urllib.parse import urlencode
+from typing import Dict
+from urllib.parse import urlencode
 from cement.ext.ext_argparse import ex
 from beecell.file import read_file
 from beecell.types.type_string import truncate, bool2str, str2bool
 from beecell.types.type_dict import dict_get
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
 from beehive3_cli.core.util import load_config
+from beehive3_cli.translate import _
 
 
 class ResourceProviderController(BaseController):
@@ -19,8 +20,8 @@ class ResourceProviderController(BaseController):
         label = "res_provider"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "provider management"
-        help = "provider management"
+        description = _("provider management")
+        help = _("provider management")
 
         cmp = {"baseuri": "/v1.0/nrs/provider", "subsystem": "resource"}
 
@@ -262,6 +263,30 @@ class ResourceProviderController(BaseController):
             "export",
             "creation",
         ]
+        share_headers_v2 = [
+            "id",
+            "name",
+            "export",
+            "parent",
+            "state",
+            "type",
+            "proto",
+            "size",
+            "site",
+            "creation",
+        ]
+        share_fields_v2 = [
+            "uuid",
+            "name",
+            "details.exports",
+            "parent",
+            "state",
+            "details.type",
+            "details.proto",
+            "details.size",
+            "availability_zone.name",
+            "date.creation",
+        ]
         share_fields = [
             "uuid",
             "name",
@@ -271,7 +296,7 @@ class ResourceProviderController(BaseController):
             "details.proto",
             "details.size",
             "vpcs.0.name",
-            "details.export",
+            "details.exports.0.mounts",
             "date.creation",
         ]
         volume_fields = [
@@ -380,11 +405,11 @@ class ResourceProviderController(BaseController):
         data = urlencode({"container_type": "Provider"})
         uri = "/v1.0/nrs/containers"
         res = self.cmp_get(uri, data=data)["resourcecontainers"][0]["id"]
-        self.app.log.info("Get resource container: %s" % truncate(res))
+        self.app.log.info(f"Get resource container: {truncate(res)}")
         return str(res)
 
     def pre_command_run(self):
-        super(ResourceProviderController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
@@ -392,14 +417,14 @@ class ResourceProviderController(BaseController):
     # Region
     #
     @ex(
-        help="get region(s)",
-        description="get region(s)",
+        help=_("get region(s)"),
+        description=_("get region(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "region id",
+                        "help": _("region id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -411,7 +436,7 @@ class ResourceProviderController(BaseController):
     def region_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/regions/%s" % oid
+            uri = self.baseuri + f"/regions/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -420,24 +445,24 @@ class ResourceProviderController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            uri = "%s/regions" % self.baseuri
+            uri = f"{self.baseuri}/regions"
             res = self.cmp_get(uri)
             self.app.render(
                 res,
                 key="regions",
-                headers=self._meta.region_headers,
-                fields=self._meta.region_fields,
+                headers=self._meta.region_headers,  # pylint: disable=E1101
+                fields=self._meta.region_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add region",
-        description="add region",
+        help=_("add region"),
+        description=_("add region"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -451,17 +476,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = self.baseuri + "/regions"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add region %s" % res["uuid"]})
+        self.app.render({"msg": f"add region {res['uuid']}"})
 
     @ex(
-        help="delete region",
-        description="delete region",
+        help=_("delete region"),
+        description=_("delete region"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "region id",
+                        "help": _("region id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -470,7 +495,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -482,20 +507,20 @@ class ResourceProviderController(BaseController):
     def region_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/regions/%s" % oid
+        uri = self.baseuri + f"/regions/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="region %s" % oid)
+        self.cmp_delete(uri, entity=f"region {oid}")
 
     @ex(
-        help="update region",
-        description="update region",
+        help=_("update region"),
+        description=_("update region"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "region id",
+                        "help": _("region id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -504,7 +529,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -517,23 +542,23 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = self.baseuri + "/regions/%s" % oid
+        uri = self.baseuri + f"/regions/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.log.info("Update %s: %s" % (self._meta.alias, truncate(res)))
-        self.app.render({"msg": "update region %s" % res["uuid"]})
+        self.app.log.info(f"Update {self._meta.alias}: {truncate(res)}")  # pylint: disable=E1101
+        self.app.render({"msg": f"update region {res['uuid']}"})
 
     #
     # site
     #
     @ex(
-        help="get site(s)",
-        description="get site(s)",
+        help=_("get site(s)"),
+        description=_("get site(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -545,31 +570,36 @@ class ResourceProviderController(BaseController):
     def site_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/sites/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/sites/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 res = res.get("site")
                 attributes = res.pop("attributes")
-                orchestrators = res.pop("orchestrators")  # (non aggiornato)
+                orchestrators = res.pop("orchestrators")  # (non aggiornato) # pylint: disable=W0612
                 limits = attributes.pop("limits")
 
                 attributes_orchestrators = attributes.pop("orchestrators")
                 self.app.render(res, details=True)
+
                 self.c("\n\nattributes", "underline")
                 self.app.render(attributes, details=True)
+
                 self.c("\n\norchestrators", "underline")
+                transform = {"config.colortext": False}
                 self.app.render(
                     attributes_orchestrators,
                     headers=["id", "name", "type", "tag", "ping", "config"],
                     maxsize=100,
+                    transform=transform,
                 )
+
                 self.c("\n\nlimits", "underline")
                 self.app.render(limits, details=True)
             else:
                 self.app.render(res, details=True)
         else:
-            uri = "%s/sites" % self.baseuri
+            uri = f"{self.baseuri}/sites"
             res = self.cmp_get(uri)
 
             # sostituisco "orchestrators" (non aggiornato) con "orchestrators" sotto "attributes" (completo)
@@ -588,25 +618,25 @@ class ResourceProviderController(BaseController):
 
                 site["orchestrators"] = attributes_orchestrators
 
-            transform = {"orchestrators": lambda x: "\n".join(["%-18s%s" % (o["name"], o["ping"]) for o in x])}
+            transform = {"orchestrators": lambda x: "\n".join([f"{o['name']:18}{o['ping']}" for o in x])}
             self.app.render(
                 res,
                 key="sites",
-                headers=self._meta.site_headers,
-                fields=self._meta.site_fields,
+                headers=self._meta.site_headers,  # pylint: disable=E1101
+                fields=self._meta.site_fields,  # pylint: disable=E1101
                 transform=transform,
                 maxsize=400,
             )
 
     @ex(
-        help="add site",
-        description="add site",
+        help=_("add site"),
+        description=_("add site"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -620,17 +650,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = self.baseuri + "/sites"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add site %s" % res["uuid"]})
+        self.app.render({"msg": f"add site {res['uuid']}"})
 
     @ex(
-        help="delete site",
-        description="delete site",
+        help=_("delete site"),
+        description=_("delete site"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -639,7 +669,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -651,20 +681,20 @@ class ResourceProviderController(BaseController):
     def site_delete(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/sites/%s" % oid
+        uri = self.baseuri + f"/sites/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="site %s" % oid)
+        self.cmp_delete(uri, entity=f"site {oid}")
 
     @ex(
-        help="update site",
-        description="update site",
+        help=_("update site"),
+        description=_("update site"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -673,7 +703,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -686,19 +716,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = self.baseuri + "/sites/%s" % oid
+        uri = self.baseuri + f"/sites/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update site %s" % res["uuid"]})
+        self.app.render({"msg": f"update site {res['uuid']}"})
 
     @ex(
-        help="get site orchestrators",
-        description="get site orchestrators",
+        help=_("get site orchestrators"),
+        description=_("get site orchestrators"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -709,7 +739,7 @@ class ResourceProviderController(BaseController):
     )
     def site_orchestrator_get(self):
         oid = self.app.pargs.id
-        uri = "%s/sites/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/sites/{oid}"
         res = self.cmp_get(uri)
         res = res.get("site")
         attributes = res.pop("attributes")
@@ -723,14 +753,14 @@ class ResourceProviderController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="add site orchestrator",
-        description="add site orchestrator",
+        help=_("add site orchestrator"),
+        description=_("add site orchestrator"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -739,7 +769,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -752,19 +782,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "%s/sites/%s/orchestrators" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/sites/{oid}/orchestrators"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add orchestrator to site %s" % oid})
+        self.app.render({"msg": f"add orchestrator to site {oid}"})
 
     @ex(
-        help="delete site orchestrator",
-        description="delete site orchestrator",
+        help=_("delete site orchestrator"),
+        description=_("delete site orchestrator"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site id",
+                        "help": _("site id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -773,7 +803,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -786,22 +816,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         orchestrator = self.app.pargs.orchestrator
         data = {"orchestrator": {"id": orchestrator}}
-        uri = "%s/sites/%s/orchestrators" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/sites/{oid}/orchestrators"
         self.cmp_delete(uri, data=data)
-        self.app.render({"msg": "delete orchestrator from site %s" % oid})
+        self.app.render({"msg": f"delete orchestrator from site {oid}"})
 
     #
     # site network
     #
     @ex(
-        help="get site network(s)",
-        description="get site network(s)",
+        help=_("get site network(s)"),
+        description=_("get site network(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "site network id",
+                        "help": _("site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -810,7 +840,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -819,7 +849,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -828,7 +858,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -837,7 +867,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -846,20 +876,34 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
+                (
+                    ["-allocation-pools-details"],
+                    {
+                        "help": _("show the allocation pools details"),
+                        "action": "store_true",
+                        "default": False,
+                    },
+                ),
+
             ]
         ),
     )
     def site_network_get(self):
         oid = getattr(self.app.pargs, "id", None)
+        allocation_pools_details = str2bool(getattr(self.app.pargs, "allocation_pools_details", False))
+
         if oid is not None:
-            uri = "/v2.0/nrs/provider/site_networks/%s" % oid
-            res = self.cmp_get(uri)
+            data = {}
+            if allocation_pools_details:
+                data['allocation_pools_details'] = True
+            uri = f"/v2.0/nrs/provider/site_networks/{oid}"
+            res = self.cmp_get(uri, data=data)
 
             if self.is_output_text():
                 res = res.get("site_network")
@@ -869,6 +913,8 @@ class ResourceProviderController(BaseController):
                 self.c("\n\nattributes", "underline")
                 self.app.render(attributes, details=True)
                 self.c("\n\nsubnets", "underline")
+
+                transform = {"allocation_pools.colortext": False}
                 self.app.render(
                     subnets,
                     headers=[
@@ -881,6 +927,7 @@ class ResourceProviderController(BaseController):
                         "vsphere_id",
                         "openstack_id",
                     ],
+                    transform=transform,
                 )
             else:
                 self.app.render(res, details=True)
@@ -888,6 +935,8 @@ class ResourceProviderController(BaseController):
             params = ["name", "desc", "parent", "state", "tags"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
+            if allocation_pools_details:
+                data += "&allocation_pools_details=true"
             uri = "/v2.0/nrs/provider/site_networks"
 
             def render(self, res, **kwargs):
@@ -898,8 +947,8 @@ class ResourceProviderController(BaseController):
                 self.app.render(
                     res,
                     key="site_networks",
-                    headers=self._meta.site_network_headers,
-                    fields=self._meta.site_network_fields,
+                    headers=self._meta.site_network_headers,  # pylint: disable=E1101
+                    fields=self._meta.site_network_fields,  # pylint: disable=E1101
                     transform=transform,
                     maxsize=100,
                 )
@@ -907,14 +956,14 @@ class ResourceProviderController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
-        help="add site network",
-        description="add site network",
+        help=_("add site network"),
+        description=_("add site network"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -928,17 +977,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v2.0/nrs/provider/site_networks"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add site network %s" % res["uuid"]})
+        self.app.render({"msg": f"add site network {res['uuid']}"})
 
     @ex(
-        help="delete site network",
-        description="delete site network",
+        help=_("delete site network"),
+        description=_("delete site network"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site network id",
+                        "help": _("site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -947,7 +996,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -959,20 +1008,20 @@ class ResourceProviderController(BaseController):
     def site_network_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v2.0/nrs/provider/site_networks/%s" % oid
+        uri = f"/v2.0/nrs/provider/site_networks/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="site network %s" % oid)
+        self.cmp_delete(uri, entity=f"site network {oid}")
 
     @ex(
-        help="update site network",
-        description="update site network",
+        help=_("update site network"),
+        description=_("update site network"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site network id",
+                        "help": _("site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -981,7 +1030,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -994,19 +1043,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v2.0/nrs/provider/site_networks/%s" % oid
+        uri = f"/v2.0/nrs/provider/site_networks/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update site network %s" % res["uuid"]})
+        self.app.render({"msg": f"update site network {res['uuid']}"})
 
     @ex(
-        help="add site network subnet",
-        description="add site network subnet",
+        help=_("add site network subnet"),
+        description=_("add site network subnet"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site network id",
+                        "help": _("site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1015,7 +1064,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "subnet cidr",
+                        "help": _("subnet cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1024,7 +1073,9 @@ class ResourceProviderController(BaseController):
                 (
                     ["pools"],
                     {
-                        "help": "allocation pools. Syntax: openstack:<start-ip>:<stop-ip>,vmware:<start-ip>:<stop-ip>",
+                        "help": _(
+                            "allocation pools. Syntax: openstack:<start-ip>:<stop-ip>,vmware:<start-ip>:<stop-ip>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1033,7 +1084,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-gw"],
                     {
-                        "help": "default gateway",
+                        "help": _("default gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1042,7 +1093,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-enable_dhcp"],
                     {
-                        "help": "if true enable dhcp",
+                        "help": _("if true enable dhcp"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -1051,7 +1102,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-allocable"],
                     {
-                        "help": "if true subnet is allocable",
+                        "help": _("if true subnet is allocable"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -1067,7 +1118,7 @@ class ResourceProviderController(BaseController):
         gw = self.app.pargs.gw
         enable_dhcp = str2bool(self.app.pargs.enable_dhcp)
         allocable = str2bool(self.app.pargs.allocable)
-        uri = "/v2.0/nrs/provider/site_networks/%s/subnets" % oid
+        uri = f"/v2.0/nrs/provider/site_networks/{oid}/subnets"
         allocation_pools = {}
         for pool in pools.split(","):
             pool = pool.split(":")
@@ -1092,17 +1143,17 @@ class ResourceProviderController(BaseController):
         """
 
         self.cmp_post(uri, data={"subnets": [data]})
-        self.app.render({"msg": "delete subnet %s" % cidr})
+        self.app.render({"msg": f"delete subnet {cidr}"})
 
     @ex(
-        help="delete site network subnet",
-        description="delete site network subnet",
+        help=_("delete site network subnet"),
+        description=_("delete site network subnet"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "site network id",
+                        "help": _("site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1111,7 +1162,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "subnet cidr",
+                        "help": _("subnet cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1123,16 +1174,16 @@ class ResourceProviderController(BaseController):
     def site_network_subnet_del(self):
         oid = self.app.pargs.id
         cidr = self.app.pargs.cidr
-        uri = "/v2.0/nrs/provider/site_networks/%s/subnets" % oid
+        uri = f"/v2.0/nrs/provider/site_networks/{oid}/subnets"
         data = {"subnets": [{"cidr": cidr}]}
-        self.cmp_delete(uri, data=data, entity="subnet %s" % cidr)
+        self.cmp_delete(uri, data=data, entity=f"subnet {cidr}")
 
     #
     # compute zone
     #
     def __is_managed(self, oid):
         # get ssh management status
-        uri = self.baseuri + "/compute_zones/%s/manage" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/manage"
         mgt = self.cmp_get(uri, "GET").get("is_managed", [])
         res = {
             "is-managed": bool2str(mgt),
@@ -1143,19 +1194,19 @@ class ResourceProviderController(BaseController):
 
     def __get_availability_zones(self, oid):
         # get ssh management status
-        uri = self.baseuri + "/compute_zones/%s/availability_zones" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/availability_zones"
         res = self.cmp_get(uri, "GET").get("availability_zones", [])
         return res
 
     @ex(
-        help="get provider computes zone",
-        description="get provider computes zone(s)",
+        help=_("get provider computes zone"),
+        description=_("get provider computes zone(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1164,7 +1215,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "compute zone name",
+                        "help": _("compute zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1173,7 +1224,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "compute zone description",
+                        "help": _("compute zone description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1185,7 +1236,7 @@ class ResourceProviderController(BaseController):
     def compute_zone_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/compute_zones/%s" % oid
+            uri = self.baseuri + f"/compute_zones/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1211,27 +1262,27 @@ class ResourceProviderController(BaseController):
                 "desc": lambda n: "%" + n + "%",
             }
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/compute_zones" % self.baseuri
+            uri = f"{self.baseuri}/compute_zones"
 
             def render(self, res, **kwargs):
                 self.app.render(
                     res,
                     key="compute_zones",
-                    headers=self._meta.compute_zones_headers,
-                    fields=self._meta.compute_zones_fields,
+                    headers=self._meta.compute_zones_headers,  # pylint: disable=E1101
+                    fields=self._meta.compute_zones_fields,  # pylint: disable=E1101
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="add compute zone",
-        description="add compute zone",
+        help=_("add compute zone"),
+        description=_("add compute zone"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1245,17 +1296,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = self.baseuri + "/compute_zones"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add compute zone %s" % res["uuid"]})
+        self.app.render({"msg": f"add compute zone {res['uuid']}"})
 
     @ex(
-        help="delete compute zone",
-        description="delete compute zone",
+        help=_("delete compute zone"),
+        description=_("delete compute zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1264,7 +1315,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -1276,20 +1327,20 @@ class ResourceProviderController(BaseController):
     def compute_zone_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/compute_zones/%s" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="compute zone %s" % oid)
+        self.cmp_delete(uri, entity=f"compute zone {oid}")
 
     @ex(
-        help="update compute zone",
-        description="update compute zone",
+        help=_("update compute zone"),
+        description=_("update compute zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1298,7 +1349,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1311,19 +1362,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = self.baseuri + "/compute_zones/%s" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update compute zone %s" % res["uuid"]})
+        self.app.render({"msg": f"update compute zone {res['uuid']}"})
 
     @ex(
-        help="enable provider computes zone management by ssh module",
-        description="enable provider computes zone management by ssh module",
+        help=_("enable provider computes zone management by ssh module"),
+        description=_("enable provider computes zone management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1334,21 +1385,21 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_manage(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/manage" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/manage"
         res = self.cmp_post(uri).get("manage", [])
-        msg = "Enable compute zone %s management with ssh group: %s" % (oid, res)
+        msg = f"Enable compute zone {oid} management with ssh group: {res}"
         self.app.log.info(msg)
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="disable provider computes zone management by ssh module",
-        description="disable provider computes zone management by ssh module",
+        help=_("disable provider computes zone management by ssh module"),
+        description=_("disable provider computes zone management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1359,21 +1410,21 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_unmanage(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/manage" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/manage"
         res = self.cmp_delete(uri)
-        msg = "Disable compute zone %s management with ssh group: %s" % (oid, res)
+        msg = f"Disable compute zone {oid} management with ssh group: {res}"
         self.app.log.info(msg)
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="list compute zone ssh keys available",
-        description="list compute zone ssh keys available",
+        help=_("list compute zone ssh keys available"),
+        description=_("list compute zone ssh keys available"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1384,9 +1435,9 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_sshkeys(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/sshkeys" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/sshkeys"
         res = self.cmp_get(uri).get("sshkeys", [])
-        self.app.log.info("Get compute zone %s sshkeys: %s" % (oid, truncate(res)))
+        self.app.log.info(f"Get compute zone {oid} sshkeys: {truncate(res)}")
         self.app.render(
             res,
             key="compute_zones",
@@ -1395,14 +1446,14 @@ class ResourceProviderController(BaseController):
         )
 
     @ex(
-        help="get compute zone metrics",
-        description="get compute zone metrics",
+        help=_("get compute zone metrics"),
+        description=_("get compute zone metrics"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1413,7 +1464,7 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_metric_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/metrics" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/metrics"
         res = self.cmp_get(uri).get("compute_zone")
         resp = []
         for item in res:
@@ -1443,14 +1494,14 @@ class ResourceProviderController(BaseController):
         )
 
     @ex(
-        help="delete compute zone metrics cache",
-        description="delete compute zone metrics cache",
+        help=_("delete compute zone metrics cache"),
+        description=_("delete compute zone metrics cache"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1461,13 +1512,13 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_metric_cache_delete(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/metrics/cache" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/metrics/cache"
         res = self.cmp_delete(uri)
-        self.app.render({"msg": "delete compute zone metric cache %s" % (res)})
+        self.app.render({"msg": f"delete compute zone metric cache {res}"})
 
     @ex(
-        help="pre load compute zones metrics",
-        description="pre load compute zones metrics",
+        help=_("pre load compute zones metrics"),
+        description=_("pre load compute zones metrics"),
         arguments=ARGS(),
     )
     def compute_zone_metric_preload(self):
@@ -1475,20 +1526,20 @@ class ResourceProviderController(BaseController):
         css = self.cmp_get(uri, data={"size": -1}).get("compute_zones")
         for cs in css:
             start = time()
-            uri = self.baseuri + "/compute_zones/%s/metrics" % cs["id"]
-            res = self.cmp_get(uri).get("compute_zone")
+            uri = self.baseuri + f"/compute_zones/{cs['id']}/metrics"
+            self.cmp_get(uri).get("compute_zone")
             elapsed = time() - start
             print(cs["name"], elapsed)
 
     @ex(
-        help="get provider childs",
-        description="get provider childs",
+        help=_("get provider childs"),
+        description=_("get provider childs"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1499,7 +1550,7 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_child_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/childs" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/childs"
         res = self.cmp_get(uri).get("resources")
         s = sorted(res, key=lambda i: i["name"])
         resp = sorted(s, key=lambda i: i["__meta__"]["definition"])
@@ -1516,14 +1567,14 @@ class ResourceProviderController(BaseController):
         self.app.render(resp, headers=headers, fields=fields)
 
     @ex(
-        help="add compute zone availability zone",
-        description="add compute zone availability zone",
+        help=_("add compute zone availability zone"),
+        description=_("add compute zone availability zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1532,7 +1583,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1545,19 +1596,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "%s/compute_zones/%s/availability_zones" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/compute_zones/{oid}/availability_zones"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add availability zone to compute zone %s" % oid})
+        self.app.render({"msg": f"add availability zone to compute zone {oid}"})
 
     @ex(
-        help="delete compute zone availability zone",
-        description="delete compute zone availability zone",
+        help=_("delete compute zone availability zone"),
+        description=_("delete compute zone availability zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1566,7 +1617,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["zone"],
                     {
-                        "help": "site name",
+                        "help": _("site name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1579,22 +1630,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         zone = self.app.pargs.zone
         data = {"availability_zone": {"id": zone}}
-        uri = "%s/compute_zones/%s/availability_zones" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/compute_zones/{oid}/availability_zones"
         self.cmp_delete(
             uri,
             data=data,
-            entity="availability zone %s from compute zone %s" % (zone, oid),
+            entity=f"availability zone {zone} from compute zone {oid}",
         )
 
     @ex(
-        help="disable compute zone availability zone",
-        description="disable compute zone availability zone",
+        help=_("disable compute zone availability zone"),
+        description=_("disable compute zone availability zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "availability zone id",
+                        "help": _("availability zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1606,19 +1657,19 @@ class ResourceProviderController(BaseController):
     def compute_zone_availability_zone_disable(self):
         oid = self.app.pargs.id
         data = {"state": "DISABLED"}
-        uri = "/v1.0/nrs/entities/%s/state" % oid
+        uri = f"/v1.0/nrs/entities/{oid}/state"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "disable availability zone %s" % oid})
+        self.app.render({"msg": f"disable availability zone {oid}"})
 
     @ex(
-        help="enable compute zone availability zone",
-        description="enable compute zone availability zone",
+        help=_("enable compute zone availability zone"),
+        description=_("enable compute zone availability zone"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "availability zone id",
+                        "help": _("availability zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1630,19 +1681,19 @@ class ResourceProviderController(BaseController):
     def compute_zone_availability_zone_enable(self):
         oid = self.app.pargs.id
         data = {"state": "ACTIVE"}
-        uri = "/v1.0/nrs/entities/%s/state" % oid
+        uri = f"/v1.0/nrs/entities/{oid}/state"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "enable availability zone %s" % oid})
+        self.app.render({"msg": f"enable availability zone {oid}"})
 
     @ex(
-        help="get compute zone quotas",
-        description="get compute zone quotas",
+        help=_("get compute zone quotas"),
+        description=_("get compute zone quotas"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1653,19 +1704,19 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_quota_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/compute_zones/%s/quotas" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/quotas"
         res = self.cmp_get(uri, timeout=500).get("quotas")
         self.app.render(res, headers=["quota", "value", "allocated", "unit"])
 
     @ex(
-        help="get compute zone quotas classes",
-        description="get compute zone quotas classes",
+        help=_("get compute zone quotas classes"),
+        description=_("get compute zone quotas classes"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1676,13 +1727,14 @@ class ResourceProviderController(BaseController):
     )
     def compute_zone_default_quota_get(self):
         oid = self.app.pargs.id
-        uri = self.baseuri + "/compute_zones/%s/quotas/classes" % oid
+        uri = self.baseuri + f"/compute_zones/{oid}/quotas/classes"
         res = self.cmp_get(uri, "GET").get("quota_classes", [])
         self.app.render(res, headers=["quota", "default", "unit"])
 
     @ex(
-        help="check provider computes zone quota",
-        description="""
+        help=_("check provider computes zone quota"),
+        description=_(
+            """
         check provider computes zone quota.
         The command will check whether it is possible to allocate 'value' amount of quota 'quota'
         without reaching the currently set maximum value in cmp for that quota.
@@ -1691,13 +1743,14 @@ class ResourceProviderController(BaseController):
         30, you get a 'quota share.blocks exceeded' exception.
         More in detail quota_to_allocate = cli command 'value' parameter + currently allocated
         if quota_to_allocate > max -> exception.
-        """,
+        """
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1706,7 +1759,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["quotas"],
                     {
-                        "help": "compute zone quota ex. database.instances",
+                        "help": _("compute zone quota ex. database.instances"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1715,10 +1768,17 @@ class ResourceProviderController(BaseController):
                 (
                     ["value"],
                     {
-                        "help": "compute zone quota value ex. 3",
+                        "help": _("compute zone quota value ex. 3"),
                         "action": "store",
                         "type": str,
                         "default": None,
+                    },
+                ),
+                (
+                    ["-check_all"],
+                    {
+                        "help": _("check all quotas, not just the given one"),
+                        "action": "store_true",
                     },
                 ),
             ]
@@ -1728,19 +1788,21 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         quota = self.app.pargs.quotas
         value = self.app.pargs.value
-        uri = self.baseuri + "/compute_zones/%s/quotas/check" % oid
-        res = self.cmp_put(uri, {"quotas": {quota: int(value)}}).get("quotas", [])
+        uri = self.baseuri + f"/compute_zones/{oid}/quotas/check"
+        res = self.cmp_put(uri, {"quotas": {quota: int(value)}, "check_all": self.app.pargs.check_all}).get(
+            "quotas", []
+        )
         self.app.render(res, headers=["quota", "default", "unit"], details=True)
 
     @ex(
-        help="set provider computes zone quota",
-        description="set provider computes zone quota",
+        help=_("set provider computes zone quota"),
+        description=_("set provider computes zone quota"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1749,7 +1811,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["quota"],
                     {
-                        "help": "compute zone quota ex. database.instances",
+                        "help": _("compute zone quota ex. database.instances"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1758,7 +1820,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["value"],
                     {
-                        "help": "compute zone quota value ex. 3",
+                        "help": _("compute zone quota value ex. 3"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1775,22 +1837,22 @@ class ResourceProviderController(BaseController):
             value = int(value)
         except:
             pass
-        uri = self.baseuri + "/compute_zones/%s/quotas" % oid
-        res = self.cmp_put(uri, {"quotas": {quota: value}}).get("quotas", [])
+        uri = self.baseuri + f"/compute_zones/{oid}/quotas"
+        self.cmp_put(uri, {"quotas": {quota: value}}).get("quotas", [])
         self.app.render(
-            {"msg": "set compute zone %s quota %s: %s" % (oid, quota, value)},
+            {"msg": f"set compute zone {oid} quota {quota}: {value}"},
             maxsize=200,
         )
 
     @ex(
-        help="get compute zone configured backup jobs",
-        description="get compute zone configured backup jobs",
+        help=_("get compute zone configured backup jobs"),
+        description=_("get compute zone configured backup jobs"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1799,7 +1861,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hypervisor"],
                     {
-                        "help": "hypervisor name: vsphere, openstack, all",
+                        "help": _("hypervisor name: vsphere, openstack, all"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1808,7 +1870,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-job"],
                     {
-                        "help": "backup job id",
+                        "help": _("backup job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1822,14 +1884,14 @@ class ResourceProviderController(BaseController):
         hypervisor = self.app.pargs.hypervisor
         job_id = self.app.pargs.job
         if job_id is not None:
-            uri = "%s/compute_zones/%s/backup/jobs/%s" % (self.baseuri, oid, job_id)
+            uri = f"{self.baseuri}/compute_zones/{oid}/backup/jobs/{job_id}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 res = res.get("job")
                 instances = res.pop("instances", [])
                 self.app.render(res, details=True)
-                avz = self.__get_availability_zones(oid)
+                #avz = self.__get_availability_zones(oid)
                 self.c("\ninstances", "underline")
                 self.app.render(
                     instances,
@@ -1839,13 +1901,7 @@ class ResourceProviderController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            # params = ['name', 'desc', 'tags']
-            # mappings = {
-            #     'name': lambda n: '%' + n + '%',
-            #     'desc': lambda n: '%' + n + '%'
-            # }
-            # data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/compute_zones/%s/backup/jobs" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/compute_zones/{oid}/backup/jobs"
             data = {"hypervisor": hypervisor}
             res = self.cmp_get(uri, data)
             jobs = res.get("jobs")
@@ -1878,14 +1934,14 @@ class ResourceProviderController(BaseController):
             self.app.render(jobs, headers=headers, fields=fields)
 
     @ex(
-        help="add compute zone backup job",
-        description="add compute zone backup job",
+        help=_("add compute zone backup job"),
+        description=_("add compute zone backup job"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1894,7 +1950,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "job name",
+                        "help": _("job name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1903,7 +1959,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["site"],
                     {
-                        "help": "availability zone name",
+                        "help": _("availability zone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1912,7 +1968,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["instances"],
                     {
-                        "help": "comma separated list of instance id",
+                        "help": _("comma separated list of instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1921,7 +1977,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hypervisor"],
                     {
-                        "help": "hypervisor like openstack or vsphere [openstack]",
+                        "help": _("hypervisor like openstack or vsphere [openstack]"),
                         "action": "store",
                         "type": str,
                         "default": "openstack",
@@ -1930,7 +1986,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hypervisor_tag"],
                     {
-                        "help": "hypervisor tag [default]",
+                        "help": _("hypervisor tag [default]"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -1939,7 +1995,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-resource_type"],
                     {
-                        "help": "type of resource managed by job. Can be: ComputeInstance [ComputeInstance]",
+                        "help": _("type of resource managed by job. Can be: ComputeInstance [ComputeInstance]"),
                         "action": "store",
                         "type": str,
                         "default": "ComputeInstance",
@@ -1948,7 +2004,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-fullbackup_interval"],
                     {
-                        "help": "interval between full backup [2]",
+                        "help": _("interval between full backup [2]"),
                         "action": "store",
                         "type": int,
                         "default": 2,
@@ -1957,7 +2013,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-restore_points"],
                     {
-                        "help": "number of restore points to retain [4]",
+                        "help": _("number of restore points to retain [4]"),
                         "action": "store",
                         "type": int,
                         "default": 4,
@@ -1966,7 +2022,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-start_date"],
                     {
-                        "help": "start date like dd/mm/yyyy [now]",
+                        "help": _("start date like dd/mm/yyyy [now]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1975,7 +2031,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-end_date"],
                     {
-                        "help": "end date like dd/mm/yyyy [empty]",
+                        "help": _("end date like dd/mm/yyyy [empty]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1984,7 +2040,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-start_time"],
                     {
-                        "help": "start time like 0:00 AM [00:00 AM]",
+                        "help": _("start time like 0:00 AM [00:00 AM]"),
                         "action": "store",
                         "type": str,
                         "default": "0:00 AM",
@@ -1993,7 +2049,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-interval"],
                     {
-                        "help": "job interval like 24hrs [24hrs]",
+                        "help": _("job interval like 24hrs [24hrs]"),
                         "action": "store",
                         "type": str,
                         "default": "24hrs",
@@ -2002,7 +2058,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-timezone"],
                     {
-                        "help": "job timezone [Europe/Rome]",
+                        "help": _("job timezone [Europe/Rome]"),
                         "action": "store",
                         "type": str,
                         "default": "Europe/Rome",
@@ -2011,7 +2067,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-job_type"],
                     {
-                        "help": "job type. Can be: Parallel or Serial [Parallel]",
+                        "help": _("job type. Can be: Parallel or Serial [Parallel]"),
                         "action": "store",
                         "type": str,
                         "default": "Parallel",
@@ -2023,10 +2079,10 @@ class ResourceProviderController(BaseController):
     def compute_zone_backup_job_add(self):
         oid = self.app.pargs.id
         start_date = self.app.pargs.start_date
-        uri = "%s/compute_zones/%s/backup/jobs" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/compute_zones/{oid}/backup/jobs"
         if start_date is None:
             now = datetime.today()
-            start_date = "%s/%s/%s" % (now.day, now.month, now.year)
+            start_date = f"{now.day}/{now.month}/{now.year}"
         data = {
             "name": self.app.pargs.name,
             "site": self.app.pargs.site,
@@ -2045,17 +2101,17 @@ class ResourceProviderController(BaseController):
         }
         res = self.cmp_post(uri, data=data)
         job = res.get("job")
-        self.app.render({"msg": "add backup job %s" % job})
+        self.app.render({"msg": f"add backup job {job}"})
 
     @ex(
-        help="update compute zone backup job",
-        description="update compute zone backup job",
+        help=_("update compute zone backup job"),
+        description=_("update compute zone backup job"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2063,12 +2119,12 @@ class ResourceProviderController(BaseController):
                 ),
                 (
                     ["job"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-name"],
                     {
-                        "help": "job name",
+                        "help": _("job name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2077,7 +2133,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-instances"],
                     {
-                        "help": "comma separated list of <instance id>:<add/del>",
+                        "help": _("comma separated list of <instance id>:<add/del>"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2086,7 +2142,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-fullbackup_interval"],
                     {
-                        "help": "interval between full backup",
+                        "help": _("interval between full backup"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2095,7 +2151,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-restore_points"],
                     {
-                        "help": "number of restore points to retain",
+                        "help": _("number of restore points to retain"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2104,7 +2160,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-start_date"],
                     {
-                        "help": "start date like dd/mm/yyyy",
+                        "help": _("start date like dd/mm/yyyy"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2113,7 +2169,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-end_date"],
                     {
-                        "help": "end date like dd/mm/yyyy",
+                        "help": _("end date like dd/mm/yyyy"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2122,7 +2178,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-start_time"],
                     {
-                        "help": "start time like 0:00 AM",
+                        "help": _("start time like 0:00 AM"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2131,7 +2187,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-interval"],
                     {
-                        "help": "job interval like 24hrs",
+                        "help": _("job interval like 24hrs"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2140,7 +2196,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-timezone"],
                     {
-                        "help": "job timezone",
+                        "help": _("job timezone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2149,7 +2205,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-job_type"],
                     {
-                        "help": "job type. Can be: Parallel or Serial",
+                        "help": _("job type. Can be: Parallel or Serial"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2158,7 +2214,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "if true enable job",
+                        "help": _("if true enable job"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2170,7 +2226,7 @@ class ResourceProviderController(BaseController):
     def compute_zone_backup_job_update(self):
         oid = self.app.pargs.id
         job = self.app.pargs.job
-        uri = "%s/compute_zones/%s/backup/jobs/%s" % (self.baseuri, oid, job)
+        uri = f"{self.baseuri}/compute_zones/{oid}/backup/jobs/{job}"
         data = {}
         keys = [
             "name",
@@ -2193,23 +2249,23 @@ class ResourceProviderController(BaseController):
             for instance in instances:
                 instance_id, action = instance.split(":")
                 if action not in ["add", "del"]:
-                    raise Exception("action %s is not permitted" % action)
+                    raise Exception(f"action {action} is not permitted")
                 inst.append({"instance": instance_id, "action": action})
             data["instances"] = inst
 
         res = self.cmp_put(uri, data=data)
         job = res.get("job")
-        self.app.render({"msg": "update backup job %s" % job})
+        self.app.render({"msg": f"update backup job {job}"})
 
     @ex(
-        help="delete compute zone backup job",
-        description="delete compute zone backup job",
+        help=_("delete compute zone backup job"),
+        description=_("delete compute zone backup job"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2217,7 +2273,7 @@ class ResourceProviderController(BaseController):
                 ),
                 (
                     ["job"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -2225,18 +2281,18 @@ class ResourceProviderController(BaseController):
     def compute_zone_backup_job_del(self):
         oid = self.app.pargs.id
         job = self.app.pargs.job
-        uri = "%s/compute_zones/%s/backup/jobs/%s" % (self.baseuri, oid, job)
-        res = self.cmp_delete(uri, entity="backup job %s" % job)
+        uri = f"{self.baseuri}/compute_zones/{oid}/backup/jobs/{job}"
+        self.cmp_delete(uri, entity=f"backup job {job}")
 
     @ex(
-        help="get compute zone backup job restore points",
-        description="get compute zone backup job restore points",
+        help=_("get compute zone backup job restore points"),
+        description=_("get compute zone backup job restore points"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2245,7 +2301,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["job"],
                     {
-                        "help": "backup job id",
+                        "help": _("backup job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2254,7 +2310,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-restore_point"],
                     {
-                        "help": "backup restore point id",
+                        "help": _("backup restore point id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2268,7 +2324,7 @@ class ResourceProviderController(BaseController):
         job_id = self.app.pargs.job
         restore_point_id = self.app.pargs.restore_point
         if restore_point_id is not None:
-            uri = "%s/compute_zones/%s/backup/restore_points" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/compute_zones/{oid}/backup/restore_points"
             res = self.cmp_get(uri, data={"job_id": job_id, "restore_point_id": restore_point_id})
 
             if self.is_output_text():
@@ -2293,7 +2349,7 @@ class ResourceProviderController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            uri = "%s/compute_zones/%s/backup/restore_points" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/compute_zones/{oid}/backup/restore_points"
             res = self.cmp_get(uri, data={"job_id": job_id})
             restore_points = res.get("restore_points")
             headers = [
@@ -2319,14 +2375,14 @@ class ResourceProviderController(BaseController):
             self.app.render(restore_points, headers=headers, fields=fields)
 
     @ex(
-        help="add compute zone backup job restore point",
-        description="add compute zone backup job restore point",
+        help=_("add compute zone backup job restore point"),
+        description=_("add compute zone backup job restore point"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2335,7 +2391,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["job"],
                     {
-                        "help": "backup job id",
+                        "help": _("backup job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2344,7 +2400,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "restore point name",
+                        "help": _("restore point name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2353,7 +2409,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "restore point description",
+                        "help": _("restore point description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2362,7 +2418,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-full"],
                     {
-                        "help": "if true create a full restore point, otherwise make an incremental",
+                        "help": _("if true create a full restore point, otherwise make an incremental"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -2379,20 +2435,20 @@ class ResourceProviderController(BaseController):
         full = str2bool(self.app.pargs.full)
         if desc is None:
             desc = name
-        uri = "%s/compute_zones/%s/backup/restore_points" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/compute_zones/{oid}/backup/restore_points"
         data = {"job_id": job_id, "name": name, "desc": desc, "full": full}
-        res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add backup job %s restore point" % job_id})
+        self.cmp_post(uri, data=data)
+        self.app.render({"msg": f"add backup job {job_id} restore point"})
 
     @ex(
-        help="delete compute zone backup job restore point",
-        description="delete compute zone backup job restore point",
+        help=_("delete compute zone backup job restore point"),
+        description=_("delete compute zone backup job restore point"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2401,7 +2457,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["job"],
                     {
-                        "help": "backup job id",
+                        "help": _("backup job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2410,7 +2466,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["restore_point"],
                     {
-                        "help": "restore point id",
+                        "help": _("restore point id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2423,45 +2479,45 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         job_id = self.app.pargs.job
         restore_point_id = self.app.pargs.restore_point
-        uri = "%s/compute_zones/%s/backup/restore_points" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/compute_zones/{oid}/backup/restore_points"
         data = {"job_id": job_id, "restore_point_id": restore_point_id}
-        res = self.cmp_delete(uri, data=data)
-        self.app.render({"msg": "delete backup job %s restore point" % job_id})
+        self.cmp_delete(uri, data=data)
+        self.app.render({"msg": f"delete backup job {job_id} restore point"})
 
     #
     # vpc
     #
     @ex(
-        help="get provider vpc",
-        description="get provider vpc(s)",
+        help=_("get provider vpc"),
+        description=_("get provider vpc(s)"),
         arguments=PARGS(
             [
                 (
                     ["id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
     )
     def vpc_interpod_next_subnet(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "/v2.0/nrs/provider/vpcs/%s/subnet/next" % oid
+        uri = f"/v2.0/nrs/provider/vpcs/{oid}/subnet/next"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get provider vpc",
-        description="get provider vpc(s)",
+        help=_("get provider vpc"),
+        description=_("get provider vpc(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2470,7 +2526,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2479,7 +2535,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2488,7 +2544,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2497,7 +2553,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2506,10 +2562,18 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
+                    },
+                ),
+                (
+                    ["-allocation-pools-details"],
+                    {
+                        "help": _("show the allocation pools details"),
+                        "action": "store_true",
+                        "default": False,
                     },
                 ),
             ]
@@ -2517,9 +2581,13 @@ class ResourceProviderController(BaseController):
     )
     def vpc_get(self):
         oid = getattr(self.app.pargs, "id", None)
+        allocation_pools_details = str2bool(getattr(self.app.pargs, "allocation_pools_details", False))
         if oid is not None:
-            uri = "/v2.0/nrs/provider/vpcs/%s" % oid
-            res = self.cmp_get(uri)
+            uri = "/v2.0/nrs/provider/vpcs/" + oid
+            data = {}
+            if allocation_pools_details:
+                data['allocation_pools_details'] = True
+            res = self.cmp_get(uri, data)
 
             if self.is_output_text():
                 res = res.get("vpc")
@@ -2532,17 +2600,25 @@ class ResourceProviderController(BaseController):
                     subnets = configs.get("subnets", None)
                     i["subnets"] = ""
                     for s in subnets:
-                        i["subnets"] += "- cidr=%s\n" % s.get("cidr", None)
-                        i["subnets"] += "  allocable=%s\n" % s.get("allocable", False)
+                        allocable = s.get("allocable", False)
+                        i["subnets"] += f"- cidr={s.get('cidr')}\n"
+                        i["subnets"] += f" allocable={allocable}\n"
                         i["subnets"] += "  hypervisor\n"
                         for h in s.get("hypervisor", []):
-                            i["subnets"] += "  - %s: vxlan=%s, cidr=%s, gateway=%s, pool=%s\n" % (
-                                h.get("type"),
-                                h.get("vxlan"),
-                                h.get("cidr"),
-                                h.get("gateway"),
-                                h.get("pool"),
+                            vlanx = h.get('vxlan')
+                            pool = h.get('pool')
+                            i["subnets"] +=  f"  - {h.get('type')}: "
+                            if vlanx is not None:
+                                i["subnets"] += f"vxlan={h.get('vxlan')}, "
+                            i["subnets"] += (
+                                f"cidr={h.get('cidr')}, "
+                                f"gateway={h.get('gateway')}"
                             )
+                            if pool != "":
+                                i["subnets"] += f", pool={pool}"
+                                if allocation_pools_details and allocable:
+                                    i["subnets"] += f", available_ips={h.get('available_ips')}"
+                            i["subnets"] += "\n"
 
                 self.c("\n\nnetworks", "underline")
                 headers = ["id", "name", "avz", "vlan", "reuse", "state", "subnets"]
@@ -2562,27 +2638,30 @@ class ResourceProviderController(BaseController):
             params = ["name", "desc", "parent", "state", "tags"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
+            if allocation_pools_details:
+                data += "&allocation_pools_details=true"
+
             uri = "/v2.0/nrs/provider/vpcs"
 
             def render(self, res, **kwargs):
                 self.app.render(
                     res,
                     key="vpcs",
-                    headers=self._meta.vpc_headers,
-                    fields=self._meta.vpc_fields,
+                    headers=self._meta.vpc_headers,  # pylint: disable=E1101
+                    fields=self._meta.vpc_fields,  # pylint: disable=E1101
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
-        help="add vpc",
-        description="add vpc",
+        help=_("add vpc"),
+        description=_("add vpc"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "vpc name",
+                        "help": _("vpc name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2591,7 +2670,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["container"],
                     {
-                        "help": "vpc container id",
+                        "help": _("vpc container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2600,7 +2679,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["compute_zone"],
                     {
-                        "help": "vpc compute zone id",
+                        "help": _("vpc compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2609,7 +2688,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "vpc cidr",
+                        "help": _("vpc cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2618,7 +2697,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "vpc type. Can shared or private",
+                        "help": _("vpc type. Can shared or private"),
                         "action": "store",
                         "type": str,
                         "default": "shared",
@@ -2640,21 +2719,21 @@ class ResourceProviderController(BaseController):
 
         uri = "/v2.0/nrs/provider/vpcs"
         res = self.cmp_post(uri, data={"vpc": data})
-        self.app.render({"msg": "add vpc %s" % res["uuid"]})
+        self.app.render({"msg": f"add vpc {res['uuid']}"})
 
     @ex(
-        help="delete vpc",
-        description="delete vpc",
+        help=_("delete vpc"),
+        description=_("delete vpc"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -2666,24 +2745,24 @@ class ResourceProviderController(BaseController):
     def vpc_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v2.0/nrs/provider/vpcs/%s" % oid
+        uri = f"/v2.0/nrs/provider/vpcs/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="vpc %s" % oid)
+        self.cmp_delete(uri, entity=f"vpc {oid}")
 
     @ex(
-        help="update vpc",
-        description="update vpc",
+        help=_("update vpc"),
+        description=_("update vpc"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2696,23 +2775,23 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v2.0/nrs/provider/vpcs/%s" % oid
+        uri = f"/v2.0/nrs/provider/vpcs/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update vpc %s" % res["uuid"]})
+        self.app.render({"msg": f"update vpc {res['uuid']}"})
 
     @ex(
-        help="add vpc network",
-        description="add vpc network",
+        help=_("add vpc network"),
+        description=_("add vpc network"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["type"],
                     {
-                        "help": "network type. Can be private or site",
+                        "help": _("network type. Can be private or site"),
                         "action": "store",
                         "type": str,
                     },
@@ -2720,7 +2799,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-networks"],
                     {
-                        "help": "comma separated list of site network id",
+                        "help": _("comma separated list of site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2729,7 +2808,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-cidr"],
                     {
-                        "help": "private network cidr",
+                        "help": _("private network cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2738,7 +2817,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-avz"],
                     {
-                        "help": "private network availability zone",
+                        "help": _("private network availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2747,7 +2826,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-zone"],
                     {
-                        "help": "dns zone",
+                        "help": _("dns zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2756,7 +2835,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-dns"],
                     {
-                        "help": "dns list",
+                        "help": _("dns list"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2786,23 +2865,25 @@ class ResourceProviderController(BaseController):
                     }
                 ]
             }
-        uri = "/v2.0/nrs/provider/vpcs/%s/network" % oid
+        else:
+            raise Exception(f"Invalid net type: {net_type}. Valid values are 'site' or 'private'")
+        uri = f"/v2.0/nrs/provider/vpcs/{oid}/network"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add %s networks to vpc %s" % (net_type, oid)})
+        self.app.render({"msg": f"add {net_type} networks to vpc {oid}"})
 
     @ex(
-        help="delete vpc network",
-        description="delete vpc network",
+        help=_("delete vpc network"),
+        description=_("delete vpc network"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["type"],
                     {
-                        "help": "network type. Can be private or site",
+                        "help": _("network type. Can be private or site"),
                         "action": "store",
                         "type": str,
                     },
@@ -2810,7 +2891,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-networks"],
                     {
-                        "help": "comma separated list of site network id",
+                        "help": _("comma separated list of site network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2819,7 +2900,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-cidr"],
                     {
-                        "help": "private network cidr",
+                        "help": _("private network cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2828,7 +2909,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-avz"],
                     {
-                        "help": "private network availability zone",
+                        "help": _("private network availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2849,22 +2930,22 @@ class ResourceProviderController(BaseController):
             data = {"private": [{"cidr": cidr, "availability_zone": avz}]}
         else:
             raise Exception("network type can be only private or site")
-        uri = "/v2.0/nrs/provider/vpcs/%s/network" % oid
-        self.cmp_delete(uri, data=data, entity="%s network" % net_type)
-        self.app.render({"msg": "delete %s networks to vpc %s" % (net_type, oid)})
+        uri = f"/v2.0/nrs/provider/vpcs/{oid}/network"
+        self.cmp_delete(uri, data=data, entity=f"{net_type} network")
+        self.app.render({"msg": f"delete {net_type} networks to vpc {oid}"})
 
     #
     # security group
     #
     @ex(
-        help="get provider security group",
-        description="get provider security group(s)",
+        help=_("get provider security group"),
+        description=_("get provider security group(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "security_group id",
+                        "help": _("security_group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2873,7 +2954,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2882,7 +2963,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2891,7 +2972,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2899,12 +2980,12 @@ class ResourceProviderController(BaseController):
                 ),
                 (
                     ["-vpc"],
-                    {"help": "vpc id", "action": "store", "type": str, "default": None},
+                    {"help": _("vpc id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-instance"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2913,7 +2994,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2922,7 +3003,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2931,7 +3012,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2943,7 +3024,7 @@ class ResourceProviderController(BaseController):
     def sg_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/security_groups/%s" % oid
+            uri = self.baseuri + f"/security_groups/{oid}"
             res = self.cmp_get(uri).get("security_group")
 
             if self.is_output_text():
@@ -2983,8 +3064,8 @@ class ResourceProviderController(BaseController):
                 self.c("\ninstances", "underline")
                 self.app.render(
                     instances,
-                    headers=self._meta.instance_headers,
-                    fields=self._meta.instance_fields,
+                    headers=self._meta.instance_headers,  # pylint: disable=E1101
+                    fields=self._meta.instance_fields,  # pylint: disable=E1101
                     maxsize=400,
                 )
             else:
@@ -2994,29 +3075,29 @@ class ResourceProviderController(BaseController):
             mappings = {"name": lambda n: "%" + n + "%"}
             aliases = {"parent": "parent_list"}
             data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-            uri = "%s/security_groups" % self.baseuri
+            uri = f"{self.baseuri}/security_groups"
 
             def render(self, res, **kwargs):
-                transform = {"rules": lambda x: len(x)}
+                transform = {"rules": len}
                 self.app.render(
                     res,
                     key="security_groups",
-                    headers=self._meta.security_group_headers,
-                    fields=self._meta.security_group_fields,
+                    headers=self._meta.security_group_headers,  # pylint: disable=E1101
+                    fields=self._meta.security_group_fields,  # pylint: disable=E1101
                     transform=transform,
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="check security groups contain ingress rule from zabbix proxy",
-        description="check security groups contain ingress rule from zabbix proxy",
+        help=_("check security groups contain ingress rule from zabbix proxy"),
+        description=_("check security groups contain ingress rule from zabbix proxy"),
         arguments=PARGS(
             [
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3030,9 +3111,9 @@ class ResourceProviderController(BaseController):
         mappings = {"name": lambda n: "%" + n + "%"}
         aliases = {"parent": "parent_list"}
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = "%s/security_groups" % self.baseuri
+        uri = f"{self.baseuri}/security_groups"
         res = self.cmp_get(uri, data=data)
-        transform = {"rules": lambda x: len(x)}
+        transform = {"rules": len}
         headers = [
             "id",
             "uuid",
@@ -3059,49 +3140,16 @@ class ResourceProviderController(BaseController):
             transform=transform,
         )
 
-    # def __add_rule(self, name, zone, source, dest, proto='*', subproto=None, port='*'):
-    #     if proto == '*':
-    #         port = '*'
-    #     source = source.split(':')
-    #     dest = dest.split(':')
-    #     data = {
-    #         'rule': {
-    #             'container': self.get_container(),
-    #             'name': name,
-    #             'desc': name,
-    #             'compute_zone': zone,
-    #             'source': {
-    #                 'type': source[0],
-    #                 'value': source[1]
-    #             },
-    #             'destination': {
-    #                 'type': dest[0],
-    #                 'value': dest[1]
-    #             },
-    #             'service': {
-    #                 'protocol': proto
-    #             }
-    #         }
-    #     }
-    #     if port is not None:
-    #         data['rule']['service']['port'] = port
-    #     if proto == '1' and subproto is not None:
-    #         data['rule']['service']['subprotocol'] = subproto
-    #
-    #     uri = '%s/rules' % self.baseuri
-    #     res = self.cmp_post(uri, data=data)
-    #     print('add rule %s' % res['uuid'])
-
     @ex(
-        help="enable security group ingress from zabbix proxy",
-        description="enable security group ingress from zabbix proxy",
+        help=_("enable security group ingress from zabbix proxy"),
+        description=_("enable security group ingress from zabbix proxy"),
         arguments=PARGS(
             [
-                (["id"], {"help": "security group id", "action": "store", "type": str}),
+                (["id"], {"help": _("security group id"), "action": "store", "type": str}),
                 (
                     ["availability_zone"],
                     {
-                        "help": "availability zone name. Es. SiteTorino01",
+                        "help": _("availability zone name. Es. SiteTorino01"),
                         "action": "store",
                         "type": str,
                     },
@@ -3113,19 +3161,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         availability_zone = self.app.pargs.availability_zone
         data = {"availability_zone": availability_zone}
-        uri = "%s/security_groups/%s/zabbix" % (self.baseuri, oid)
-        res = self.cmp_post(uri, data=data)
+        uri = f"{self.baseuri}/security_groups/{oid}/zabbix"
+        self.cmp_post(uri, data=data)
 
     @ex(
-        help="disable security group ingress from zabbix proxy",
-        description="disable security group ingress from zabbix proxy",
+        help=_("disable security group ingress from zabbix proxy"),
+        description=_("disable security group ingress from zabbix proxy"),
         arguments=PARGS(
             [
-                (["id"], {"help": "security group id", "action": "store", "type": str}),
+                (["id"], {"help": _("security group id"), "action": "store", "type": str}),
                 (
                     ["availability_zone"],
                     {
-                        "help": "availability zone name. Es. SiteTorino01",
+                        "help": _("availability zone name. Es. SiteTorino01"),
                         "action": "store",
                         "type": str,
                     },
@@ -3137,22 +3185,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         availability_zone = self.app.pargs.availability_zone
         data = {"availability_zone": availability_zone}
-        uri = "%s/security_groups/%s/zabbix" % (self.baseuri, oid)
-        res = self.cmp_delete(
+        uri = f"{self.baseuri}/security_groups/{oid}/zabbix"
+        self.cmp_delete(
             uri,
             data=data,
-            entity="sg zabbix rule for availability zone %s" % availability_zone,
+            entity=f"sg zabbix rule for availability zone {availability_zone}",
         )
 
     @ex(
-        help="check provider security group",
-        description="check provider security group(s)",
+        help=_("check provider security group"),
+        description=_("check provider security group(s)"),
         arguments=PARGS(),
     )
     def sg_check(self):
         # get rules
         data = {"parent": "f2716a97-97a1-4cb8-bce3-7a411326bcf6", "size": -1}
-        uri = "%s/rules" % self.baseuri
+        uri = f"{self.baseuri}/rules"
         res = self.cmp_get(uri, data=data).get("rules")
         rule_idx = {r["id"]: r for r in res}
         # print(rule_list)
@@ -3175,7 +3223,7 @@ class ResourceProviderController(BaseController):
             141300,
         ]
         for oid in oids:
-            uri = self.baseuri + "/security_groups/%s" % oid
+            uri = self.baseuri + f"/security_groups/{oid}"
             res = self.cmp_get(uri).get("security_group")
             rules = res.pop("rules", [])
             for rule in rules:
@@ -3197,14 +3245,14 @@ class ResourceProviderController(BaseController):
         print(list(check_sgs.keys()))
 
     @ex(
-        help="add security group",
-        description="add security group",
+        help=_("add security group"),
+        description=_("add security group"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "security group name",
+                        "help": _("security group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3213,7 +3261,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["vpc"],
                     {
-                        "help": "parent vpc id",
+                        "help": _("parent vpc id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3235,17 +3283,17 @@ class ResourceProviderController(BaseController):
         }
         uri = self.baseuri + "/security_groups"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add security_group %s" % res["uuid"]})
+        self.app.render({"msg": f"add security_group {res['uuid']}"})
 
     @ex(
-        help="delete security group",
-        description="delete security group",
+        help=_("delete security group"),
+        description=_("delete security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security_group id",
+                        "help": _("security_group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3254,7 +3302,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -3266,39 +3314,23 @@ class ResourceProviderController(BaseController):
     def sg_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/security_groups/%s" % oid
+        uri = self.baseuri + f"/security_groups/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="security_group %s" % oid)
-
-    # @ex(
-    #     help='update security group',
-    #     description='update security group',
-    #     arguments=ARGS([
-    #         (['id'], {'help': 'security_group id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['file'], {'help': 'data file', 'action': 'store', 'type': str, 'default': None}),
-    #     ])
-    # )
-    # def sg_update(self):
-    #     oid = self.app.pargs.id
-    #     data_file = self.app.pargs.file
-    #     data = load_config(data_file)
-    #     uri = self.baseuri + '/security_groups/%s' % oid
-    #     res = self.cmp_put(uri, data=data)
-    #     self.app.render({'msg': 'update security_group %s' % res['uuid']})
+        self.cmp_delete(uri, entity=f"security_group {oid}")
 
     #
     # rule
     #
     @ex(
-        help="get provider rule",
-        description="get provider rule(s)",
+        help=_("get provider rule"),
+        description=_("get provider rule(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3307,7 +3339,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3316,7 +3348,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3325,7 +3357,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3334,7 +3366,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3343,7 +3375,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-source"],
                     {
-                        "help": "rule source",
+                        "help": _("rule source"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3352,7 +3384,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-destination"],
                     {
-                        "help": "rule destination",
+                        "help": _("rule destination"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3361,7 +3393,16 @@ class ResourceProviderController(BaseController):
                 (
                     ["-security_groups"],
                     {
-                        "help": "search rule by security group",
+                        "help": _("search rule by security group"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-service"],
+                    {
+                        "help": _("service"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3371,9 +3412,16 @@ class ResourceProviderController(BaseController):
         ),
     )
     def rule_get(self):
+        if self.app.pargs.security_groups and (
+            self.app.pargs.source is not None
+            or self.app.pargs.destination is not None
+            or self.app.pargs.service is not None
+        ):
+            self.app.warning("Security group filter will override source, destination and service filters")
+
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/rules/%s" % oid
+            uri = self.baseuri + f"/rules/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -3411,36 +3459,44 @@ class ResourceProviderController(BaseController):
                 "destination",
                 "state",
                 "security_groups",
+                "service",
             ]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/rules" % self.baseuri
+            uri = f"{self.baseuri}/rules"
 
             def render(self, res, **kwargs):
                 self.app.render(
                     res,
                     key="rules",
-                    headers=self._meta.rule_headers,
-                    fields=self._meta.rule_fields,
+                    headers=self._meta.rule_headers,  # pylint: disable=E1101
+                    fields=self._meta.rule_fields,  # pylint: disable=E1101
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="add rule",
-        description="add rule",
+        help=_("add rule"),
+        description=_("add rule"),
+        example=(
+            "beehive res-provider rule-add SG-test-xxx <uuid compute zone> "
+            "Cidr:xx.xx.xx.xx/32 SecurityGroup:<uuid sg resource> "
+            "-reserved True -orchestrators openstack"
+        ),
         arguments=ARGS(
             [
-                (["name"], {"help": "rule id", "action": "store", "type": str}),
+                (["name"], {"help": _("rule id"), "action": "store", "type": str}),
                 (
                     ["compute_zone"],
-                    {"help": "compute zone id", "action": "store", "type": str},
+                    {"help": _("compute zone id"), "action": "store", "type": str},
                 ),
                 (
                     ["source"],
                     {
-                        "help": "rule source. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be "
-                        "security group id, cidr like ###.###.###.###/24",
+                        "help": _(
+                            "rule source. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be "
+                            "security group id, cidr like ###.###.###.###/24"
+                        ),
                         "action": "store",
                         "type": str,
                     },
@@ -3448,8 +3504,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["dest"],
                     {
-                        "help": "rule destination. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be"
-                        " security group id, cidr like ###.###.###.###/24",
+                        "help": _(
+                            "rule destination. Syntax <type>:<value>. type can be SecurityGroup, Cidr. value can be"
+                            " security group id, cidr like ###.###.###.###/24"
+                        ),
                         "action": "store",
                         "type": str,
                     },
@@ -3457,8 +3515,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-proto"],
                     {
-                        "help": "ca be  6 [tcp], 17 [udp], 1 [icmp], * [all]. If use icmp specify also subprotocol. "
-                        "[default=*]",
+                        "help": _(
+                            "can be  6 [tcp], 17 [udp], 1 [icmp], * [all]. "
+                            "If use icmp specify also subprotocol. [default=*]"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": "*",
@@ -3467,8 +3527,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-port"],
                     {
-                        "help": "can be an integer between 0 and 65535 or a range with start and end in the same "
-                        "interval. Range format is <start>-<end>. Use * for all ports. [default=*]",
+                        "help": _(
+                            "can be an integer between 0 and 65535 or a range with start and end in the same "
+                            "interval. Range format is <start>-<end>. Use * for all ports. [default=*]"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3477,7 +3539,34 @@ class ResourceProviderController(BaseController):
                 (
                     ["-subproto"],
                     {
-                        "help": "icmp subprotocol. ex. 8 for echo request",
+                        "help": _("icmp subprotocol. ex. 8 for echo request"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-reserved"],
+                    {
+                        "help": _("reserved: True/False"),
+                        "action": "store",
+                        "type": bool,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-log"],
+                    {
+                        "help": _("True/False to enable/disable rule logging"),
+                        "action": "store",
+                        "type": bool,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-orchestrators"],
+                    {
+                        "help": _("orchestrators comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3496,35 +3585,49 @@ class ResourceProviderController(BaseController):
         subproto = self.app.pargs.subproto
         if proto == "*":
             port = "*"
-        data = {
-            "rule": {
-                "container": self.get_container(),
-                "name": name,
-                "desc": name,
-                "compute_zone": zone,
-                "source": {"type": source[0], "value": source[1]},
-                "destination": {"type": dest[0], "value": dest[1]},
-                "service": {"protocol": proto},
-            }
+
+        rule = {
+            "container": self.get_container(),
+            "name": name,
+            "desc": name,
+            "compute_zone": zone,
+            "source": {"type": source[0], "value": source[1]},
+            "destination": {"type": dest[0], "value": dest[1]},
+            "service": {"protocol": proto},
         }
+
+        reserved = self.app.pargs.reserved
+        if reserved is not None:
+            rule.update({"reserved": reserved})
+
+        orchestrators: str = self.app.pargs.orchestrators
+        if orchestrators is not None:
+            rule_orchestrator_types = orchestrators.split(",")
+            rule.update({"rule_orchestrator_types": rule_orchestrator_types})
+
+        logging = self.app.pargs.log
+        if logging is not None:
+            rule.update({"logging": logging})
+
+        data = {"rule": rule}
         if port is not None:
             data["rule"]["service"]["port"] = port
         if proto == "1" and subproto is not None:
             data["rule"]["service"]["subprotocol"] = subproto
 
-        uri = "%s/rules" % self.baseuri
+        uri = f"{self.baseuri}/rules"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add rule %s" % res["uuid"]})
+        self.app.render({"msg": f"add rule {res['uuid']}"})
 
     @ex(
-        help="delete rule",
-        description="delete rule",
+        help=_("delete rule"),
+        description=_("delete rule"),
         arguments=ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3533,7 +3636,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -3542,7 +3645,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3558,49 +3661,33 @@ class ResourceProviderController(BaseController):
 
         if parent is not None:
             data = urlencode({"parent": parent, "size": -1}, doseq=True)
-            uri = "%s/rules" % self.baseuri
+            uri = f"{self.baseuri}/rules"
             res = self.cmp_get(uri, data=data)
             # self.app.render(res, key='rules', headers=self._meta.rule_headers, fields=self._meta.rule_fields)
 
             for item in res.get("rules"):
-                uri = self.baseuri + "/rules/%s" % item["id"]
+                uri = self.baseuri + f"/rules/{item['id']}"
                 if force is True:
                     uri += "?force=true"
-                self.cmp_delete(uri, entity="rule %s" % item["id"])
+                self.cmp_delete(uri, entity=f"rule {item['id']}")
         elif oid is not None:
-            uri = self.baseuri + "/rules/%s" % oid
+            uri = self.baseuri + f"/rules/{oid}"
             if force is True:
                 uri += "?force=true"
-            self.cmp_delete(uri, entity="rule %s" % oid)
-
-    # @ex(
-    #     help='update rule',
-    #     description='update rule',
-    #     arguments=ARGS([
-    #         (['id'], {'help': 'rule id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['file'], {'help': 'data file', 'action': 'store', 'type': str, 'default': None}),
-    #     ])
-    # )
-    # def rule_update(self):
-    #     oid = self.app.pargs.id
-    #     data_file = self.app.pargs.file
-    #     data = load_config(data_file)
-    #     uri = self.baseuri + '/rules/%s' % oid
-    #     res = self.cmp_put(uri, data=data)
-    #     self.app.render({'msg': 'update rule %s' % res['uuid']})
+            self.cmp_delete(uri, entity=f"rule {oid}")
 
     #
     # bastion
     #
     @ex(
-        help="get provider bastion host(s)",
-        description="get provider bastion host(s)",
+        help=_("get provider bastion host(s)"),
+        description=_("get provider bastion host(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3609,7 +3696,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "bastion name",
+                        "help": _("bastion name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3618,7 +3705,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "bastion description",
+                        "help": _("bastion description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3627,7 +3714,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-compute_zone"],
                     {
-                        "help": "bastion zone",
+                        "help": _("bastion zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3643,7 +3730,7 @@ class ResourceProviderController(BaseController):
     def bastion_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/bastions/%s" % oid
+            uri = self.baseuri + f"/bastions/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -3687,15 +3774,12 @@ class ResourceProviderController(BaseController):
             params = ["name", "desc", "compute_zone"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/bastions" % self.baseuri
+            uri = f"{self.baseuri}/bastions"
             res = self.cmp_get(uri, data=data)
             if self.is_output_text():
                 for item in res.get("bastions"):
                     image = item.get("image", {})
-                    item["os"] = "%s %s" % (
-                        image.get("os", ""),
-                        image.get("os_ver", ""),
-                    )
+                    item["os"] = f"{image.get('os', '')} {image.get('os_ver', '')}"
                     block_device_mapping = item.get("block_device_mapping", [])
                     item["volume"] = {"num": len(block_device_mapping)}
                     if item["volume"]["num"] > 0:
@@ -3704,19 +3788,19 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="bastions",
-                headers=self._meta.instance_headers,
-                fields=self._meta.instance_fields,
+                headers=self._meta.instance_headers,  # pylint: disable=E1101
+                fields=self._meta.instance_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add provider bastion host",
-        description="add provider bastion host",
+        help=_("add provider bastion host"),
+        description=_("add provider bastion host"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "bastion name",
+                        "help": _("bastion name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3725,7 +3809,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["compute_zone"],
                     {
-                        "help": "bastion name",
+                        "help": _("bastion name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3734,7 +3818,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "bastion name",
+                        "help": _("bastion name"),
                         "action": "store",
                         "type": str,
                         "default": "SiteVercelli01",
@@ -3743,7 +3827,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-pwd"],
                     {
-                        "help": "bastion admin password",
+                        "help": _("bastion admin password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3752,7 +3836,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-key_name"],
                     {
-                        "help": "bastion admin ssh key",
+                        "help": _("bastion admin ssh key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3761,7 +3845,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-flavor"],
                     {
-                        "help": "bastion flavor",
+                        "help": _("bastion flavor"),
                         "action": "store",
                         "type": str,
                         "default": "vm.s1.micro",
@@ -3770,7 +3854,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-volume_flavor"],
                     {
-                        "help": "bastion volume flavor",
+                        "help": _("bastion volume flavor"),
                         "action": "store",
                         "type": str,
                         "default": "vol.default",
@@ -3779,7 +3863,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-image"],
                     {
-                        "help": "bastion image",
+                        "help": _("bastion image"),
                         "action": "store",
                         "type": str,
                         "default": "Centos7",
@@ -3788,7 +3872,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-acl"],
                     {
-                        "help": "comma separated list of network acl",
+                        "help": _("comma separated list of network acl"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -3826,17 +3910,17 @@ class ResourceProviderController(BaseController):
 
         uri = self.baseuri + "/bastions"
         res = self.cmp_post(uri, data={"bastion": data})
-        self.app.render({"msg": "add bastion %s" % res["uuid"]})
+        self.app.render({"msg": f"add bastion {res['uuid']}"})
 
     @ex(
-        help="patch bastion",
-        description="patch bastion",
+        help=_("patch bastion"),
+        description=_("patch bastion"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3847,19 +3931,19 @@ class ResourceProviderController(BaseController):
     )
     def bastion_patch(self):
         oid = self.app.pargs.id
-        uri = self.baseuri + "/bastions/%s" % oid
+        uri = self.baseuri + f"/bastions/{oid}"
         res = self.cmp_patch(uri, data="")
-        self.app.render({"msg": "patch bastion %s" % res["uuid"]})
+        self.app.render({"msg": f"patch bastion {res['uuid']}"})
 
     @ex(
-        help="delete bastion",
-        description="delete bastion",
+        help=_("delete bastion"),
+        description=_("delete bastion"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3868,7 +3952,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -3880,20 +3964,20 @@ class ResourceProviderController(BaseController):
     def bastion_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/bastions/%s" % oid
+        uri = self.baseuri + f"/bastions/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="bastion %s" % oid)
+        self.cmp_delete(uri, entity=f"bastion {oid}")
 
     @ex(
-        help="start bastion",
-        description="start bastion",
+        help=_("start bastion"),
+        description=_("start bastion"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3904,20 +3988,20 @@ class ResourceProviderController(BaseController):
     )
     def bastion_start(self):
         oid = self.app.pargs.id
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"start": True}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "start bastion %s" % oid})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"start bastion {oid}"})
 
     @ex(
-        help="stop bastion",
-        description="stop bastion",
+        help=_("stop bastion"),
+        description=_("stop bastion"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3928,20 +4012,20 @@ class ResourceProviderController(BaseController):
     )
     def bastion_stop(self):
         oid = self.app.pargs.id
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"stop": True}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "stop bastion %s" % oid})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"stop bastion {oid}"})
 
     @ex(
-        help="set bastion flavor",
-        description="set bastion flavor",
+        help=_("set bastion flavor"),
+        description=_("set bastion flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3950,7 +4034,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3962,20 +4046,20 @@ class ResourceProviderController(BaseController):
     def bastion_flavor_set(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"set_flavor": {"flavor": flavor}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "set bastion %s flavor %s" % (oid, flavor)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"set bastion {oid} flavor {flavor}"})
 
     @ex(
-        help="add bastion security group",
-        description="add bastion security group",
+        help=_("add bastion security group"),
+        description=_("add bastion security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3984,7 +4068,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["security_group"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3996,20 +4080,20 @@ class ResourceProviderController(BaseController):
     def bastion_sg_add(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.security_group
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"add_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add bastion %s security group %s" % (oid, security_group)})
+        self.app.render({"msg": f"add bastion {oid} security group {security_group}"})
 
     @ex(
-        help="remove bastion security group",
-        description="remove bastion security group",
+        help=_("remove bastion security group"),
+        description=_("remove bastion security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4018,7 +4102,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["security_group"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4030,20 +4114,20 @@ class ResourceProviderController(BaseController):
     def bastion_sg_del(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.security_group
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"del_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "remove bastion %s security group %s" % (oid, security_group)})
+        self.app.render({"msg": f"remove bastion {oid} security group {security_group}"})
 
     @ex(
-        help="install bastion zabbix proxy",
-        description="install bastion zabbix proxy",
+        help=_("install bastion zabbix proxy"),
+        description=_("install bastion zabbix proxy"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4054,20 +4138,20 @@ class ResourceProviderController(BaseController):
     )
     def bastion_zabbix_proxy_install(self):
         oid = self.app.pargs.id
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"install_zabbix_proxy": True}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "install zabbix proxy on bastion %s" % oid})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"install zabbix proxy on bastion {oid}"})
 
     @ex(
-        help="register bastion zabbix proxy",
-        description="register bastion zabbix proxy",
+        help=_("register bastion zabbix proxy"),
+        description=_("register bastion zabbix proxy"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4078,20 +4162,20 @@ class ResourceProviderController(BaseController):
     )
     def bastion_zabbix_proxy_register(self):
         oid = self.app.pargs.id
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"register_zabbix_proxy": True}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "register zabbix proxy on bastion %s" % oid})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"register zabbix proxy on bastion {oid}"})
 
     @ex(
-        help="install shipper on bastion to enable resource monitoring",
-        description="install shipper on bastion to enable resource monitoring",
+        help=_("install shipper on bastion to enable resource monitoring"),
+        description=_("install shipper on bastion to enable resource monitoring"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4100,7 +4184,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hostgroup"],
                     {
-                        "help": "account hostgroup written as Org.Div.Acc",
+                        "help": _("account hostgroup written as Org.Div.Acc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4112,20 +4196,20 @@ class ResourceProviderController(BaseController):
     def bastion_monit_enable(self):
         oid = self.app.pargs.id
         host_group = self.app.pargs.hostgroup
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"enable_monitoring": {"host_group": host_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "shipper installed, resource monitoring enabled on bastion %s" % oid})
+        self.app.render({"msg": f"shipper installed, resource monitoring enabled on bastion {oid}"})
 
     @ex(
-        help="install shipper on bastion to forward and centralize log data",
-        description="install shipper on bastion to forward and centralize log data",
+        help=_("install shipper on bastion to forward and centralize log data"),
+        description=_("install shipper on bastion to forward and centralize log data"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "bastion id",
+                        "help": _("bastion id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4136,23 +4220,23 @@ class ResourceProviderController(BaseController):
     )
     def bastion_log_enable(self):
         oid = self.app.pargs.id
-        uri = "%s/bastions/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/bastions/{oid}/actions"
         data = {"action": {"enable_logging": True}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "shipper installed, log forwarding enabled on bastion %s" % oid})
+        self.app.render({"msg": f"shipper installed, log forwarding enabled on bastion {oid}"})
 
     #
     # instance
     #
     @ex(
-        help="get provider instance",
-        description="get provider instance(s)",
+        help=_("get provider instance"),
+        description=_("get provider instance(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4161,7 +4245,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "instance name",
+                        "help": _("instance name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4170,7 +4254,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "instance description",
+                        "help": _("instance description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4179,7 +4263,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "instance parent",
+                        "help": _("instance parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4188,7 +4272,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "instance state",
+                        "help": _("instance state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4198,7 +4282,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hypervisor"],
                     {
-                        "help": "instance hypervisor",
+                        "help": _("instance hypervisor"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4207,7 +4291,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "instance tags",
+                        "help": _("instance tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4216,7 +4300,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-image"],
                     {
-                        "help": "instance image",
+                        "help": _("instance image"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4225,7 +4309,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-flavor"],
                     {
-                        "help": "instance flavor",
+                        "help": _("instance flavor"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4234,7 +4318,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-vpc"],
                     {
-                        "help": "instance vpc",
+                        "help": _("instance vpc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4243,7 +4327,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-security_group"],
                     {
-                        "help": "instance security group",
+                        "help": _("instance security group"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4252,7 +4336,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hostinfo"],
                     {
-                        "help": "print list with hypervisor info",
+                        "help": _("print list with hypervisor info"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -4261,7 +4345,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "instance availability zone",
+                        "help": _("instance availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4273,11 +4357,11 @@ class ResourceProviderController(BaseController):
     def instance_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = self.baseuri + "/instances/%s" % oid
+            uri = self.baseuri + f"/instances/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
-                data = res.get("instance")
+                data: Dict = res.get("instance")
                 avz = data.pop("availability_zone", [])
                 flavor = data.pop("flavor", {})
                 image = data.pop("image", {})
@@ -4288,7 +4372,7 @@ class ResourceProviderController(BaseController):
                 self.app.render(data, details=True)
 
                 self.c("\nConfig", "underline")
-                uri = "%s/instances/%s/manage" % (self.baseuri, data.get("uuid"))
+                uri = f"{self.baseuri}/instances/{data.get('uuid')}/manage"
                 mgt = self.cmp_get(uri).get("is_managed", [])
                 config = {
                     "is-managed": bool2str(mgt),
@@ -4307,11 +4391,7 @@ class ResourceProviderController(BaseController):
                 )
 
                 self.c("\nAvailability zone", "underline")
-                # print(avz)
-                from cement import App
-
-                app: App = self.app
-                app.render(avz, headers=["uuid", "name", "state"])
+                self.app.render(avz, headers=["uuid", "name", "state"])
 
                 self.c("\nFlavor", "underline")
                 self.app.render(
@@ -4365,23 +4445,20 @@ class ResourceProviderController(BaseController):
                 "desc": lambda n: "%" + n + "%",
             }
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/instances" % self.baseuri
+            uri = f"{self.baseuri}/instances"
 
-            def render(self, res, **kwargs):
+            def render(self: 'BaseController', res, **kwargs):
                 if self.is_output_text():
                     for item in res.get("instances"):
                         image = item.get("image", {})
-                        item["os"] = "%s %s" % (
-                            image.get("os", ""),
-                            image.get("os_ver", ""),
-                        )
+                        item["os"] = f"{image.get('os', '')} {image.get('os_ver', '')}"
                         block_device_mapping = item.get("block_device_mapping", [])
                         item["volume"] = {"num": len(block_device_mapping)}
                         if item["volume"]["num"] > 0:
-                            item["volume"]["size"] = sum([i.get("volume_size", None) for i in block_device_mapping])
+                            item["volume"]["size"] = sum(i.get("volume_size", None) for i in block_device_mapping)
 
-                headers = self._meta.instance_headers
-                fields = self._meta.instance_fields
+                headers = self._meta.instance_headers  # pylint: disable=E1101
+                fields = self._meta.instance_fields  # pylint: disable=E1101
                 if hostinfo is True:
                     fields = [
                         "id",
@@ -4412,14 +4489,14 @@ class ResourceProviderController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=10)
 
     @ex(
-        help="add instance",
-        description="add instance",
+        help=_("add instance"),
+        description=_("add instance"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4433,17 +4510,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = self.baseuri + "/instances"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add instance %s" % res["uuid"]})
+        self.app.render({"msg": f"add instance {res['uuid']}"})
 
     @ex(
-        help="import instance",
-        description="import instance",
+        help=_("import instance"),
+        description=_("import instance"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "instance name",
+                        "help": _("instance name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4452,7 +4529,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["physical_id"],
                     {
-                        "help": "physical resource id",
+                        "help": _("physical resource id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4461,7 +4538,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "instance password",
+                        "help": _("instance password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4470,7 +4547,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["image"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4479,7 +4556,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["key_name"],
                     {
-                        "help": "ssh key name",
+                        "help": _("ssh key name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4488,7 +4565,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-resolve"],
                     {
-                        "help": "if true add hostname in dns",
+                        "help": _("if true add hostname in dns"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -4497,7 +4574,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-manage"],
                     {
-                        "help": "if true add node in ssh",
+                        "help": _("if true add node in ssh"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -4532,18 +4609,18 @@ class ResourceProviderController(BaseController):
             },
         }
         uri = "/v1.0/nrs/entities/import"
-        res = self.cmp_post(uri, data={"resource": config})
-        self.app.render({"msg": "import instance %s" % name})
+        self.cmp_post(uri, data={"resource": config})
+        self.app.render({"msg": f"import instance {name}"})
 
     @ex(
-        help="patch instance",
-        description="patch instance",
+        help=_("patch instance"),
+        description=_("patch instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4554,19 +4631,19 @@ class ResourceProviderController(BaseController):
     )
     def instance_patch(self):
         oid = self.app.pargs.id
-        uri = self.baseuri + "/instances/%s" % oid
+        uri = self.baseuri + f"/instances/{oid}"
         res = self.cmp_patch(uri, data="")
-        self.app.render({"msg": "patch instance %s" % res["uuid"]})
+        self.app.render({"msg": f"patch instance {res['uuid']}"})
 
     @ex(
-        help="delete instance",
-        description="delete instance",
+        help=_("delete instance"),
+        description=_("delete instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4575,7 +4652,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -4587,20 +4664,20 @@ class ResourceProviderController(BaseController):
     def instance_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = self.baseuri + "/instances/%s" % oid
+        uri = self.baseuri + f"/instances/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="instance %s" % oid)
+        self.cmp_delete(uri, entity=f"instance {oid}")
 
     @ex(
-        help="update instance",
-        description="update instance",
+        help=_("update instance"),
+        description=_("update instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4609,7 +4686,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4622,19 +4699,21 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = self.baseuri + "/instances/%s" % oid
+        uri = self.baseuri + f"/instances/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update instance %s" % res["uuid"]})
+        self.app.render({"msg": f"update instance {res['uuid']}"})
 
     @ex(
-        help="check provider computes instance is managed by ssh module, has backup active, has monitor active",
-        description="check provider computes instance is managed by ssh module, has backup active, has monitor active",
+        help=_("check provider computes instance is managed by ssh module, has backup active, has monitor active"),
+        description=_(
+            "check provider computes instance is managed by ssh module, has backup active, has monitor active"
+        ),
         arguments=ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4647,11 +4726,12 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
 
         if oid is None:
+            # TODO possibly dead code. remove if unused
             data = self.format_http_get_query_params(*self.app.pargs.extra_arguments)
             uri = self.baseuri + "/instances"
             czs = self.cmp_get(uri, data=data)
         else:
-            uri = self.baseuri + "/instances/%s" % oid
+            uri = self.baseuri + f"/instances/{oid}"
             czs = self.cmp_get(uri).get("instance", None)
             if czs is not None:
                 czs = {
@@ -4665,7 +4745,7 @@ class ResourceProviderController(BaseController):
 
         def query_item(cz):
             # get ssh management status
-            uri = "%s/instances/%s/manage" % (self.baseuri, cz.get("id"))
+            uri = f"{self.baseuri}/instances/{cz.get('id')}/manage"
             mgt = self.cmp_get(uri).get("is_managed", [])
             res = {
                 "is-managed": bool2str(mgt),
@@ -4686,14 +4766,14 @@ class ResourceProviderController(BaseController):
         self.app.render(czs, "instances", query_item, tmpl=tmpl, headers=headers)
 
     @ex(
-        help="enable provider computes instance management by ssh module",
-        description="enable provider computes instance management by ssh module",
+        help=_("enable provider computes instance management by ssh module"),
+        description=_("enable provider computes instance management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4702,7 +4782,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["ssh_key"],
                     {
-                        "help": "instance ssh key",
+                        "help": _("instance ssh key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4716,19 +4796,19 @@ class ResourceProviderController(BaseController):
         key = self.app.pargs.ssh_key
 
         data = {"manage": {"key": key}}
-        uri = "%s/instances/%s/manage" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/manage"
         res = self.cmp_post(uri, data=data).get("manage", [])
-        self.app.render({"msg": "enable compute instance %s management with ssh node: %s" % (oid, res)})
+        self.app.render({"msg": f"enable compute instance {oid} management with ssh node: {res}"})
 
     @ex(
-        help="disable provider computes instance management by ssh module",
-        description="disable provider computes instance management by ssh module",
+        help=_("disable provider computes instance management by ssh module"),
+        description=_("disable provider computes instance management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4739,20 +4819,19 @@ class ResourceProviderController(BaseController):
     )
     def instance_unmanage(self):
         oid = self.app.pargs.id
-
-        uri = "%s/instances/%s/manage" % (self.baseuri, oid)
-        res = self.cmp_delete(uri)
-        self.app.render({"msg": "disable compute instance %s management" % oid})
+        uri = f"{self.baseuri}/instances/{oid}/manage"
+        self.cmp_delete(uri)
+        self.app.render({"msg": f"disable compute instance {oid} management"})
 
     @ex(
-        help="run command on provider instance",
-        description="run command on provider instance(s)",
+        help=_("run command on provider instance"),
+        description=_("run command on provider instance(s)"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4761,7 +4840,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["command"],
                     {
-                        "help": "file name where is saved the command to run",
+                        "help": _("file name where is saved the command to run"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4774,25 +4853,21 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         command = self.app.pargs.command
         command = load_config(command)
-        # command = "mysql -e 'show user;' --xml=true"
-        # command = "mysql -e 'select Host, User from mysql.user;' --xml=true"
-        # command = "mysqlsh --json=raw --sql --uri 'root:xxx@localhost:3306' -e 'show databases;' | head -2 | tail -1"
-        # command = "mysqlsh --json=raw --sql --uri 'root:xxx@localhost:3306' -e 'select Host, User from mysql.user;' | head -2 | tail -1"
         data = {"command": command}
-        uri = self.baseuri + "/instances/%s/command" % oid
+        uri = self.baseuri + f"/instances/{oid}/command"
         res = self.cmp_put(uri, data=data)
         res = dict_get(res, "output")
         self.app.render(res, details=True)
 
     @ex(
-        help="get compute instance console",
-        description="get compute instance console",
+        help=_("get compute instance console"),
+        description=_("get compute instance console"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4803,20 +4878,20 @@ class ResourceProviderController(BaseController):
     )
     def instance_console_get(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/console" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/console"
         res = self.cmp_get(uri).get("console", {})
         self.app.render(res, details=True)
         # sh.firefox(res.get('url'))
 
     @ex(
-        help="get compute instance backup info",
-        description="get compute instance backup info",
+        help=_("get compute instance backup info"),
+        description=_("get compute instance backup info"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4827,7 +4902,7 @@ class ResourceProviderController(BaseController):
     )
     def instance_backup_get(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/backup/restore_points" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/backup/restore_points"
         res = self.cmp_get(uri)
         restore_points = res.pop("restore_points")
         self.app.render(res, details=True)
@@ -4835,14 +4910,14 @@ class ResourceProviderController(BaseController):
         self.app.render(restore_points, headers=["id", "name", "desc", "type", "status", "created"])
 
     @ex(
-        help="get compute instance backup restores",
-        description="get compute instance backup restores",
+        help=_("get compute instance backup restores"),
+        description=_("get compute instance backup restores"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4851,7 +4926,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["restore_point"],
                     {
-                        "help": "restore point id",
+                        "help": _("restore point id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4863,11 +4938,7 @@ class ResourceProviderController(BaseController):
     def instance_backup_restore_get(self):
         oid = self.app.pargs.id
         sid = self.app.pargs.restore_point
-        uri = "%s/instances/%s/backup/restore_points/%s/restores" % (
-            self.baseuri,
-            oid,
-            sid,
-        )
+        uri = f"{self.baseuri}/instances/{oid}/backup/restore_points/{sid}/restores"
         res = self.cmp_get(uri).get("restores", [])
         self.app.render(
             res,
@@ -4884,14 +4955,14 @@ class ResourceProviderController(BaseController):
         )
 
     @ex(
-        help="restore compute instance from backup restore point",
-        description="restore compute instance from backup restore point",
+        help=_("restore compute instance from backup restore point"),
+        description=_("restore compute instance from backup restore point"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4900,7 +4971,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["restore_point"],
                     {
-                        "help": "restore point id",
+                        "help": _("restore point id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4909,7 +4980,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "restored instance name",
+                        "help": _("restored instance name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4922,7 +4993,7 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         restore_point = self.app.pargs.restore_point
         name = self.app.pargs.name
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {
             "action": {
                 "restore_from_backup": {
@@ -4932,17 +5003,17 @@ class ResourceProviderController(BaseController):
             }
         }
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "restore compute instance %s from backup restore point %s" % (oid, restore_point)})
+        self.app.render({"msg": f"restore compute instance {oid} from backup restore point {restore_point}"})
 
     @ex(
-        help="add user to instance",
-        description="add user to instance",
+        help=_("add user to instance"),
+        description=_("add user to instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4951,7 +5022,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4960,7 +5031,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "user password",
+                        "help": _("user password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4969,7 +5040,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["ssh_key"],
                     {
-                        "help": "ssh key id",
+                        "help": _("ssh key id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4983,20 +5054,20 @@ class ResourceProviderController(BaseController):
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
         key = self.app.pargs.ssh_key
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"add_user": {"user_name": name, "user_pwd": pwd, "user_ssh_key": key}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add user %s to instance %s" % (name, oid)})
+        self.app.render({"msg": f"add user {name} to instance {oid}"})
 
     @ex(
-        help="delete user to instance",
-        description="delete user to instance",
+        help=_("delete user to instance"),
+        description=_("delete user to instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5005,7 +5076,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5017,20 +5088,20 @@ class ResourceProviderController(BaseController):
     def instance_user_del(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"del_user": {"user_name": name}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "delete user %s to instance %s" % (name, oid)})
+        self.app.render({"msg": f"delete user {name} to instance {oid}"})
 
     @ex(
-        help="delete user to instance",
-        description="delete user to instance",
+        help=_("delete user to instance"),
+        description=_("delete user to instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5039,7 +5110,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5048,7 +5119,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "user password",
+                        "help": _("user password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5061,20 +5132,20 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         pwd = self.app.pargs.pwd
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"set_user_pwd": {"user_name": name, "user_pwd": pwd}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "set user %s password to instance %s" % (name, oid)})
+        self.app.render({"msg": f"set user {name} password to instance {oid}"})
 
     @ex(
-        help="start instance",
-        description="start instance",
+        help=_("start instance"),
+        description=_("start instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5083,8 +5154,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-schedule"],
                     {
-                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "help": _(
+                            "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                            'Ex. {"type": "timedelta", "minutes": 1}'
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5096,26 +5169,26 @@ class ResourceProviderController(BaseController):
     def instance_start(self):
         oid = self.app.pargs.id
         schedule = self.app.pargs.schedule
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         if schedule is None:
             data = {"action": {"start": True}}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "start instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"start instance {oid}"})
         else:
             schedule = load_config(schedule)
             data = {"action": {"start": True}, "schedule": schedule}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "schedule start instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"schedule start instance {oid}"})
 
     @ex(
-        help="stop instance",
-        description="stop instance",
+        help=_("stop instance"),
+        description=_("stop instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5124,8 +5197,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-schedule"],
                     {
-                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "help": _(
+                            "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                            'Ex. {"type": "timedelta", "minutes": 1}'
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5137,26 +5212,26 @@ class ResourceProviderController(BaseController):
     def instance_stop(self):
         oid = self.app.pargs.id
         schedule = self.app.pargs.schedule
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         if schedule is None:
             data = {"action": {"stop": True}}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "stop instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"stop instance {oid}"})
         else:
             schedule = load_config(schedule)
             data = {"action": {"stop": True}, "schedule": schedule}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "schedule stop instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"schedule stop instance {oid}"})
 
     @ex(
-        help="reboot instance",
-        description="reboot instance",
+        help=_("reboot instance"),
+        description=_("reboot instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5165,8 +5240,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-schedule"],
                     {
-                        "help": "schedule definition. Pass as json file using crontab or timedelta syntax. "
-                        'Ex. {"type": "timedelta", "minutes": 1}',
+                        "help": _(
+                            "schedule definition. Pass as json file using crontab or timedelta syntax. "
+                            'Ex. {"type": "timedelta", "minutes": 1}'
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5178,26 +5255,26 @@ class ResourceProviderController(BaseController):
     def instance_reboot(self):
         oid = self.app.pargs.id
         schedule = self.app.pargs.schedule
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         if schedule is None:
             data = {"action": {"reboot": True}}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "reboot instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"reboot instance {oid}"})
         else:
             schedule = load_config(schedule)
             data = {"action": {"reboot": True}, "schedule": schedule}
-            res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "schedule reboot instance %s" % oid})
+            self.cmp_put(uri, data=data)
+            self.app.render({"msg": f"schedule reboot instance {oid}"})
 
     @ex(
-        help="migrate instance",
-        description="migrate instance",
+        help=_("migrate instance"),
+        description=_("migrate instance"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5208,20 +5285,20 @@ class ResourceProviderController(BaseController):
     )
     def instance_migrate(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"migrate": {"live": True}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "migrate instance %s" % oid})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"migrate instance {oid}"})
 
     @ex(
-        help="set instance flavor",
-        description="set instance flavor",
+        help=_("set instance flavor"),
+        description=_("set instance flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5230,7 +5307,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5242,20 +5319,20 @@ class ResourceProviderController(BaseController):
     def instance_flavor_set(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"set_flavor": {"flavor": flavor}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "set instance %s flavor %s" % (oid, flavor)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"set instance {oid} flavor {flavor}"})
 
     @ex(
-        help="set instance volume flavor",
-        description="set instance volume flavor",
+        help=_("set instance volume flavor"),
+        description=_("set instance volume flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5264,7 +5341,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5273,7 +5350,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5288,13 +5365,13 @@ class ResourceProviderController(BaseController):
         volume = self.app.pargs.volume
 
         # list volumes
-        uri = self.baseuri + "/instances/%s" % oid
+        uri = self.baseuri + f"/instances/{oid}"
         res = self.cmp_get(uri)
         data = res.get("instance")
         storage = data.pop("block_device_mapping", [])
-        resp = []
+        #resp = []
         for block in storage:
-            uri = self.baseuri + "/volumes/%s" % block["id"]
+            uri = self.baseuri + f"/volumes/{block['id']}"
             res = self.cmp_get(uri).get("volume", {})
             block["flavor"] = dict_get(res, "flavor.name")
             block["state"] = dict_get(res, "state")
@@ -5312,20 +5389,20 @@ class ResourceProviderController(BaseController):
         )
 
         if volume is not None and flavor is not None:
-            uri = "%s/volumes/%s/actions" % (self.baseuri, volume)
+            uri = f"{self.baseuri}/volumes/{volume}/actions"
             data = {"action": {"set_flavor": {"flavor": flavor}}}
             res = self.cmp_put(uri, data=data)
-            self.app.render({"msg": "set volume %s flavor %s" % (volume, flavor)})
+            self.app.render({"msg": f"set volume {volume} flavor {flavor}"})
 
     @ex(
-        help="add instance volume",
-        description="add instance volume",
+        help=_("add instance volume"),
+        description=_("add instance volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5334,7 +5411,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5346,20 +5423,20 @@ class ResourceProviderController(BaseController):
     def instance_volume_add(self):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"add_volume": {"volume": volume}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add instance %s volume %s" % (oid, volume)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"add instance {oid} volume {volume}"})
 
     @ex(
-        help="remove instance volume",
-        description="remove instance volume",
+        help=_("remove instance volume"),
+        description=_("remove instance volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5368,7 +5445,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5380,20 +5457,20 @@ class ResourceProviderController(BaseController):
     def instance_volume_del(self):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"del_volume": {"volume": volume}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "remove instance %s volume %s" % (oid, volume)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"remove instance {oid} volume {volume}"})
 
     @ex(
-        help="extend instance volume",
-        description="extend instance volume",
+        help=_("extend instance volume"),
+        description=_("extend instance volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5402,13 +5479,13 @@ class ResourceProviderController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["size"], {"help": "volume size", "action": "store", "type": str}),
+                (["size"], {"help": _("volume size"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -5417,25 +5494,25 @@ class ResourceProviderController(BaseController):
         volume = self.app.pargs.volume
         volume_size = self.app.pargs.size
 
-        instance = self.cmp_get(self.baseuri + "/instances/%s" % oid).get("instance", {})
+        instance = self.cmp_get(self.baseuri + f"/instances/{oid}").get("instance", {})
         if instance.get("hypervisor") == "openstack" and instance.get("runstate") != "poweredOff":
-            self.app.render({"msg": "To extend the volume you must poweroff the compute instance %s" % oid})
+            self.app.render({"msg": f"To extend the volume you must poweroff the compute instance {oid}"})
             return
 
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"extend_volume": {"volume": volume, "volume_size": volume_size}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "extend instance %s volume %s to size %s GiB" % (oid, volume, volume_size)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"extend instance {oid} volume {volume} to size {volume_size} GiB"})
 
     @ex(
-        help="get compute instance dns resolution",
-        description="get compute instance dns resolution",
+        help=_("get compute instance dns resolution"),
+        description=_("get compute instance dns resolution"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5446,21 +5523,21 @@ class ResourceProviderController(BaseController):
     )
     def instance_dns_get(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/dns" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/dns"
         res = self.cmp_get(uri).get("dns", [])
         headers = ["id", "name", "ip_address", "zone", "container", "fqdn"]
         fields = ["id", "name", "ip_address", "parent", "container", "fqdn"]
         self.app.render(res, headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="add compute instance dns resolution",
-        description="add compute instance dns resolution",
+        help=_("add compute instance dns resolution"),
+        description=_("add compute instance dns resolution"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5471,19 +5548,19 @@ class ResourceProviderController(BaseController):
     )
     def instance_dns_add(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/dns" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/dns"
         res = self.cmp_post(uri)
-        self.app.render({"msg": "add instance %s dns resolution %s" % (oid, res.get("uuid"))})
+        self.app.render({"msg": f"add instance {oid} dns resolution {res.get('uuid')}"})
 
     @ex(
-        help="delete compute instance dns resolution",
-        description="selete compute instance dns resolution",
+        help=_("delete compute instance dns resolution"),
+        description=_("selete compute instance dns resolution"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5494,19 +5571,19 @@ class ResourceProviderController(BaseController):
     )
     def instance_dns_del(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/dns" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/dns"
         res = self.cmp_delete(uri)
-        self.app.render({"msg": "delete instance %s dns resolution %s" % (oid, res.get("uuid"))})
+        self.app.render({"msg": f"delete instance {oid} dns resolution {res.get('uuid')}"})
 
     @ex(
-        help="add instance security group",
-        description="add instance security group",
+        help=_("add instance security group"),
+        description=_("add instance security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5515,7 +5592,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["security_group"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5527,20 +5604,20 @@ class ResourceProviderController(BaseController):
     def instance_sg_add(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.security_group
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"add_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add instance %s security group %s" % (oid, security_group)})
+        self.app.render({"msg": f"add instance {oid} security group {security_group}"})
 
     @ex(
-        help="remove instance security group",
-        description="remove instance security group",
+        help=_("remove instance security group"),
+        description=_("remove instance security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5549,7 +5626,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["security_group"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5561,20 +5638,20 @@ class ResourceProviderController(BaseController):
     def instance_sg_del(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.security_group
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"del_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "remove instance %s security group %s" % (oid, security_group)})
+        self.app.render({"msg": f"remove instance {oid} security group {security_group}"})
 
     @ex(
-        help="get instance snapshot",
-        description="get instance snapshot",
+        help=_("get instance snapshot"),
+        description=_("get instance snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5585,19 +5662,19 @@ class ResourceProviderController(BaseController):
     )
     def instance_snapshot_get(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/snapshots"
         res = self.cmp_get(uri).get("snapshots")
         self.app.render(res, headers=["id", "name", "status", "created_at"])
 
     @ex(
-        help="add instance snapshot",
-        description="add instance snapshot",
+        help=_("add instance snapshot"),
+        description=_("add instance snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5606,7 +5683,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5618,20 +5695,20 @@ class ResourceProviderController(BaseController):
     def instance_snapshot_add(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"add_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add instance %s snapshot %s" % (oid, snapshot)})
+        self.app.render({"msg": f"add instance {oid} snapshot {snapshot}"})
 
     @ex(
-        help="remove instance snapshot",
-        description="remove instance snapshot",
+        help=_("remove instance snapshot"),
+        description=_("remove instance snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5640,7 +5717,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5652,20 +5729,20 @@ class ResourceProviderController(BaseController):
     def instance_snapshot_del(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"del_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "remove instance %s snapshot %s" % (oid, snapshot)})
+        self.app.render({"msg": f"remove instance {oid} snapshot {snapshot}"})
 
     @ex(
-        help="revert instance to snapshot",
-        description="revert instance to snapshot",
+        help=_("revert instance to snapshot"),
+        description=_("revert instance to snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5674,7 +5751,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5686,20 +5763,20 @@ class ResourceProviderController(BaseController):
     def instance_snapshot_revert(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"revert_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "revert instance %s to snapshot %s" % (oid, snapshot)})
+        self.app.render({"msg": f"revert instance {oid} to snapshot {snapshot}"})
 
     @ex(
-        help="install shipper on instance to enable resource monitoring",
-        description="install shipper on instance to enable resource monitoring",
+        help=_("install shipper on instance to enable resource monitoring"),
+        description=_("install shipper on instance to enable resource monitoring"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5708,7 +5785,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hostgroup"],
                     {
-                        "help": "account hostgroup written as Org.Div.Acc",
+                        "help": _("account hostgroup written as Org.Div.Acc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5720,20 +5797,20 @@ class ResourceProviderController(BaseController):
     def instance_monit_enable(self):
         oid = self.app.pargs.id
         host_group = self.app.pargs.hostgroup
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"enable_monitoring": {"host_group": host_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "shipper installed, resource monitoring enabled on instance %s" % oid})
+        self.app.render({"msg": f"shipper installed, resource monitoring enabled on instance {oid}"})
 
     @ex(
-        help="remove shipper on instance to disable resource monitoring",
-        description="remove shipper on instance to disable resource monitoring",
+        help=_("remove shipper on instance to disable resource monitoring"),
+        description=_("remove shipper on instance to disable resource monitoring"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5742,7 +5819,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-hostgroup"],
                     {
-                        "help": "account hostgroup written as Org.Div.Acc",
+                        "help": _("account hostgroup written as Org.Div.Acc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5754,20 +5831,20 @@ class ResourceProviderController(BaseController):
     def instance_monit_disable(self):
         oid = self.app.pargs.id
         host_group = self.app.pargs.hostgroup
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"enable_monitoring": {"host_group": host_group}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "shipper installed, resource monitoring enabled on instance %s" % oid})
+        self.app.render({"msg": f"shipper installed, resource monitoring enabled on instance {oid}"})
 
     @ex(
-        help="install shipper on instance to forward and centralize log data",
-        description="install shipper on instance to forward and centralize log data",
+        help=_("install shipper on instance to forward and centralize log data"),
+        description=_("install shipper on instance to forward and centralize log data"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5778,20 +5855,20 @@ class ResourceProviderController(BaseController):
     )
     def instance_log_enable(self):
         oid = self.app.pargs.id
-        uri = "%s/instances/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/instances/{oid}/actions"
         data = {"action": {"enable_logging": True}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "shipper installed, log forwarding enabled on instance %s" % oid})
+        self.app.render({"msg": f"shipper installed, log forwarding enabled on instance {oid}"})
 
     @ex(
-        help="get compute instance quotas",
-        description="get compute instance quotas",
+        help=_("get compute instance quotas"),
+        description=_("get compute instance quotas"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "compute instance id",
+                        "help": _("compute instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5802,7 +5879,7 @@ class ResourceProviderController(BaseController):
     )
     def instance_quota_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = self.baseuri + "/instances/%s/quotas" % oid
+        uri = self.baseuri + f"/instances/{oid}/quotas"
         res = self.cmp_get(uri, timeout=500).get("quotas")
         # self.app.render(res, headers=['quota', 'value', 'allocated', 'unit'])
         self.app.render(res, details=True)
@@ -5811,14 +5888,14 @@ class ResourceProviderController(BaseController):
     # flavor
     #
     @ex(
-        help="get provider flavor",
-        description="get provider flavor(s)",
+        help=_("get provider flavor"),
+        description=_("get provider flavor(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5827,7 +5904,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5836,7 +5913,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5845,7 +5922,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5854,7 +5931,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5863,7 +5940,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5872,7 +5949,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5884,7 +5961,7 @@ class ResourceProviderController(BaseController):
     def flavor_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/flavors/%s" % oid
+            uri = f"/v1.0/nrs/provider/flavors/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -5907,19 +5984,19 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="flavors",
-                headers=self._meta.flavor_headers,
-                fields=self._meta.flavor_fields,
+                headers=self._meta.flavor_headers,  # pylint: disable=E1101
+                fields=self._meta.flavor_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add flavor",
-        description="add flavor",
+        help=_("add flavor"),
+        description=_("add flavor"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5933,17 +6010,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v1.0/nrs/provider/flavors"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add flavor %s" % res["uuid"]})
+        self.app.render({"msg": f"add flavor {res['uuid']}"})
 
     @ex(
-        help="delete flavor",
-        description="delete flavor",
+        help=_("delete flavor"),
+        description=_("delete flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5952,7 +6029,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -5964,20 +6041,20 @@ class ResourceProviderController(BaseController):
     def flavor_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/flavors/%s" % oid
+        uri = f"/v1.0/nrs/provider/flavors/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="flavor %s" % oid)
+        self.cmp_delete(uri, entity=f"flavor {oid}")
 
     @ex(
-        help="update flavor",
-        description="update flavor",
+        help=_("update flavor"),
+        description=_("update flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5986,7 +6063,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5999,22 +6076,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v1.0/nrs/provider/flavors/%s" % oid
+        uri = f"/v1.0/nrs/provider/flavors/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update flavor %s" % res["uuid"]})
+        self.app.render({"msg": f"update flavor {res['uuid']}"})
 
     #
     # image
     #
     @ex(
-        help="get provider image",
-        description="get provider image(s)",
+        help=_("get provider image"),
+        description=_("get provider image(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6023,7 +6100,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6032,7 +6109,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6041,7 +6118,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6050,7 +6127,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6059,7 +6136,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6068,7 +6145,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6080,14 +6157,14 @@ class ResourceProviderController(BaseController):
     def image_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/images/%s" % oid
+            uri = f"/v1.0/nrs/provider/images/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 data = res.get("image")
                 attributes = data.get("attributes", [])
                 configs = attributes.pop("configs", [])
-                images = data.pop("images", [])
+                #images = data.pop("images", [])
                 self.app.render(data, details=True)
 
                 self.c("\nconfigs", "underline")
@@ -6104,21 +6181,21 @@ class ResourceProviderController(BaseController):
                 self.app.render(
                     res,
                     key="images",
-                    headers=self._meta.image_headers,
-                    fields=self._meta.image_fields,
+                    headers=self._meta.image_headers,  # pylint: disable=E1101
+                    fields=self._meta.image_fields,  # pylint: disable=E1101
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="add image",
-        description="add image",
+        help=_("add image"),
+        description=_("add image"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6132,17 +6209,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v1.0/nrs/provider/images"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add image %s" % res["uuid"]})
+        self.app.render({"msg": f"add image {res['uuid']}"})
 
     @ex(
-        help="delete image",
-        description="delete image",
+        help=_("delete image"),
+        description=_("delete image"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6151,7 +6228,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -6163,20 +6240,26 @@ class ResourceProviderController(BaseController):
     def image_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/images/%s" % oid
+        uri = f"/v1.0/nrs/provider/images/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="image %s" % oid)
+        self.cmp_delete(uri, entity=f"image {oid}")
 
     @ex(
-        help="prune image branches (Provider.Region.Site.AvailabilityZone.Image, Vsphere.DataCenter.Folder.Server, Openstack.Image)",
-        description="prune image branches (Provider.Region.Site.AvailabilityZone.Image, Vsphere.DataCenter.Folder.Server, Openstack.Image)",
+        help=_(
+            "prune image branches (Provider.Region.Site.AvailabilityZone.Image, "
+            "Vsphere.DataCenter.Folder.Server, Openstack.Image)"
+        ),
+        description=_(
+            "prune image branches (Provider.Region.Site.AvailabilityZone.Image, "
+            "Vsphere.DataCenter.Folder.Server, Openstack.Image)"
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6189,14 +6272,14 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         custom_baseuri = "/v1.0/nrs"
         data = {}
-        uri = "%s/entities/%s/tree" % (custom_baseuri, oid)
+        uri = f"{custom_baseuri}/entities/{oid}/tree"
         res = self.cmp_get(uri, data=data).get("resourcetree", {})
         # print("res: %s" % res)
 
         for child in res.get("children", []):
-            type = child.get("type")
+            #l_type = child.get("type")
             uuid = child.get("uuid")
-            id = child.get("id")
+            #l_id = child.get("id")
             name = child.get("name")
             if type == "Provider.Region.Site.AvailabilityZone.Image":
                 # print(uuid)
@@ -6208,21 +6291,21 @@ class ResourceProviderController(BaseController):
                         b_manually = True
 
                 if not b_manually:
-                    # print("delete %s - uuid: %s - id: %s" % (type, uuid, id))
-                    uri = "%s/entities/%s?" % (custom_baseuri, uuid)
-                    self.cmp_delete(uri, entity="AvailabilityZone.Image %s" % name)
+                    # print("delete %s - uuid: %s - id: %s" % (l_type, uuid, l_id))
+                    uri = f"{custom_baseuri}/entities/{uuid}?"
+                    self.cmp_delete(uri, entity=f"AvailabilityZone.Image {name}")
                 else:
                     print("delete tree image manually. Attention to links reuse=False")
 
     @ex(
-        help="update image",
-        description="update image",
+        help=_("update image"),
+        description=_("update image"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6231,7 +6314,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6244,22 +6327,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v1.0/nrs/provider/images/%s" % oid
+        uri = f"/v1.0/nrs/provider/images/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update image %s" % res["uuid"]})
+        self.app.render({"msg": f"update image {res['uuid']}"})
 
     #
     # share
     #
     @ex(
-        help="get provider share",
-        description="get provider share(s)",
+        help=_("get provider shares v1"),
+        description=_("get provider shares v1"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6268,7 +6351,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6277,7 +6360,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6286,7 +6369,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6295,7 +6378,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6304,7 +6387,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6313,7 +6396,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6322,10 +6405,10 @@ class ResourceProviderController(BaseController):
             ]
         ),
     )
-    def share_get(self):
+    def share_get_legacy(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/shares/%s" % oid
+            uri = f"/v1.0/nrs/provider/shares/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -6333,6 +6416,13 @@ class ResourceProviderController(BaseController):
                 grants = res.get("details").pop("grants")
                 self.app.render(res, details=True)
 
+                self.c("\ngrants", "underline")
+                self.app.render(
+                    grants,
+                    headers=["id", "access_level", "access_superuser", "protocols", "clients"],
+                    transform={"protocols": ", ".join, "clients": ", ".join},
+                )
+                """
                 for site, grants in grants.items():
                     self.c("\ngrants site: %s" % site, "underline")
                     self.app.render(
@@ -6345,6 +6435,7 @@ class ResourceProviderController(BaseController):
                             "state",
                         ],
                     )
+                """
             else:
                 self.app.render(res, details=True)
         else:
@@ -6354,66 +6445,81 @@ class ResourceProviderController(BaseController):
             uri = "/v1.0/nrs/provider/shares"
 
             def render(self, res, **kwargs):
+                transform = {"details.exports.0.mounts": "\n".join}
                 self.app.render(
                     res,
                     key="shares",
-                    headers=self._meta.share_headers,
-                    fields=self._meta.share_fields,
+                    headers=self._meta.share_headers,  # pylint: disable=E1101
+                    fields=self._meta.share_fields,  # pylint: disable=E1101
+                    transform=transform,
                     maxsize=200,
                 )
 
-            res = self.cmp_get_pages(uri, data=data, fn_render=render)
+            self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="add share",
-        description="add share",
-        arguments=ARGS(
+        help=_("get provider shares v2"),
+        description=_("get provider shares v2"),
+        arguments=PARGS(
             [
-                (["name"], {"help": "share name", "action": "store", "type": str}),
                 (
-                    ["container"],
-                    {"help": "resource container id", "action": "store", "type": str},
-                ),
-                (
-                    ["compute_zone"],
-                    {"help": "compute zone id", "action": "store", "type": str},
-                ),
-                (
-                    ["availability_zone"],
-                    {"help": "share availability zone", "action": "store", "type": str},
-                ),
-                (["vpc"], {"help": "share vpc", "action": "store", "type": str}),
-                (
-                    ["size"],
+                    ["-id"],
                     {
-                        "help": "share size",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
                 (
-                    ["-proto"],
+                    ["-name"],
                     {
-                        "help": "share proto like nfs, cifs",
-                        "action": "store",
-                        "type": str,
-                        "default": "nfs",
-                    },
-                ),
-                (
-                    ["-subnet"],
-                    {
-                        "help": "share subnet cidr",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
                 (
-                    ["-label"],
+                    ["-desc"],
                     {
-                        "help": "custom label to be used when you want to use a labelled share type",
+                        "help": _("entity description"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-parent"],
+                    {
+                        "help": _("entity parent"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-state"],
+                    {
+                        "help": _("entity state"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-attributes"],
+                    {
+                        "help": _("entity attributes"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-tags"],
+                    {
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6422,7 +6528,131 @@ class ResourceProviderController(BaseController):
             ]
         ),
     )
-    def share_add(self):
+    def share_get(self):
+        oid = getattr(self.app.pargs, "id", None)
+        if oid is not None:
+            uri = f"/v2.0/nrs/provider/shares/{oid}"
+            res = self.cmp_get(uri)
+
+            if self.is_output_text():
+                res = res.get("share")
+                snaplock = res.get("details").pop("snaplock", None)
+                snapmirrors = res.get("details").pop("snapmirrors")
+                grants = res.get("details").pop("grants")
+                self.app.render(res, details=True)
+
+                role = res.get("attributes", {}).get("share_role")
+                if role == "main":
+                    if not snaplock:
+                        snaplock = []
+                    self.c("\nsnaplock", "underline")
+                    self.app.render(
+                        snaplock,
+                        headers=["snaplock_phy_id", "snaplock_phy_name", "site", "dest_path", "state", "healthy"],
+                    )
+
+                    self.c("\nsnapmirrors", "underline")
+                    self.app.render(
+                        snapmirrors, headers=["replica_id", "replica_name", "site", "dest_path", "state", "healthy"]
+                    )
+                elif role == "replica":
+                    self.c("\nrelationship with source", "underline")
+                    self.app.render(
+                        snapmirrors, headers=["source_id", "source_name", "site", "source_path", "state", "healthy"]
+                    )
+                else:
+                    self.c("\nsnapmirrors", "underline")
+                    self.app.error(f"Invalid role {role}")
+
+                self.c("\ngrants", "underline")
+                self.app.render(
+                    grants,
+                    headers=["id", "access_level", "access_superuser", "protocols", "clients"],
+                    transform={"protocols": ", ".join, "clients": ", ".join},
+                )
+            else:
+                self.app.render(res, details=True)
+        else:
+            params = ["name", "desc", "parent", "state", "tags"]
+            mappings = {"name": lambda n: "%" + n + "%"}
+            data = self.format_paginated_query(params, mappings=mappings)
+            uri = "/v2.0/nrs/provider/shares"
+
+            def render(self, res, **kwargs):
+                transform = {
+                    "name": lambda x: truncate(x, size=30),
+                    "details.exports": lambda x: "\n".join("\n".join(y.get("mounts", [])) for y in x),
+                }
+                self.app.render(
+                    res,
+                    key="shares",
+                    headers=self._meta.share_headers_v2,  # pylint: disable=E1101
+                    fields=self._meta.share_fields_v2,  # pylint: disable=E1101
+                    transform=transform,
+                    maxsize=200,
+                )
+
+            self.cmp_get_pages(uri, data=data, fn_render=render)
+
+    @ex(
+        help=_("add provider share v1"),
+        description=_("add provider share v1"),
+        arguments=ARGS(
+            [
+                (["name"], {"help": _("share name"), "action": "store", "type": str}),
+                (
+                    ["container"],
+                    {"help": _("resource container id"), "action": "store", "type": str},
+                ),
+                (
+                    ["compute_zone"],
+                    {"help": _("compute zone id"), "action": "store", "type": str},
+                ),
+                (
+                    ["availability_zone"],
+                    {"help": _("share availability zone"), "action": "store", "type": str},
+                ),
+                (["vpc"], {"help": _("share vpc"), "action": "store", "type": str}),
+                (
+                    ["size"],
+                    {
+                        "help": _("share size"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-proto"],
+                    {
+                        "help": _("share proto like nfs, cifs"),
+                        "action": "store",
+                        "type": str,
+                        "default": "nfs",
+                    },
+                ),
+                (
+                    ["-subnet"],
+                    {
+                        "help": _("share subnet cidr"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-label"],
+                    {
+                        "help": _("custom label to be used when you want to use a labelled share type"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_add_legacy(self):
         data = {
             "name": self.app.pargs.name,
             "desc": self.app.pargs.name,
@@ -6439,17 +6669,323 @@ class ResourceProviderController(BaseController):
             data["share_label"] = label
         uri = "/v1.0/nrs/provider/shares"
         res = self.cmp_post(uri, data={"share": data})
-        self.app.render({"msg": "add share %s" % res["uuid"]})
+        self.app.render({"msg": f"add share {res['uuid']}"})
 
     @ex(
-        help="delete share",
-        description="delete share",
+        help=_("add provider share v2"),
+        description=_("add provider share v2"),
+        arguments=ARGS(
+            [
+                (["name"], {"help": _("share name"), "action": "store", "type": str}),
+                (
+                    ["container"],
+                    {
+                        "help": _("resource container id"),
+                        # "example": "ResourceProvider01",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["compute_zone"],
+                    {"help": _("compute zone id"), "action": "store", "type": str},
+                ),
+                (
+                    ["site"],
+                    {
+                        "help": _("site name"),
+                        # "example": "SiteTorino01",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (
+                    ["size"],
+                    {"help": _("share size"), "action": "store", "type": int},
+                ),
+                (
+                    ["proto"],
+                    {"help": _("share proto like nfs, cifs"), "action": "store", "type": str},
+                ),
+                (
+                    ["-awx_orchestrator_tag"],
+                    {
+                        "help": _("the awx orchestrator tag"),
+                        # "example": "02",
+                        "action": "store",
+                        "type": str,
+                    },
+                ),
+                (["-not_compliance"], {"action": "store_true", "default": False}),
+                (
+                    ["-compliance_rpo"],
+                    {"help": _("compliance rpo"), "choices": ["12h", "24h"], "action": "store", "type": str},
+                ),
+            ]
+        ),
+    )
+    def share_add(self): # TODO check all
+        data = {
+            "name": self.app.pargs.name,
+            "desc": self.app.pargs.name,
+            "container": self.app.pargs.container,
+            "compute_zone": self.app.pargs.compute_zone,
+            "orchestrator_type": "ontap",
+            "orchestrator_tag": "legacyfas",
+            "site": self.app.pargs.site,
+            "share_params": {
+                "size": int(self.app.pargs.size),
+                "share_proto": self.app.pargs.proto,
+                "encrypted": False
+            },
+            "compliance": not self.app.pargs.not_compliance,
+        }
+
+        if not self.app.pargs.not_compliance:
+            rpo = self.app.pargs.compliance_rpo
+            if not rpo:
+                raise Exception("must specify compliance rpo if compliance is True")
+            data["compliance_rpo"] = rpo
+
+        if self.app.pargs.awx_orchestrator_tag:
+            data["awx_orchestrator_tag"] = self.app.pargs.awx_orchestrator_tag
+
+        uri = "/v2.0/nrs/provider/shares"
+        res = self.cmp_post(uri, data={"share": data})
+        self.app.render({"msg": f"add share {res['uuid']}"})  # TODO wrong uuid field
+
+    @ex(
+        help=_("import provider share v2"),
+        description="import provider share v2",
+        arguments=ARGS(
+            [
+                (
+                    ["remote_name"],
+                    {
+                        "help": _("remote ontap volume name"),
+                        "action": "store",
+                        "type": str,
+                    }
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": _("share name"),
+                        "action": "store",
+                        "type": str
+                    }
+                ),
+                (
+                    ["-container"],
+                    {
+                        "help": _("resource container id"),
+                        "action": "store",
+                        "type": str,
+                        "default": "ResourceProvider01"
+                    },
+                ),
+                (
+                    ["compute_zone"],
+                    {
+                        "help": _("compute zone id"),
+                        "action": "store",
+                        "type": str
+                    },
+                ),
+                (
+                    ["site"],
+                    {
+                        "help": "site name",
+                        #"example": "SiteTorino01",
+                        "action": "store",
+                        "type": str
+                    }
+                ),
+                (
+                    ["-awx_orchestrator_tag"],
+                    {
+                        "help": _("awx orchestrator tag"),
+                        #"example": "02",
+                        "action":"store",
+                        "type": str
+                    }
+                ),
+                (
+                    ["-force_import_as_main"],
+                    {
+                        "help": _(
+                            "import as main even if it's currently a replica. "
+                            "WARNING: do not use if you don't know what you're doing"
+                        ),
+                        "action": "store_true",
+                        "default": False
+                    }
+                ),
+            ]
+        ),
+    )
+    def share_import(self): # TODO check all
+        name = self.app.pargs.name
+        if not name:
+            # real name will be generated
+            name = "placeholder"
+        remote_name = self.app.pargs.remote_name
+        data = {
+            "name": name,
+            "desc": "imported share",
+            "container": self.app.pargs.container,
+            "compute_zone": self.app.pargs.compute_zone,
+            "orchestrator_type":"ontap",
+            "orchestrator_tag":"legacyfas",
+            "site": self.app.pargs.site,
+            "remote_name": remote_name
+        }
+
+        if self.app.pargs.awx_orchestrator_tag:
+            data["awx_orchestrator_tag"] = self.app.pargs.awx_orchestrator_tag
+        else:
+            data["awx_orchestrator_tag"] = "02"
+
+        if self.app.pargs.force_import_as_main:
+            # set if volume is a main volume but currently
+            # shows as a replica since it's been synced with
+            # another volume due to a migration
+            if self._ct.prompt_choice(_("Are you sure you want to force import as main volume?"))!="y":
+                self.app.error(_("Aborting"))
+                return
+            data["force_import_as_main"] = self.app.pargs.force_import_as_main
+
+        uri = "/v2.0/nrs/provider/shares/import"
+        res = self.cmp_post(uri, data={"share": data})
+        self.app.render({"msg": _("add share {share_uuid}").format(share_uuid=res["uuid"])})
+
+    @ex(
+        help=_("update share v2 physical resource attributes with aws params"),
+        description="update share v2 physical resource attributes with aws params",
+        arguments=ARGS(
+            [
+                (
+                    ["share"],
+                    {
+                        "help": _("provider compute share id"),
+                        "action": "store",
+                        "type": str,
+                    }
+                ),
+            ]
+        ),
+    )
+    def share_awx_params_update(self):
+        share_id = self.app.pargs.share
+        share = self.api.resource.provider.share_v2.get(share_id)
+        share_attribs = share.get("attributes", {})
+
+        # get site
+        site_id = share_attribs.get("availability_zone")
+        site = self.api.resource.provider.site.get(site_id)
+
+        # get zone resource
+        zn_shares = self.api.resource.entity.get_linked_entities(share_id, link_type=f"relation.{site_id}")
+        zn_shares = zn_shares.get("resources")
+        zn_share = zn_shares[0]
+        zn_share_id = zn_share.get("id")
+
+        # get physical resource
+        phy_shares = self.api.resource.entity.get_linked_entities(zn_share_id, link_type="relation")
+        phy_shares = phy_shares.get("resources")
+        phy_share = phy_shares[0]
+        phy_share_id = phy_share.get("id")
+
+        # get awx params from physical resource attributes
+        curr_awx_params = phy_share.get("attributes").get("awx_params", {})
+        print(_("Current physical resource awx params:") + f"\n{curr_awx_params}")
+
+        # get awx v2 orchestrator
+        orchestrators = site.get("orchestrators")
+        awx_orchestrators = [o for o in orchestrators if o.get("type") == "awx" and o.get("tag") == "02"]
+        if not awx_orchestrators or len(awx_orchestrators) > 1:
+            raise Exception(_("Orchestrator Awx02 not found in site")+ f" {site_id}")
+        awx_orchestrator = awx_orchestrators[0]
+
+        # determine awx params
+        awx_orchestrator_id = awx_orchestrator.get("id")
+        awx_organization_id = awx_orchestrator.get("config", {}).get("organization")
+        awx_vault_cred_id = awx_orchestrator.get("config", {}).get("vault_cred_id")
+        awx_projects = self.api.resource.awx.project.list(container=awx_orchestrator_id, name="staas")
+        awx_projects = awx_projects.get("projects", [])
+        if not awx_projects or len(awx_projects) > 1:
+            raise Exception(_("Staas project not found in orchestrator") + f" {awx_orchestrator_id}")
+        awx_project = awx_projects[0]
+        awx_project_id = awx_project.get("id")
+
+        calc_awx_params = {
+            "awx_orchestrator_id": awx_orchestrator_id,
+            "awx_organization_id": awx_organization_id,
+            "awx_vault_cred_id": awx_vault_cred_id,
+            "awx_project_id": awx_project_id,
+        }
+        print(_("Calculated awx params:") + f"\n{calc_awx_params}")
+
+        msg = _("If current params and calculated ones differ, you are advised to update current params")
+        yes = self.app.pargs.assumeyes
+        if yes or self.confirm(msg=msg, suffix=_(". Proceed with update? [y/N]")):
+            # update physical resource attributes with awx params
+            self.api.resource.entity.set_config(phy_share_id, key="awx_params.awx_orchestrator_id",
+                                                value=awx_orchestrator_id)
+            self.api.resource.entity.set_config(phy_share_id, key="awx_params.awx_organization_id",
+                                                value=awx_organization_id)
+            self.api.resource.entity.set_config(phy_share_id, key="awx_params.awx_project_id",
+                                                value=str(awx_project_id))
+            self.api.resource.entity.set_config(phy_share_id, key="awx_params.awx_vault_cred_id",
+                                                value=awx_vault_cred_id)
+            print(_("Awx params updated"))
+
+    @ex(
+        help=_("add share replica"),
+        description=_("add share replica"),
+        arguments=ARGS(
+            [
+                (["source_id"], {"help": _("source volume id"), "action": "store", "type": str}),
+                (["dest_site_name"], {"help": _("destination site name"), "action": "store", "type": str}),
+                (["replica_rpo"], {"help": _("replica rpo"), "action": "store", "type": str}),
+                (["-awx_orchestrator_tag"], {"help": _("awx orchestrator tag"), "action": "store", "type": str})
+                # ( TODO uncomment only when needed
+                #    ["-custom_service_name"],
+                #    {
+                #        "help": _("specify custom name for cmp service"),
+                #        "action": "store",
+                #        "type":str
+                #    }
+                # )
+            ]
+        ),
+    )
+    def share_add_replica(self):
+        try:
+            source = self.cmp_get(f"/v2.0/nrs/provider/shares/{self.app.pargs.source_id}")
+        except Exception as exc:
+            raise Exception(f"Source volume not found: {ex!s}") from exc
+        data = {
+            "container": "ResourceProvider01",
+            "compute_zone": str(source.get("share").get("parent")),  # TODO remove?
+            "site": self.app.pargs.dest_site_name,
+            "rpo": self.app.pargs.replica_rpo,
+        }
+        if self.app.pargs.awx_orchestrator_tag:
+            data["awx_orchestrator_tag"] = self.app.pargs.awx_orchestrator_tag
+        uri = f"/v2.0/nrs/provider/shares/{self.app.pargs.source_id}/replica"
+        res = self.cmp_post(uri, data={"share": data})
+        self.app.render({"msg": f"add share {res['uuid']}"})
+
+    @ex(
+        help=_("delete share"),
+        description=_("delete share"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6458,10 +6994,19 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
+                    },
+                ),
+                (
+                    ["-version"],
+                    {
+                        "help": _("share api version. default='v2.0'"),
+                        "action": "store",
+                        "type": str,
+                        "default": "v2.0",
                     },
                 ),
             ]
@@ -6470,20 +7015,20 @@ class ResourceProviderController(BaseController):
     def share_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/shares/%s" % oid
+        uri = f"/{self.app.pargs.version}/nrs/provider/shares/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="share %s" % oid)
+        self.cmp_delete(uri, entity=f"share {oid}")
 
     @ex(
-        help="update share",
-        description="update share",
+        help=_("update share"),
+        description=_("update share"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6492,7 +7037,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6505,19 +7050,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v1.0/nrs/provider/shares/%s" % oid
+        uri = f"/v1.0/nrs/provider/shares/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update share %s" % res["uuid"]})
+        self.app.render({"msg": _("update share {share_uuid}").format(share_uuid=res["uuid"])})
 
     @ex(
-        help="extend share size",
-        description="extend share size",
+        help=_("extend share size"),
+        description=_("extend share size"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6526,7 +7071,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "new size to assign",
+                        "help": _("new size to assign"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6538,22 +7083,19 @@ class ResourceProviderController(BaseController):
     def share_size_extend(self):
         oid = self.app.pargs.id
         size = self.app.pargs.size
-        params = {
-            "new_size": size,
-        }
-        uri = "%s/%s/extend" % (self.baseuri, oid)
-        self.cmp_put(uri, data={"share": params})
-        self.app.render({"msg": "extend share %s size: %s" % (oid, size)})
+        params = {"new_size": size, "extend_shrink": "extend"}
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/resize", data={"share": params})
+        self.app.render({"msg": f"extend share {oid} size: {size}"})
 
     @ex(
-        help="shrink share size",
-        description="shrink share size",
+        help=_("shrink share size"),
+        description=_("shrink share size"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6562,7 +7104,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "new size to assign",
+                        "help": _("new size to assign"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6574,22 +7116,56 @@ class ResourceProviderController(BaseController):
     def share_size_shrink(self):
         oid = self.app.pargs.id
         size = self.app.pargs.size
-        params = {
-            "new_size": size,
-        }
-        uri = "%s/%s/shrink" % (self.baseuri, oid)
-        self.cmp_put(uri, data={"share": params})
-        self.app.render({"msg": "shrink share %s size: %s" % (oid, size)})
+        params = {"new_size": size, "extend_shrink": "shrink"}
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/resize", data={"share": params})
+        self.app.render({"msg": f"shrink share {oid} size: {size}"})
 
     @ex(
-        help="list share grants",
-        description="list share grants",
+        help=_("set share status"),
+        description=_("set remote share status"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["status"],
+                    {
+                        "metavar": "status",
+                        "help": _("share status to set"),
+                        "action": "store",
+                        "type": str,
+                        "choices": ["online", "offline"],
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_set_status(self):
+        oid = self.app.pargs.id
+        status = self.app.pargs.status
+        params = {
+            "status": status,
+        }
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/setstatus", data={"share": params})
+        self.app.render({"msg": f"set share {oid} status: {status}"})
+
+    @ex(
+        help=_("list share grants"),
+        description=_("list share grants"),
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6601,10 +7177,10 @@ class ResourceProviderController(BaseController):
     def share_grant_get(self):
         data = {}
         oid = self.app.pargs.id
-        uri = "%s/%s/grants" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/{oid}/grants"
         res = self.cmp_get(uri, data=data).get("shares")
         for item in res:
-            self.app.render(item, headers=self.headers, fields=self.fields)
+            # self.app.render(item, headers=self.headers, fields=self.fields)
             self.c("\ngrants", "underline")
             self.app.render(
                 item.get("grants", []),
@@ -6615,14 +7191,14 @@ class ResourceProviderController(BaseController):
             )
 
     @ex(
-        help="add share grant",
-        description="add share grant",
+        help=_("add share grant"),
+        description=_("add share grant"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6631,7 +7207,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-access_level"],
                     {
-                        "help": "RW or RO",
+                        "help": _("RW or RO"),
                         "action": "store",
                         "type": str,
                         "default": "RW",
@@ -6640,7 +7216,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-access_type"],
                     {
-                        "help": "access type like IP or USER or CERT",
+                        "help": _("access type like IP or USER or CERT"),
                         "action": "store",
                         "type": str,
                         "default": "IP",
@@ -6649,7 +7225,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["access_to"],
                     {
-                        "help": "access to like ###.###.###.###/24 or admin/user or TLS identity",
+                        "help": _("access to like ###.###.###.###/24 or admin/user or TLS identity"),
                         "action": "store",
                         "type": str,
                         "default": "RW",
@@ -6671,19 +7247,19 @@ class ResourceProviderController(BaseController):
                 "access_to": access_to,
             }
         }
-        uri = "%s/%s/grants" % (self.baseuri, oid)
-        res = self.cmp_post(uri, data=data)
+        uri = f"{self.baseuri}/{oid}/grants"
+        self.cmp_post(uri, data=data)
         self.app.render({"msg": "add share grant"})
 
     @ex(
-        help="delete file share grant",
-        description="delete file share grant",
+        help=_("delete file share grant"),
+        description=_("delete file share grant"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6692,7 +7268,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["access_id"],
                     {
-                        "help": "access grant id",
+                        "help": _("access grant id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6704,22 +7280,99 @@ class ResourceProviderController(BaseController):
     def share_grant_del(self):
         oid = self.app.pargs.id
         access_id = self.app.pargs.access_id
+        uri = self.baseuri + f"/{oid}/grants"
+        self.cmp_delete(uri, data={"share_grant": {"access_id": access_id}})
 
-        uri = self.baseuri + "/%s/grants" % oid
-        res = self.cmp_delete(uri, data={"share_grant": {"access_id": access_id}})
+    @ex(
+        help=_("suspend share replica"),
+        description=_("suspend share replica"),
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("share id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_replica_suspend(self):
+        oid = self.app.pargs.id
+        params = {"subaction": "suspend"}
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/replication", data={"share": params})
+        self.app.render({"msg": f"suspend share {oid} replica process"})
+
+    @ex(
+        help=_("resume share replica"),
+        description=_("resume share replica"),
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("share id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_replica_resume(self):
+        oid = self.app.pargs.id
+        params = {"subaction": "resume"}
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/replication", data={"share": params})
+        self.app.render({"msg": f"resume share {oid} replica process"})
+
+    @ex(
+        help=_("eliminate share replica relationship"),
+        description=_("eliminate share replica relationship"),
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("share id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["new_name"],
+                    {
+                        "help": _("new share name"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_replica_unlink(self):
+        oid = self.app.pargs.id
+        params = {"subaction": "unlink", "new_name": self.app.pargs.new_name}
+        self.cmp_put(uri=f"/v2.0/nrs/provider/shares/{oid}/replication", data={"share": params})
+        self.app.render({"msg": f"unlink replica share {oid}"})
 
     #
     # volume
     #
     @ex(
-        help="get provider volume",
-        description="get provider volume(s)",
+        help=_("get provider volume"),
+        description=_("get provider volume(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6728,7 +7381,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6737,7 +7390,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6746,7 +7399,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6755,7 +7408,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6764,7 +7417,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6773,7 +7426,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6785,7 +7438,7 @@ class ResourceProviderController(BaseController):
     def volume_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/volumes/%s" % oid
+            uri = f"/v1.0/nrs/provider/volumes/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -6813,24 +7466,26 @@ class ResourceProviderController(BaseController):
                 self.app.render(
                     res,
                     key="volumes",
-                    headers=self._meta.volume_headers,
-                    fields=self._meta.volume_fields,
+                    headers=self._meta.volume_headers,  # pylint: disable=E1101
+                    fields=self._meta.volume_fields,  # pylint: disable=E1101
                 )
 
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="add volume",
-        description="add volume",
+        help=_("add volume"),
+        description=_("add volume"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file. Ex. volume: container: ResourceProvider01  name: provettina-volume01 "
-                        "desc: provettina-volume01 compute_zone: ComputeService-44ff4cf3 "
-                        "availability_zone: SiteVercelli01 size: 5 type: openstack "
-                        "flavor: vol.default",
+                        "help": _(
+                            "data file. Ex. volume: container: ResourceProvider01  name: provettina-volume01 "
+                            "desc: provettina-volume01 compute_zone: ComputeService-44ff4cf3 "
+                            "availability_zone: SiteVercelli01 size: 5 type: openstack "
+                            "flavor: vol.default"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6844,17 +7499,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v1.0/nrs/provider/volumes"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add volume %s" % res["uuid"]})
+        self.app.render({"msg": f"add volume {res['uuid']}"})
 
     @ex(
-        help="import volume",
-        description="import volume",
+        help=_("import volume"),
+        description=_("import volume"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "instance name",
+                        "help": _("instance name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6863,7 +7518,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["physical_id"],
                     {
-                        "help": "physical resource id",
+                        "help": _("physical resource id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6886,18 +7541,18 @@ class ResourceProviderController(BaseController):
             "configs": {},
         }
         uri = "/v1.0/nrs/entities/import"
-        res = self.cmp_post(uri, data={"resource": config})
-        self.app.render({"msg": "import volume %s" % name})
+        self.cmp_post(uri, data={"resource": config})
+        self.app.render({"msg": f"import volume {name}"})
 
     @ex(
-        help="delete volume",
-        description="delete volume",
+        help=_("delete volume"),
+        description=_("delete volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6906,7 +7561,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -6918,20 +7573,20 @@ class ResourceProviderController(BaseController):
     def volume_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/volumes/%s" % oid
+        uri = f"/v1.0/nrs/provider/volumes/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="volume %s" % oid)
+        self.cmp_delete(uri, entity=f"volume {oid}")
 
     @ex(
-        help="update volume",
-        description="update volume",
+        help=_("update volume"),
+        description=_("update volume"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6940,7 +7595,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6953,19 +7608,19 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v1.0/nrs/provider/volumes/%s" % oid
+        uri = f"/v1.0/nrs/provider/volumes/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update volume %s" % res["uuid"]})
+        self.app.render({"msg": f"update volume {res['uuid']}"})
 
     @ex(
-        help="set volume flavor",
-        description="set volume flavor",
+        help=_("set volume flavor"),
+        description=_("set volume flavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6974,7 +7629,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "volume flavor id",
+                        "help": _("volume flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6986,23 +7641,23 @@ class ResourceProviderController(BaseController):
     def volume_flavor_set(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        uri = "%s/volumes/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumes/{oid}/actions"
         data = {"action": {"set_flavor": {"flavor": flavor}}}
-        res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "set volume %s flavor %s" % (oid, flavor)})
+        self.cmp_put(uri, data=data)
+        self.app.render({"msg": f"set volume {oid} flavor {flavor}"})
 
     #
     # volumeflavor
     #
     @ex(
-        help="get provider volumeflavor",
-        description="get provider volumeflavor(s)",
+        help=_("get provider volumeflavor"),
+        description=_("get provider volumeflavor(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volumeflavor id",
+                        "help": _("volumeflavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7011,7 +7666,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7020,7 +7675,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7029,7 +7684,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7038,7 +7693,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7047,7 +7702,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7056,7 +7711,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7068,7 +7723,7 @@ class ResourceProviderController(BaseController):
     def volumeflavor_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/volumeflavors/%s" % oid
+            uri = f"/v1.0/nrs/provider/volumeflavors/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -7085,19 +7740,19 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="volumeflavors",
-                headers=self._meta.volumeflavor_headers,
-                fields=self._meta.volumeflavor_fields,
+                headers=self._meta.volumeflavor_headers,  # pylint: disable=E1101
+                fields=self._meta.volumeflavor_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add volumeflavor",
-        description="add volumeflavor",
+        help=_("add volumeflavor"),
+        description=_("add volumeflavor"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7111,17 +7766,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v1.0/nrs/provider/volumeflavors"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add volumeflavor %s" % res["uuid"]})
+        self.app.render({"msg": f"add volumeflavor {res['uuid']}"})
 
     @ex(
-        help="delete volumeflavor",
-        description="delete volumeflavor",
+        help=_("delete volumeflavor"),
+        description=_("delete volumeflavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volumeflavor id",
+                        "help": _("volumeflavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7130,7 +7785,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -7142,20 +7797,20 @@ class ResourceProviderController(BaseController):
     def volumeflavor_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/volumeflavors/%s" % oid
+        uri = f"/v1.0/nrs/provider/volumeflavors/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="volumeflavor %s" % oid)
+        self.cmp_delete(uri, entity=f"volumeflavor {oid}")
 
     @ex(
-        help="update volumeflavor",
-        description="update volumeflavor",
+        help=_("update volumeflavor"),
+        description=_("update volumeflavor"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volumeflavor id",
+                        "help": _("volumeflavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7164,7 +7819,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7177,22 +7832,22 @@ class ResourceProviderController(BaseController):
         oid = self.app.pargs.id
         data_file = self.app.pargs.file
         data = load_config(data_file)
-        uri = "/v1.0/nrs/provider/volumeflavors/%s" % oid
+        uri = f"/v1.0/nrs/provider/volumeflavors/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update volumeflavor %s" % res["uuid"]})
+        self.app.render({"msg": f"update volumeflavor {res['uuid']}"})
 
     #
     # customization
     #
     @ex(
-        help="get customization(s)",
-        description="get customization(s)",
+        help=_("get customization(s)"),
+        description=_("get customization(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "customization id",
+                        "help": _("customization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7201,7 +7856,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7210,7 +7865,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7219,7 +7874,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7231,7 +7886,7 @@ class ResourceProviderController(BaseController):
     def customization_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/customizations/%s" % oid
+            uri = f"/v1.0/nrs/provider/customizations/{oid}"
             res = self.cmp_get(uri).get("customization")
             if self.is_output_text():
                 applied_customs = res.pop("applied", [])
@@ -7251,19 +7906,19 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="customizations",
-                headers=self._meta.customization_headers,
-                fields=self._meta.customization_fields,
+                headers=self._meta.customization_headers,  # pylint: disable=E1101
+                fields=self._meta.customization_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add customization",
-        description="add customization",
+        help=_("add customization"),
+        description=_("add customization"),
         arguments=ARGS(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7280,17 +7935,17 @@ class ResourceProviderController(BaseController):
         data = load_config(data_file)
         uri = "/v1.0/nrs/provider/customizations"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add customization %s" % res["uuid"]})
+        self.app.render({"msg": f"add customization {res['uuid']}"})
 
     @ex(
-        help="delete customization",
-        description="delete customization",
+        help=_("delete customization"),
+        description=_("delete customization"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "customization id",
+                        "help": _("customization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7299,7 +7954,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -7311,23 +7966,23 @@ class ResourceProviderController(BaseController):
     def customization_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/customizations/%s" % oid
+        uri = f"/v1.0/nrs/provider/customizations/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="customization %s" % oid)
+        self.cmp_delete(uri, entity=f"customization {oid}")
 
     #
     # applied customization
     #
     @ex(
-        help="get applied customizations",
-        description="get applied customizations",
+        help=_("get applied customizations"),
+        description=_("get applied customizations"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "applied customization uuid",
+                        "help": _("applied customization uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7336,7 +7991,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-uuids"],
                     {
-                        "help": "comma separated list of applied customization uuid",
+                        "help": _("comma separated list of applied customization uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7345,7 +8000,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-instance"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7354,7 +8009,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7363,7 +8018,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7375,19 +8030,19 @@ class ResourceProviderController(BaseController):
     def applied_customization_get(self):
         oid = self.app.pargs.id
         if oid is not None:
-            uri = "/v1.0/nrs/provider/applied_customizations/%s" % oid
+            uri = f"/v1.0/nrs/provider/applied_customizations/{oid}"
             res = self.cmp_get(uri).get("applied_customization")
             if self.is_output_text():
                 job_template = res.pop("job_template", {})
                 last_job = job_template.pop("last_job", {})
-                related = last_job.pop("related", {})
-                summary_fields = last_job.pop("summary_fields", {})
-                job_env = last_job.pop("job_env", {})
+                #related = last_job.pop("related", {})
+                #summary_fields = last_job.pop("summary_fields", {})
+                #job_env = last_job.pop("job_env", {})
                 stdout = last_job.pop("stdout", {}).get("content")
                 self.app.render(res, details=True)
                 self.c("\njob template", "underline")
                 self.app.render(job_template, details=True)
-                self.c("\njob %s stdout" % last_job["id"], "underline")
+                self.c(f"\njob {last_job['id']} stdout", "underline")
                 print(stdout)
             else:
                 self.app.render(res, details=True)
@@ -7400,19 +8055,19 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="applied_customizations",
-                headers=self._meta.customization_headers,
-                fields=self._meta.customization_fields,
+                headers=self._meta.customization_headers,  # pylint: disable=E1101
+                fields=self._meta.customization_fields,  # pylint: disable=E1101
             )
 
     @ex(
-        help="add applied customization",
-        description="add applied customization",
+        help=_("add applied customization"),
+        description=_("add applied customization"),
         arguments=ARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7421,7 +8076,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["compute_zone"],
                     {
-                        "help": "compute zone id",
+                        "help": _("compute zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7429,12 +8084,12 @@ class ResourceProviderController(BaseController):
                 ),
                 (
                     ["name"],
-                    {"help": "name", "action": "store", "type": str, "default": None},
+                    {"help": _("name"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-desc"],
                     {
-                        "help": "description",
+                        "help": _("description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7443,7 +8098,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["customization"],
                     {
-                        "help": "customization id",
+                        "help": _("customization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7452,7 +8107,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["instance"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7461,7 +8116,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-extra_vars"],
                     {
-                        "help": "extra vars passed as json file",
+                        "help": _("extra vars passed as json file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7470,7 +8125,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-playbook"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": "main.yml",
@@ -7479,7 +8134,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-verbosity"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -7514,19 +8169,23 @@ class ResourceProviderController(BaseController):
         }
         uri = "/v1.0/nrs/provider/applied_customizations"
         res = self.cmp_post(uri, data={"applied_customization": data})
-        self.app.render({"msg": "add applied customization %s" % res["uuid"]})
+        self.app.render({"msg": f"add applied customization {res['uuid']}"})
 
     @ex(
-        help="delete applied customization. It removes customization entities from CMP and AWX platforms but do not "
-        "uninstall software from hosts where customization was applied",
-        description="delete applied customization. It removes customization entities from CMP and AWX platforms but do "
-        "not uninstall software from hosts where customization was applied",
+        help=_(
+            "delete applied customization. It removes customization entities from CMP and AWX platforms but do not "
+            "uninstall software from hosts where customization was applied"
+        ),
+        description=_(
+            "delete applied customization. It removes customization entities from CMP and AWX platforms but do "
+            "not uninstall software from hosts where customization was applied"
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "applied customization id",
+                        "help": _("applied customization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7535,7 +8194,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -7547,23 +8206,23 @@ class ResourceProviderController(BaseController):
     def applied_customization_del(self):
         oid = self.app.pargs.id
         force = self.app.pargs.force
-        uri = "/v1.0/nrs/provider/applied_customizations/%s" % oid
+        uri = f"/v1.0/nrs/provider/applied_customizations/{oid}"
         if force is True:
             uri += "?force=true"
-        self.cmp_delete(uri, entity="applied customization %s" % oid)
+        self.cmp_delete(uri, entity=f"applied customization {oid}")
 
     #
     # stack
     #
     @ex(
-        help="get stack",
-        description="get stack",
+        help=_("get stack"),
+        description=_("get stack"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7572,7 +8231,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7581,7 +8240,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7590,7 +8249,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7599,7 +8258,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7608,7 +8267,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7620,7 +8279,7 @@ class ResourceProviderController(BaseController):
     def stack_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v2.0/nrs/provider/stacks/%s" % oid
+            uri = f"/v2.0/nrs/provider/stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -7677,14 +8336,14 @@ class ResourceProviderController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="get stack action",
-        description="get stack action",
+        help=_("get stack action"),
+        description=_("get stack action"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7693,7 +8352,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["action"],
                     {
-                        "help": "action index",
+                        "help": _("action index"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -7705,13 +8364,13 @@ class ResourceProviderController(BaseController):
     def stack_action_get(self):
         oid = self.app.pargs.id
         action_index = self.app.pargs.action
-        uri = "/v2.0/nrs/provider/stacks/%s" % oid
+        uri = f"/v2.0/nrs/provider/stacks/{oid}"
         res = self.cmp_get(uri)
         actions = dict_get(res, "stack.actions")
         try:
             action = actions[action_index]
-        except:
-            raise Exception("action %s with index does note exist" % action_index)
+        except Exception as exc:
+            raise Exception(f'action {action_index} with index does note exist') from exc
 
         if self.is_output_text():
             attributes = action.pop("attributes")
@@ -7729,14 +8388,14 @@ class ResourceProviderController(BaseController):
     # sql stack
     #
     @ex(
-        help="get stack sql",
-        description="get stack sql",
+        help=_("get stack sql"),
+        description=_("get stack sql"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7745,7 +8404,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7754,7 +8413,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7763,7 +8422,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7772,7 +8431,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7781,7 +8440,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7793,7 +8452,7 @@ class ResourceProviderController(BaseController):
     def stack_sql_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v2.0/nrs/provider/sql_stacks/%s" % oid
+            uri = f"/v2.0/nrs/provider/sql_stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -7848,14 +8507,14 @@ class ResourceProviderController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="import stack sql",
-        description="import stack sql",
+        help=_("import stack sql"),
+        description=_("import stack sql"),
         arguments=ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "sql stack name",
+                        "help": _("sql stack name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7864,7 +8523,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["physical_id"],
                     {
-                        "help": "compute instance id",
+                        "help": _("compute instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7873,7 +8532,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["engine"],
                     {
-                        "help": "sql stack engine",
+                        "help": _("sql stack engine"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7882,7 +8541,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["version"],
                     {
-                        "help": "sql stack engine version",
+                        "help": _("sql stack engine version"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7891,7 +8550,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "sql stack admin password",
+                        "help": _("sql stack admin password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7900,7 +8559,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-charset"],
                     {
-                        "help": "sql stack charset",
+                        "help": _("sql stack charset"),
                         "action": "store",
                         "type": str,
                         "default": "latin1",
@@ -7909,7 +8568,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-timezone"],
                     {
-                        "help": "sql stack charset",
+                        "help": _("sql stack charset"),
                         "action": "store",
                         "type": str,
                         "default": "Europe/Rome",
@@ -7944,12 +8603,12 @@ class ResourceProviderController(BaseController):
             },
         }
         uri = "/v1.0/nrs/entities/import"
-        res = self.cmp_post(uri, data={"resource": config})
-        self.app.render({"msg": "import sql stack %s" % name})
+        self.cmp_post(uri, data={"resource": config})
+        self.app.render({"msg": f"import sql stack {name}"})
 
     @ex(
-        help="get stack sql engines",
-        description="get stack sql engines",
+        help=_("get stack sql engines"),
+        description=_("get stack sql engines"),
         arguments=ARGS([]),
     )
     def stack_sql_engine_get(self):
@@ -7958,14 +8617,14 @@ class ResourceProviderController(BaseController):
         self.app.render(res, headers=["engine", "version"], key="engines")
 
     @ex(
-        help="get database credentials",
-        description="get database credentials",
+        help=_("get database credentials"),
+        description=_("get database credentials"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "sql stack id",
+                        "help": _("sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7976,19 +8635,19 @@ class ResourceProviderController(BaseController):
     )
     def stack_sql_credential_get(self):
         oid = self.app.pargs.id
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/credentials" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/credentials"
         res = self.cmp_get(uri, data="")
         self.app.render(res, headers=["name", "password"], key="sql_stack_credentials")
 
     @ex(
-        help="set database credentials. Only root support for the moment",
-        description="set database credentials. Only root support for the moment",
+        help=_("set database credentials. Only root support for the moment"),
+        description=_("set database credentials. Only root support for the moment"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "sql stack id",
+                        "help": _("sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7997,7 +8656,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["user"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8006,7 +8665,9 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "user password. If pwd start with @ pwd is the name of a file that contains password",
+                        "help": _(
+                            "user password. If pwd start with @ pwd is the name of a file that contains password"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8021,19 +8682,19 @@ class ResourceProviderController(BaseController):
         pwd = self.app.pargs.pwd
         if pwd.find("@") == 0:
             pwd = read_file(pwd.lstrip("@"))
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/credentials" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/credentials"
         self.cmp_put(uri, data={"user": user, "password": pwd})
-        self.app.render({"msg": "set %s password" % user})
+        self.app.render({"msg": f"set {user} password"})
 
     @ex(
-        help="get stack sql dbs",
-        description="get stack sql dbs",
+        help=_("get stack sql dbs"),
+        description=_("get stack sql dbs"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8044,21 +8705,21 @@ class ResourceProviderController(BaseController):
     )
     def stack_sql_db_get(self):
         oid = self.app.pargs.id
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/action"
         data = {"action": {"get_dbs": True}}
         res = self.cmp_put(uri, data=data)
         res = res.get("dbs")
         self.app.render(res, headers=["db_name", "charset", "collation"])
 
     @ex(
-        help="get stack sql dbs",
-        description="get stack sql dbs",
+        help=_("get stack sql dbs"),
+        description=_("get stack sql dbs"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8069,21 +8730,21 @@ class ResourceProviderController(BaseController):
     )
     def stack_sql_user_get(self):
         oid = self.app.pargs.id
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/action"
         data = {"action": {"get_users": True}}
         res = self.cmp_put(uri, data=data)
         res = res.get("users")
         self.app.render(res, headers=["user", "host", "account_locked", "max_connections", "plugin"])
 
     @ex(
-        help="enable mailx",
-        description="enable mailx",
+        help=_("enable mailx"),
+        description=_("enable mailx"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8092,7 +8753,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-relayhost"],
                     {
-                        "help": "remote relay mail server, default is xxx.csi.it",
+                        "help": _("remote relay mail server, default is xxx.csi.it"),
                         "action": "store",
                         "type": str,
                         "default": "xxx.csi.it",
@@ -8104,20 +8765,20 @@ class ResourceProviderController(BaseController):
     def stack_sql_mailx_enable(self):
         oid = self.app.pargs.id
         relayhost = self.app.pargs.relayhost
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/action"
         data = {"action": {"enable_mailx": {"relayhost": relayhost}}}
         self.cmp_put(uri, data=data)
         self.app.render({"msg": "enable mailx"})
 
     @ex(
-        help="register db server on haproxy",
-        description="register db server on haproxy",
+        help=_("register db server on haproxy"),
+        description=_("register db server on haproxy"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8126,7 +8787,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-ports"],
                     {
-                        "help": "range of haproxy ports that clients can connect to [default=10100:10999]",
+                        "help": _("range of haproxy ports that clients can connect to [default=10100:10999]"),
                         "action": "store",
                         "type": str,
                         "default": "10100:10999",
@@ -8141,21 +8802,21 @@ class ResourceProviderController(BaseController):
         ports = ports.strip().split(":")
         port_ini = ports[0]
         port_fin = ports[1]
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/action"
         data = {"action": {"haproxy_register": {"port_ini": port_ini, "port_fin": port_fin}}}
         self.cmp_put(uri, data=data)
-        msg = "register db server %s on haproxy" % oid
+        msg = f"register db server {oid} on haproxy"
         self.app.render({"msg": msg})
 
     @ex(
-        help="deregister db server from haproxy",
-        description="deregister db server from haproxy",
+        help=_("deregister db server from haproxy"),
+        description=_("deregister db server from haproxy"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8166,24 +8827,51 @@ class ResourceProviderController(BaseController):
     )
     def stack_sql_haproxy_deregister(self):
         oid = self.app.pargs.id
-        uri = "/v2.0/nrs/provider/sql_stacks/%s/action" % oid
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}/action"
         data = {"action": {"haproxy_deregister": True}}
         self.cmp_put(uri, data=data)
-        msg = "deregister db server %s from haproxy" % oid
+        msg = f"deregister db server {oid} from haproxy"
         self.app.render({"msg": msg})
+
+    @ex(
+        help=_("delete sqlstack v2"),
+        description=_(
+            "Attention! \nThis command shall never be used! "
+            "Databases shuold be deleted always from service interface. \n"
+            "This command is intended for debugging and for advanced administrative tasks."
+        ),
+        arguments=PARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("sql stack id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def stack_sql_delete(self):
+        oid = self.app.pargs.id
+        uri = f"/v2.0/nrs/provider/sql_stacks/{oid}"
+        self.cmp_delete(uri, entity=f"Sql Stack {oid}")
+
 
     #
     # oldstack
     #
     @ex(
-        help="get provider old stack",
-        description="get provider old stack",
+        help=_("get provider old stack"),
+        description=_("get provider old stack"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "old stack id",
+                        "help": _("old stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8192,7 +8880,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8201,7 +8889,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8210,7 +8898,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8219,7 +8907,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8228,7 +8916,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8240,7 +8928,7 @@ class ResourceProviderController(BaseController):
     def oldstack_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/stacks/%s" % oid
+            uri = f"/v1.0/nrs/provider/stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -8249,7 +8937,7 @@ class ResourceProviderController(BaseController):
 
                 # get ssh management status
                 self.c("\nmanagement status", "underline")
-                uri = "/v1.0/nrs/provider/stacks/%s/manage" % oid
+                uri = f"/v1.0/nrs/provider/stacks/{oid}/manage"
                 mgt = self.cmp_get(uri).get("is_managed", [])
                 res = {
                     "is-managed": bool2str(mgt),
@@ -8260,18 +8948,18 @@ class ResourceProviderController(BaseController):
 
                 # get dns
                 self.c("\ndns resolution", "underline")
-                uri = "/v1.0/nrs/provider/stacks/%s/dns" % oid
+                uri = f"/v1.0/nrs/provider/stacks/{oid}/dns"
                 res = self.cmp_get(uri).get("dns", {})
                 headers = ["id", "name", "ip_address", "zone", "container", "fqdn"]
                 fields = ["id", "name", "ip_address", "parent", "container", "fqdn"]
                 self.app.render(res, headers=headers, fields=fields)
 
                 # get resources
-                uri = "/v1.0/nrs/provider/stacks/%s/resources" % oid
+                uri = f"/v1.0/nrs/provider/stacks/{oid}/resources"
                 res = self.cmp_get(uri, data="").get("stack_resources")
                 for item in res:
                     self.c(
-                        "\nAvailability zone: %s" % item.get("availability_zone"),
+                        f"\nAvailability zone: {item.get('availability_zone')}",
                         "underline",
                     )
                     self.c("resources", "underline")
@@ -8313,11 +9001,11 @@ class ResourceProviderController(BaseController):
 
                 # get inputs
                 self.c("\ninputs", "underline")
-                uri = "/v1.0/nrs/provider/stacks/%s/inputs" % oid
+                uri = f"/v1.0/nrs/provider/stacks/{oid}/inputs"
                 res = self.cmp_get(uri, data="").get("stack_inputs")
                 for item in res:
                     self.c(
-                        "availability zone: %s" % item.get("availability_zone"),
+                        f"availability zone: {item.get('availability_zone')}",
                         "underline",
                     )
                     resp = []
@@ -8327,11 +9015,11 @@ class ResourceProviderController(BaseController):
 
                 # get outputs
                 self.c("\noutputs", "underline")
-                uri = "/v1.0/nrs/provider/stacks/%s/outputs" % oid
+                uri = f"/v1.0/nrs/provider/stacks/{oid}/outputs"
                 res = self.cmp_get(uri, data="").get("stack_outputs")
                 for item in res:
                     self.c(
-                        "availability zone: %s" % item.get("availability_zone"),
+                        f"availability zone: {item.get('availability_zone')}",
                         "underline",
                     )
                     for out in item.get("outputs"):
@@ -8378,14 +9066,14 @@ class ResourceProviderController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render)
 
     @ex(
-        help="enable provider old stack management by ssh module",
-        description="enable provider old stack management by ssh module",
+        help=_("enable provider old stack management by ssh module"),
+        description=_("enable provider old stack management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old stack id",
+                        "help": _("old stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8394,7 +9082,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["ssh_key"],
                     {
-                        "help": "server stack ssh key",
+                        "help": _("server stack ssh key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8409,19 +9097,19 @@ class ResourceProviderController(BaseController):
         key = self.app.pargs.ssh_key
 
         data = {"manage": {"key": key}}
-        uri = "/v1.0/nrs/provider/stacks/%s/manage" % oid
+        uri = f"/v1.0/nrs/provider/stacks/{oid}/manage"
         res = self.cmp_post(uri, data=data).get("manage", [])
-        self.app.render({"msg": "enable old stack %s management with ssh node: %s" % (oid, res)})
+        self.app.render({"msg": f"enable old stack {oid} management with ssh node: {res}"})
 
     @ex(
-        help="disable provider old stack management by ssh module",
-        description="disable provider old stack management by ssh module",
+        help=_("disable provider old stack management by ssh module"),
+        description=_("disable provider old stack management by ssh module"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old stack id",
+                        "help": _("old stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8432,18 +9120,18 @@ class ResourceProviderController(BaseController):
     )
     def oldstack_unmanage(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/provider/stacks/%s/manage" % oid
-        self.cmp_delete(uri, entity="compute old stack %s" % oid)
+        uri = f"/v1.0/nrs/provider/stacks/{oid}/manage"
+        self.cmp_delete(uri, entity=f"compute old stack {oid}")
 
     @ex(
-        help="add compute old stack dns resolution",
-        description="add compute old stack dns resolution",
+        help=_("add compute old stack dns resolution"),
+        description=_("add compute old stack dns resolution"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old sql stack id",
+                        "help": _("old sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8454,19 +9142,19 @@ class ResourceProviderController(BaseController):
     )
     def oldstack_dns_add(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/provider/stacks/%s/dns" % oid
-        res = self.cmp_post(uri)
-        self.app.render({"msg": "add old stack %s dns resolution" % oid})
+        uri = f"/v1.0/nrs/provider/stacks/{oid}/dns"
+        self.cmp_post(uri)
+        self.app.render({"msg": f"add old stack {oid} dns resolution"})
 
     @ex(
-        help="delete compute old stack dns resolution",
-        description="delete compute old stack dns resolution",
+        help=_("delete compute old stack dns resolution"),
+        description=_("delete compute old stack dns resolution"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old sql stack id",
+                        "help": _("old sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8477,21 +9165,21 @@ class ResourceProviderController(BaseController):
     )
     def oldstack_dns_del(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/provider/stacks/%s/dns" % oid
-        res = self.cmp_delete(uri, entity="old stack %s dns resolution" % oid)
+        uri = f"/v1.0/nrs/provider/stacks/{oid}/dns"
+        self.cmp_delete(uri, entity=f"old stack {oid} dns resolution")
 
     #
     # old sql stack
     #
     @ex(
-        help="get provider old stack sql",
-        description="get provider old stack sql",
+        help=_("get provider old stack sql"),
+        description=_("get provider old stack sql"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "old stack id",
+                        "help": _("old stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8500,7 +9188,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8509,7 +9197,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8518,7 +9206,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8527,7 +9215,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8536,7 +9224,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8548,7 +9236,7 @@ class ResourceProviderController(BaseController):
     def oldstack_sql_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/sql_stacks/%s" % oid
+            uri = f"/v1.0/nrs/provider/sql_stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -8587,14 +9275,14 @@ class ResourceProviderController(BaseController):
             self.app.render(res, key="sql_stacks", headers=headers, fields=fields)
 
     @ex(
-        help="get provider old stack sql engines",
-        description="get provider old stack sql engines",
+        help=_("get provider old stack sql engines"),
+        description=_("get provider old stack sql engines"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old sql stack id",
+                        "help": _("old sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8609,14 +9297,14 @@ class ResourceProviderController(BaseController):
         self.app.render(res, headers=["engine", "version"], key="engines")
 
     @ex(
-        help="get database credentials",
-        description="get database credentials",
+        help=_("get database credentials"),
+        description=_("get database credentials"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old sql stack id",
+                        "help": _("old sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8627,19 +9315,19 @@ class ResourceProviderController(BaseController):
     )
     def oldstack_sql_credential_get(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/provider/sql_stacks/%s/credentials" % oid
+        uri = f"/v1.0/nrs/provider/sql_stacks/{oid}/credentials"
         res = self.cmp_get(uri, data="")
         self.app.render(res, headers=["name", "pwd"], key="sql_stack_credentials")
 
     @ex(
-        help="set database credentials. Only root support for the moment",
-        description="set database credentials. Only root support for the moment",
+        help=_("set database credentials. Only root support for the moment"),
+        description=_("set database credentials. Only root support for the moment"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "old sql stack id",
+                        "help": _("old sql stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8648,7 +9336,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "old sql stack password",
+                        "help": _("old sql stack password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8660,7 +9348,7 @@ class ResourceProviderController(BaseController):
     def oldstack_sql_credential_set(self):
         oid = self.app.pargs.id
         pwd = self.app.pargs.pwd
-        uri = "/v1.0/nrs/provider/sql_stacks/%s/credentials" % oid
+        uri = f"/v1.0/nrs/provider/sql_stacks/{oid}/credentials"
         self.cmp_put(uri, data={"sql_stack_credentials": [{"user": "root", "pwd": pwd}]})
         self.app.render({"msg": "set root password"})
 
@@ -8668,14 +9356,14 @@ class ResourceProviderController(BaseController):
     # old app stack
     #
     @ex(
-        help="get provider old stack app",
-        description="get provider old stack app",
+        help=_("get provider old stack app"),
+        description=_("get provider old stack app"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "old stack id",
+                        "help": _("old stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8684,7 +9372,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8693,7 +9381,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8702,7 +9390,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8711,7 +9399,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8720,7 +9408,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8732,7 +9420,7 @@ class ResourceProviderController(BaseController):
     def oldstack_app_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/app_stacks/%s" % oid
+            uri = f"/v1.0/nrs/provider/app_stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -8774,14 +9462,14 @@ class ResourceProviderController(BaseController):
     # gateway
     #
     @ex(
-        help="get provider gateway",
-        description="get provider gateway(s)",
+        help=_("get provider gateway"),
+        description=_("get provider gateway(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8790,7 +9478,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "entity name",
+                        "help": _("entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8799,7 +9487,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "entity description",
+                        "help": _("entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8808,7 +9496,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "entity parent",
+                        "help": _("entity parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8817,7 +9505,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "entity state",
+                        "help": _("entity state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8826,7 +9514,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "entity attributes",
+                        "help": _("entity attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8835,7 +9523,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "entity tags",
+                        "help": _("entity tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8847,7 +9535,7 @@ class ResourceProviderController(BaseController):
     def gateway_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/gateways/%s" % oid
+            uri = f"/v1.0/nrs/provider/gateways/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -8874,7 +9562,7 @@ class ResourceProviderController(BaseController):
                 self.app.render(vpcs, headers=headers, fields=fields, maxsize=100)
 
                 self.c("\n\nnat rules", "underline")
-                uri = "/v1.0/nrs/provider/gateways/%s/nat" % oid
+                uri = f"/v1.0/nrs/provider/gateways/{oid}/nat"
                 nats = self.cmp_get(uri).get("nat_rules")
                 headers = [
                     "role",
@@ -8903,7 +9591,7 @@ class ResourceProviderController(BaseController):
                 self.app.render(nats, headers=headers, fields=fields, maxsize=100)
 
                 self.c("\n\nfirewall rules", "underline")
-                uri = "/v1.0/nrs/provider/gateways/%s/firewall" % oid
+                uri = f"/v1.0/nrs/provider/gateways/{oid}/firewall"
                 fws = self.cmp_get(uri).get("firewall_rules")
                 for r in fws:
                     source = r.get("source", {})
@@ -8911,9 +9599,9 @@ class ResourceProviderController(BaseController):
                     for k, v in source.items():
                         if isinstance(v, list):
                             for v1 in v:
-                                new_source.append("%s:%s" % (k, v1))
+                                new_source.append(f"{k}:{v1}")
                         else:
-                            new_source.append("%s:%s" % (k, v))
+                            new_source.append(f"{k}:{v}")
                     r["source"] = "\n".join(new_source)
 
                     dest = r.get("destination", {})
@@ -8921,9 +9609,9 @@ class ResourceProviderController(BaseController):
                     for k, v in dest.items():
                         if isinstance(v, list):
                             for v1 in v:
-                                new_dest.append("%s:%s" % (k, v1))
+                                new_dest.append(f"{k}:{v1}")
                         else:
-                            new_dest.append("%s:%s" % (k, v))
+                            new_dest.append(f"{k}:{v}")
                     r["destination"] = "\n".join(new_dest)
 
                     application = r.get("application", {})
@@ -8931,13 +9619,13 @@ class ResourceProviderController(BaseController):
                     for k, v in application.items():
                         if isinstance(v, list):
                             for v1 in v:
-                                new_application.append("%s:%s" % (k, v1))
+                                new_application.append(f"{k}:{v1}")
                         if isinstance(v, dict):
-                            new_application.append("%s:" % k)
+                            new_application.append(f"{k}:")
                             for k1, v1 in v.items():
-                                new_application.append("  %s:%s" % (k1, v1))
+                                new_application.append(f"  {k1}:{v1}")
                         else:
-                            new_application.append("%s:%s" % (k, v))
+                            new_application.append(f"{k}:{v}")
                     r["application"] = "\n".join(new_application)
                 headers = [
                     "role",
@@ -8989,18 +9677,13 @@ class ResourceProviderController(BaseController):
                 transform = {
                     "attributes.vnics": lambda ii: "\n".join(
                         [
-                            "%s:%s:%s"
-                            % (
-                                i.get("name", ""),
-                                i.get("type", ""),
-                                i.get("primary_address", ""),
-                            )
+                            f"{i.get('name', '')}:{i.get('type', '')}:{i.get('primary_address', '')}"
                             for i in ii
                             if isinstance(i, dict)
                         ]
                     ),
                     "attributes.routes": lambda ii: "\n".join(
-                        ["%s:%s" % (i.get("network", ""), i.get("next_hop", "")) for i in ii if isinstance(i, dict)]
+                        [f"{i.get('network', '')}:{i.get('next_hop', '')}" for i in ii if isinstance(i, dict)]
                     ),
                 }
                 self.app.render(
@@ -9021,32 +9704,32 @@ class ResourceProviderController(BaseController):
             for item in res.get("gateways"):
                 item["vpcs"] = "\n".join(
                     [
-                        "uplink:    %s" % dict_get(item, "vpc.uplinks.0.cidr"),
-                        "transport: %s" % dict_get(item, "vpc.transport.cidr"),
-                        "internal:  %s" % dict_get(item, "vpc.internals.0.cidr"),
+                        f"uplink:    {dict_get(item, 'vpc.uplinks.0.cidr')}",
+                        f"transport: {dict_get(item, 'vpc.transport.cidr')}",
+                        f"internal:  {dict_get(item, 'vpc.internals.0.cidr')}",
                     ]
                 )
                 item["external_ip_address"] = "\n".join(
-                    ["%s:%s" % (k, v) for k, v in item.get("external_ip_address", {}).items()]
+                    [f"{k}:{v}" for k, v in item.get("external_ip_address", {}).items()]
                 )
 
             self.app.render(
                 res,
                 key="gateways",
-                headers=self._meta.gateway_headers,
-                fields=self._meta.gateway_fields,
+                headers=self._meta.gateway_headers,  # pylint: disable=E1101
+                fields=self._meta.gateway_fields,  # pylint: disable=E1101
                 maxsize=200,
             )
 
     @ex(
-        help="get provider gateway credentials",
-        description="get provider gateway credentials",
+        help=_("get provider gateway credentials"),
+        description=_("get provider gateway credentials"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9057,20 +9740,20 @@ class ResourceProviderController(BaseController):
     )
     def gateway_credentials_get(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/provider/gateways/%s/credentials" % oid
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/credentials"
         res = self.cmp_get(uri)
         res = res.get("credentials")
         self.app.render(res, headers=["user", "password"])
 
     @ex(
-        help="set provider gateway default route",
-        description="set provider gateway default route",
+        help=_("set provider gateway default route"),
+        description=_("set provider gateway default route"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9079,7 +9762,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "gateway role. Can be default [default], primary or secondary",
+                        "help": _("gateway role. Can be default [default], primary or secondary"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -9091,19 +9774,19 @@ class ResourceProviderController(BaseController):
     def gateway_default_route_set(self):
         oid = self.app.pargs.id
         role = self.app.pargs.role
-        uri = "/v1.0/nrs/provider/gateways/%s/route/default" % oid
-        res = self.cmp_put(uri, data={"role": role})
-        self.app.render({"msg": "set gateway %s deafult route with role %s" % (oid, role)})
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/route/default"
+        self.cmp_put(uri, data={"role": role})
+        self.app.render({"msg": f"set gateway {oid} deafult route with role {role}"})
 
     @ex(
-        help="add provider gateway firewall rule",
-        description="add provider gateway firewall rule",
+        help=_("add provider gateway firewall rule"),
+        description=_("add provider gateway firewall rule"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9112,7 +9795,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "gateway role. Can be default [default], primary or secondary",
+                        "help": _("gateway role. Can be default [default], primary or secondary"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -9121,7 +9804,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-action"],
                     {
-                        "help": "firewall rule action. Can be accept [default], deny",
+                        "help": _("firewall rule action. Can be accept [default], deny"),
                         "action": "store",
                         "type": str,
                         "default": "accept",
@@ -9130,7 +9813,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "firewall rule status",
+                        "help": _("firewall rule status"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -9139,7 +9822,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "firewall rule logged",
+                        "help": _("firewall rule logged"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -9148,7 +9831,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-direction"],
                     {
-                        "help": "firewall rule direction. Can be: in, out, inout [deafult]",
+                        "help": _("firewall rule direction. Can be: in, out, inout [deafult]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9157,8 +9840,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-source"],
                     {
-                        "help": "rule source. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule source. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9167,8 +9852,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-dest"],
                     {
-                        "help": "rule destination. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule destination. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9177,8 +9864,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-appl"],
                     {
-                        "help": "rule application. list of comma separated item like: app:<applicationId>, "
-                        "ser:proto+port+source_port",
+                        "help": _(
+                            "rule application. list of comma separated item like: app:<applicationId>, "
+                            "ser:proto+port+source_port"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9199,19 +9888,19 @@ class ResourceProviderController(BaseController):
             "dest": self.app.pargs.dest,
             "appl": self.app.pargs.appl,
         }
-        uri = "/v1.0/nrs/provider/gateways/%s/firewall" % oid
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/firewall"
         self.cmp_post(uri, data={"firewall_rule": data})
-        self.app.render({"msg": "add gateway %s firewall rule" % oid})
+        self.app.render({"msg": f"add gateway {oid} firewall rule"})
 
     @ex(
-        help="delete provider gateway firewall rule",
-        description="delete provider gateway firewall rule",
+        help=_("delete provider gateway firewall rule"),
+        description=_("delete provider gateway firewall rule"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9220,7 +9909,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "gateway role. Can be default [default], primary or secondary",
+                        "help": _("gateway role. Can be default [default], primary or secondary"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -9229,7 +9918,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-action"],
                     {
-                        "help": "firewall rule action. Can be accept [default], deny",
+                        "help": _("firewall rule action. Can be accept [default], deny"),
                         "action": "store",
                         "type": str,
                         "default": "accept",
@@ -9238,7 +9927,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "firewall rule status",
+                        "help": _("firewall rule status"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -9247,7 +9936,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "firewall rule logged",
+                        "help": _("firewall rule logged"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -9256,7 +9945,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-direction"],
                     {
-                        "help": "firewall rule direction. Can be: in, out, inout [deafult]",
+                        "help": _("firewall rule direction. Can be: in, out, inout [deafult]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9265,8 +9954,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-source"],
                     {
-                        "help": "rule source. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule source. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9275,8 +9966,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-dest"],
                     {
-                        "help": "rule destination. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule destination. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9285,8 +9978,10 @@ class ResourceProviderController(BaseController):
                 (
                     ["-appl"],
                     {
-                        "help": "rule application. list of comma separated item like: app:<applicationId>, "
-                        "ser:proto+port+source_port",
+                        "help": _(
+                            "rule application. list of comma separated item like: app:<applicationId>, "
+                            "ser:proto+port+source_port"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9305,18 +10000,18 @@ class ResourceProviderController(BaseController):
             "dest": self.app.pargs.dest,
             "appl": self.app.pargs.appl,
         }
-        uri = "/v1.0/nrs/provider/gateways/%s/firewall" % oid
-        self.cmp_delete(uri, data={"firewall_rule": data}, entity="gateway %s firewall rule" % oid)
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/firewall"
+        self.cmp_delete(uri, data={"firewall_rule": data}, entity=f"gateway {oid} firewall rule")
 
     @ex(
-        help="add provider gateway nat rule",
-        description="add provider gateway nat rule",
+        help=_("add provider gateway nat rule"),
+        description=_("add provider gateway nat rule"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9325,7 +10020,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "gateway role. Can be default [default], primary or secondary",
+                        "help": _("gateway role. Can be default [default], primary or secondary"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -9334,7 +10029,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["action"],
                     {
-                        "help": "nat rule action. Can be snat e dnat",
+                        "help": _("nat rule action. Can be snat e dnat"),
                         "action": "store",
                         "type": str,
                     },
@@ -9342,7 +10037,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "nat rule status",
+                        "help": _("nat rule status"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -9351,7 +10046,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "nat rule logged",
+                        "help": _("nat rule logged"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -9360,7 +10055,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-original_address"],
                     {
-                        "help": "original address",
+                        "help": _("original address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9369,7 +10064,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-translated_address"],
                     {
-                        "help": "translated address",
+                        "help": _("translated address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9378,7 +10073,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-original_port"],
                     {
-                        "help": "original port",
+                        "help": _("original port"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -9387,7 +10082,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-translated_port"],
                     {
-                        "help": "translated port",
+                        "help": _("translated port"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -9396,7 +10091,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-protocol"],
                     {
-                        "help": "nat protocol. Ex. tcp",
+                        "help": _("nat protocol. Ex. tcp"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9405,7 +10100,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-vnic"],
                     {
-                        "help": "nat vnic index. Ex. 0",
+                        "help": _("nat vnic index. Ex. 0"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9428,19 +10123,19 @@ class ResourceProviderController(BaseController):
             "protocol": self.app.pargs.protocol,
             "vnic": self.app.pargs.vnic,
         }
-        uri = "/v1.0/nrs/provider/gateways/%s/nat" % oid
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/nat"
         self.cmp_post(uri, data={"nat_rule": data})
-        self.app.render({"msg": "add gateway %s nat rule" % oid})
+        self.app.render({"msg": f"add gateway {oid} nat rule"})
 
     @ex(
-        help="delete provider gateway nat rule",
-        description="delete provider gateway nat rule",
+        help=_("delete provider gateway nat rule"),
+        description=_("delete provider gateway nat rule"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "gateway id",
+                        "help": _("gateway id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9449,7 +10144,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "gateway role. Can be default [default], primary or secondary",
+                        "help": _("gateway role. Can be default [default], primary or secondary"),
                         "action": "store",
                         "type": str,
                         "default": "default",
@@ -9458,7 +10153,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["action"],
                     {
-                        "help": "nat rule action. Can be snat e dnat",
+                        "help": _("nat rule action. Can be snat e dnat"),
                         "action": "store",
                         "type": str,
                     },
@@ -9466,7 +10161,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-original_address"],
                     {
-                        "help": "original address",
+                        "help": _("original address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9475,7 +10170,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-translated_address"],
                     {
-                        "help": "translated address",
+                        "help": _("translated address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9484,7 +10179,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-original_port"],
                     {
-                        "help": "original port",
+                        "help": _("original port"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -9493,7 +10188,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-translated_port"],
                     {
-                        "help": "translated port",
+                        "help": _("translated port"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -9502,7 +10197,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-protocol"],
                     {
-                        "help": "nat protocol. Ex. tcp",
+                        "help": _("nat protocol. Ex. tcp"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9511,7 +10206,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-vnic"],
                     {
-                        "help": "nat vnic. eEx. vinc0",
+                        "help": _("nat vnic. eEx. vinc0"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9532,21 +10227,21 @@ class ResourceProviderController(BaseController):
             "protocol": self.app.pargs.protocol,
             "vnic": self.app.pargs.vnic,
         }
-        uri = "/v1.0/nrs/provider/gateways/%s/nat" % oid
-        self.cmp_delete(uri, data={"nat_rule": data}, entity="gateway %s nat rule" % oid)
+        uri = f"/v1.0/nrs/provider/gateways/{oid}/nat"
+        self.cmp_delete(uri, data={"nat_rule": data}, entity=f"gateway {oid} nat rule")
 
     #
     # load balancer
     #
     @ex(
-        help="get provider load balancer(s)",
-        description="get provider load balancer(s)",
+        help=_("get provider load balancer(s)"),
+        description=_("get provider load balancer(s)"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "load balancer id",
+                        "help": _("load balancer id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9555,7 +10250,7 @@ class ResourceProviderController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "load balancer name",
+                        "help": _("load balancer name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -9567,7 +10262,7 @@ class ResourceProviderController(BaseController):
     def load_balancer_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "/v1.0/nrs/provider/loadbalancers/%s" % oid
+            uri = f"/v1.0/nrs/provider/loadbalancers/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -9582,7 +10277,7 @@ class ResourceProviderController(BaseController):
             self.app.render(
                 res,
                 key="load_balancers",
-                headers=self._meta.load_balancer_headers,
-                fields=self._meta.load_balancer_fields,
+                headers=self._meta.load_balancer_headers,  # pylint: disable=E1101
+                fields=self._meta.load_balancer_fields,  # pylint: disable=E1101
                 maxsize=200,
             )

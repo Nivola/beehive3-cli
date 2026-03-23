@@ -1,29 +1,31 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
-from six import ensure_str
 from cement import ex
 
 from beecell.simple import merge_list
 from beecell.types.type_date import get_date_from_timestamp, format_date
 from beecell.types.type_dict import dict_get
 from beecell.types.type_string import str2bool
+from beecell.util import ensure_str
 from beedrones.zabbix.client import ZabbixManager
+
 from beehive3_cli.core.controller import BaseController, BASE_ARGS
 from beehive3_cli.core.util import load_environment_config, load_config
+from beehive3_cli.translate import _
 
 
-def ZABBIX_ARGS(*list_args):
+def zabbix_args(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "zabbix platform reference label",
+                "help": _("zabbix platform reference label"),
             },
         ),
         (
@@ -31,7 +33,7 @@ def ZABBIX_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "zabbix current project name",
+                "help": _("zabbix current project name"),
             },
         ),
     ]
@@ -39,14 +41,14 @@ def ZABBIX_ARGS(*list_args):
     return res
 
 
-def ZABBIX_PARGS(*list_args):
+def zabbix_pargs(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "zabbix platform reference label",
+                "help": _("zabbix platform reference label"),
             },
         ),
         (
@@ -54,13 +56,13 @@ def ZABBIX_PARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "zabbix host group name or id. e.g. Csi.Datacenter.Test or 1234..",
+                "help": _("zabbix host group name or id. e.g. Csi.Datacenter.Test or 1234.."),
             },
         ),
         (
             ["-size"],
             {
-                "help": "list page size [default=20]",
+                "help": _("list page size [default=20]"),
                 "action": "store",
                 "type": int,
                 "default": 20,
@@ -69,7 +71,7 @@ def ZABBIX_PARGS(*list_args):
         (
             ["-page"],
             {
-                "help": "list page [default=0]",
+                "help": _("list page [default=0]"),
                 "action": "store",
                 "type": int,
                 "default": 0,
@@ -78,7 +80,7 @@ def ZABBIX_PARGS(*list_args):
         (
             ["-order"],
             {
-                "help": "list sort order [default=DESC]",
+                "help": _("list sort order [default=DESC]"),
                 "action": "store",
                 "type": str,
                 "default": "DESC",
@@ -94,11 +96,11 @@ class ZabbixPlatformController(BaseController):
         label = "zabbix"
         stacked_on = "platform"
         stacked_type = "nested"
-        description = "zabbix platform"
-        help = "zabbix platform"
+        description = _("zabbix platform")
+        help = _("zabbix platform")
 
     def pre_command_run(self):
-        super(ZabbixPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -111,40 +113,38 @@ class ZabbixPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No zabbix default platform is available for this environment. Select " "another environment"
+                    "No zabbix default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         conf = orchestrators.get(label)
 
-        uri = "%s://%s:%s%s" % (
-            conf.get("proto"),
-            conf.get("hosts")[0],
-            conf.get("port"),
-            conf.get("path"),
-        )
+        proto = conf.get("proto")
+        host = conf.get("hosts")[0]
+        port = conf.get("port")
+        path = conf.get("path")
+        uri = f"{proto}://{host}:{port}{path}"
 
         if self.app.config.get("log.clilog", "verbose_log"):
             project = getattr(self.app.pargs, "project", None)
             transform = {"msg": lambda x: self.color_string(x, "YELLOW")}
             self.app.render(
-                {"msg": "Using zabbix orchestrator: %s (uri: %s - project: %s)" % (label, uri, project)},
+                {"msg": f"Using zabbix orchestrator: {label} (uri: {uri} - project: {project})"},
                 transform=transform,
             )
-            self.app.log.debug("Using zabbix orchestrator: %s (uri: %s - project: %s)" % (label, uri, project))
+            self.app.log.debug(f"Using zabbix orchestrator: {label} (uri: {uri} - project: {project})")
 
         # print(conf)
         self.client = ZabbixManager(uri=uri)
-        self.client.set_timeout(10.0)
+        self.client.set_timeout(60.0)
         self.client.authorize(conf.get("user"), conf.get("pwd"))
 
     def __get_host_by_name(self, name):
         res = self.client.host.list(search={"host": name})
         if len(res) > 0:
             return res[0]
-        else:
-            raise Exception("no host %s found" % name)
+        raise Exception(f"no host {name} found")
 
     def __get_host_group_id_by_name(self, name):
         count = self.client.hostgroup.list(countOutput=True)
@@ -162,21 +162,21 @@ class ZabbixPlatformController(BaseController):
 
         res = self.client.hostgroup.list(selecthosts=None, name=[name])  # by exact name
         if len(res) == 0:
-            raise Exception("No host groups names match exactly %s" % name)
-        elif len(res) > 1:
-            raise Exception("Multiple groups match exactly %s" % name)
+            raise Exception(f"No host groups names match exactly {name}")
+        if len(res) > 1:
+            raise Exception(f"Multiple groups match exactly {name}")
 
         return res[0].get("groupid")
 
-    @ex(help="ping zabbix", description="ping zabbix", arguments=ZABBIX_ARGS())
+    @ex(help=_("ping zabbix"), description=_("ping zabbix"), arguments=zabbix_args())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get zabbix version",
-        description="get zabbix version",
-        arguments=ZABBIX_ARGS(),
+        help=_("get zabbix version"),
+        description=_("get zabbix version"),
+        arguments=zabbix_args(),
     )
     def version(self):
         res = self.client.version()
@@ -187,14 +187,14 @@ class ZabbixPlatformController(BaseController):
     ############
 
     @ex(
-        help="add trigger",
-        description="add trigger",
-        arguments=ZABBIX_ARGS(
+        help=_("add trigger"),
+        description=_("add trigger"),
+        arguments=zabbix_args(
             [
                 (
                     ["desc"],
                     {
-                        "help": "trigger description",
+                        "help": _("trigger description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -203,7 +203,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["comment"],
                     {
-                        "help": "trigger comment",
+                        "help": _("trigger comment"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -212,7 +212,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["expression"],
                     {
-                        "help": "trigger expression",
+                        "help": _("trigger expression"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -221,8 +221,10 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["priority"],
                     {
-                        "help": "priority type. Can be: 0 (Default) not classified, 1 information, 2 warning, "
-                        "3 average, 4 high, 5 disaster",
+                        "help": _(
+                            "priority type. Can be: 0 (Default) not classified, 1 information, 2 warning, "
+                            "3 average, 4 high, 5 disaster"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -237,17 +239,17 @@ class ZabbixPlatformController(BaseController):
         expression = self.app.pargs.expression
         priority = self.app.pargs.priority
         res = self.client.trigger.create(desc, comment, expression, priority)
-        self.app.render({"msg": "add trigger %s" % res})
+        self.app.render({"msg": f"add trigger {res}"})
 
     @ex(
-        help="list triggers",
-        description="list triggers",
-        arguments=ZABBIX_PARGS(
+        help=_("list triggers"),
+        description=_("list triggers"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "trigger id",
+                        "help": _("trigger id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -256,7 +258,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "triggerid",
@@ -265,7 +267,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-host"],
                     {
-                        "help": "host id filter",
+                        "help": _("host id filter"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -288,12 +290,12 @@ class ZabbixPlatformController(BaseController):
             field = self.app.pargs.field
             order = self.app.pargs.order
 
-            filter = {"countOutput": True}
+            lfilter = {"countOutput": True}
             host = getattr(self.app.pargs, "host", None)
             if host is not None:
-                filter.update({"hostids": [host]})
+                lfilter.update({"hostids": [host]})
 
-            count = self.client.trigger.list(**filter)
+            count = self.client.trigger.list(**lfilter)
             res = self.client.trigger.list(limit=size, offset=page, sortorder=order.upper(), sortfield=field)
             res = {
                 "triggers": res,
@@ -307,14 +309,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="triggers", headers=headers, fields=fields)
 
     @ex(
-        help="delete trigger",
-        description="delete trigger",
-        arguments=ZABBIX_PARGS(
+        help=_("delete trigger"),
+        description=_("delete trigger"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "trigger id",
+                        "help": _("trigger id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -326,21 +328,21 @@ class ZabbixPlatformController(BaseController):
     def trigger_del(self):
         oid = self.app.pargs.id
         self.client.trigger.delete(oid)
-        self.app.render({"msg": "delete trigger %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete trigger {oid}"}, headers=["msg"])
 
     ############
     # host
     ############
 
     @ex(
-        help="add host",
-        description="add host",
-        arguments=ZABBIX_ARGS(
+        help=_("add host"),
+        description=_("add host"),
+        arguments=zabbix_args(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -364,17 +366,17 @@ class ZabbixPlatformController(BaseController):
         templates = host.get("templates")
 
         res = self.client.host.create(name, interfaces, groupids=groups, templateids=templates, description=desc)
-        self.app.render({"msg": "add host %s" % res["hostids"]})
+        self.app.render({"msg": f"add host {res['hostids']}"})
 
     @ex(
-        help="list hosts",
-        description="list hosts",
-        arguments=ZABBIX_PARGS(
+        help=_("list hosts"),
+        description=_("list hosts"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -383,7 +385,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "hostid",
@@ -392,7 +394,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -504,14 +506,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="hosts", headers=headers, fields=fields, transform=transform)
 
     @ex(
-        help="list groups the host belongs to",
-        description="list groups the host belongs to",
-        arguments=ZABBIX_PARGS(
+        help=_("list groups the host belongs to"),
+        description=_("list groups the host belongs to"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -528,14 +530,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="groups", headers=headers, fields=fields)
 
     @ex(
-        help="list templates linked to the host",
-        description="list templates linked to the host",
-        arguments=ZABBIX_PARGS(
+        help=_("list templates linked to the host"),
+        description=_("list templates linked to the host"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -552,14 +554,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="parentTemplates", headers=headers, fields=fields)
 
     @ex(
-        help="list interfaces used by the host",
-        description="list interfaces used by the host",
-        arguments=ZABBIX_PARGS(
+        help=_("list interfaces used by the host"),
+        description=_("list interfaces used by the host"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -577,14 +579,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="interfaces", headers=headers, fields=fields)
 
     @ex(
-        help="list host items",
-        description="list host items",
-        arguments=ZABBIX_ARGS(
+        help=_("list host items"),
+        description=_("list host items"),
+        arguments=zabbix_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -593,7 +595,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -602,7 +604,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "host state",
+                        "help": _("host state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -649,14 +651,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, transform=transform, maxsize=50)
 
     @ex(
-        help="add host item",
-        description="add host item",
-        arguments=ZABBIX_ARGS(
+        help=_("add host item"),
+        description=_("add host item"),
+        arguments=zabbix_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -665,7 +667,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "key name",
+                        "help": _("key name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -674,7 +676,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["desc"],
                     {
-                        "help": "item description/comment",
+                        "help": _("item description/comment"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -683,11 +685,13 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["agent_type"],
                     {
-                        "help": "zabbix type. Can be: 0 - Zabbix agent, 1 - SNMPv1 agent, 2 - Zabbix trapper, "
-                        "3 - simple check, 4 - SNMPv2 agent, 5 - Zabbix internal, 6 - SNMPv3 agent, "
-                        "7 - Zabbix agent (active), 8 - Zabbix aggregate, 9 - web item, "
-                        "10 - external check, 11 - database monitor, 12 - IPMI agent, "
-                        "13 - SSH agent, 14 - TELNET agent, 15 - calculated, 16 - JMX agent.",
+                        "help": _(
+                            "zabbix type. Can be: 0 - Zabbix agent, 1 - SNMPv1 agent, 2 - Zabbix trapper, "
+                            "3 - simple check, 4 - SNMPv2 agent, 5 - Zabbix internal, 6 - SNMPv3 agent, "
+                            "7 - Zabbix agent (active), 8 - Zabbix aggregate, 9 - web item, "
+                            "10 - external check, 11 - database monitor, 12 - IPMI agent, "
+                            "13 - SSH agent, 14 - TELNET agent, 15 - calculated, 16 - JMX agent."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -696,8 +700,10 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["value_type"],
                     {
-                        "help": "zabbix value_type. Can be: 0 - numeric float, 1 - character, 2 - log, "
-                        "3 - numeric unsigned, 4 - text.",
+                        "help": _(
+                            "zabbix value_type. Can be: 0 - numeric float, 1 - character, 2 - log, "
+                            "3 - numeric unsigned, 4 - text."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -706,7 +712,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["interfaceid"],
                     {
-                        "help": "zabbix host interfaceid",
+                        "help": _("zabbix host interfaceid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -715,7 +721,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["item_key"],
                     {
-                        "help": "item key",
+                        "help": _("item key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -724,7 +730,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["delay"],
                     {
-                        "help": "check interval in seconds",
+                        "help": _("check interval in seconds"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -733,7 +739,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["history"],
                     {
-                        "help": "number of days to keep item history data",
+                        "help": _("number of days to keep item history data"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -742,7 +748,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["trends"],
                     {
-                        "help": "number of days to keep item trends data",
+                        "help": _("number of days to keep item trends data"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -775,17 +781,17 @@ class ZabbixPlatformController(BaseController):
             history,
             trends,
         )
-        self.app.render({"msg": "add host item %s" % res})
+        self.app.render({"msg": f"add host item {res}"})
 
     @ex(
-        help="list host triggers",
-        description="list host triggers",
-        arguments=ZABBIX_ARGS(
+        help=_("list host triggers"),
+        description=_("list host triggers"),
+        arguments=zabbix_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -802,14 +808,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="enable host",
-        description="enable host",
-        arguments=ZABBIX_PARGS(
+        help=_("enable host"),
+        description=_("enable host"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -821,17 +827,17 @@ class ZabbixPlatformController(BaseController):
     def host_enable(self):
         oid = self.app.pargs.id
         self.client.host.update(oid, status=0)
-        self.app.render({"msg": "enable host %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"enable host {oid}"}, headers=["msg"])
 
     @ex(
-        help="disable host",
-        description="disable host",
-        arguments=ZABBIX_PARGS(
+        help=_("disable host"),
+        description=_("disable host"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -843,17 +849,17 @@ class ZabbixPlatformController(BaseController):
     def host_disable(self):
         oid = self.app.pargs.id
         self.client.host.update(oid, status=1)
-        self.app.render({"msg": "disable host %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"disable host {oid}"}, headers=["msg"])
 
     @ex(
-        help="delete host",
-        description="delete host",
-        arguments=ZABBIX_PARGS(
+        help=_("delete host"),
+        description=_("delete host"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -865,17 +871,17 @@ class ZabbixPlatformController(BaseController):
     def host_del(self):
         oid = self.app.pargs.id
         self.client.host.delete(oid)
-        self.app.render({"msg": "delete host %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete host {oid}"}, headers=["msg"])
 
     @ex(
-        help="add group",
-        description="add group",
-        arguments=ZABBIX_PARGS(
+        help=_("add group"),
+        description=_("add group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["name"],
                     {
-                        "help": "group name",
+                        "help": _("group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -888,17 +894,17 @@ class ZabbixPlatformController(BaseController):
         name = self.app.pargs.name
         res = self.client.hostgroup.add(name)
         # self.app.render({"msg": "add group %s" % res["groupid"]})
-        self.app.render({"msg": "add hostgroup %s" % res})  # groupids
+        self.app.render({"msg": f"add hostgroup {res}"})  # groupids
 
     @ex(
-        help="list groups",
-        description="list groups",
-        arguments=ZABBIX_PARGS(
+        help=_("list groups"),
+        description=_("list groups"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -907,7 +913,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "groupid",
@@ -948,7 +954,7 @@ class ZabbixPlatformController(BaseController):
             }
             headers = ["id", "name", "hosts"]
             fields = ["groupid", "name", "hosts"]
-            transform = {"hosts": lambda x: len(x)}
+            transform = {"hosts": len}
             self.app.render(
                 res,
                 key="groups",
@@ -959,14 +965,14 @@ class ZabbixPlatformController(BaseController):
             )
 
     @ex(
-        help="list hosts that belong to a group",
-        description="get hosts that belong to a group",
-        arguments=ZABBIX_PARGS(
+        help=_("list hosts that belong to a group"),
+        description=_("get hosts that belong to a group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -983,14 +989,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="hosts", headers=headers, fields=fields)
 
     @ex(
-        help="list templates that belong to a group",
-        description="get templates that belong to a group",
-        arguments=ZABBIX_PARGS(
+        help=_("list templates that belong to a group"),
+        description=_("get templates that belong to a group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1007,14 +1013,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="templates", headers=headers, fields=fields)
 
     @ex(
-        help="update group",
-        description="update group",
-        arguments=ZABBIX_PARGS(
+        help=_("update group"),
+        description=_("update group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1023,7 +1029,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "group name",
+                        "help": _("group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1036,17 +1042,17 @@ class ZabbixPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         self.client.hostgroup.update(oid, name)
-        self.app.render({"msg": "update group %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"update group {oid}"}, headers=["msg"])
 
     @ex(
-        help="delete group",
-        description="delete group",
-        arguments=ZABBIX_PARGS(
+        help=_("delete group"),
+        description=_("delete group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1058,17 +1064,17 @@ class ZabbixPlatformController(BaseController):
     def hostgroup_del(self):
         oid = self.app.pargs.id
         self.client.hostgroup.delete(oid)
-        self.app.render({"msg": "delete group %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete group {oid}"}, headers=["msg"])
 
     @ex(
-        help="add template",
-        description="add template",
-        arguments=ZABBIX_ARGS(
+        help=_("add template"),
+        description=_("add template"),
+        arguments=zabbix_args(
             [
                 (
                     ["file"],
                     {
-                        "help": "data file",
+                        "help": _("data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1087,14 +1093,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render({"msg": "add template"})
 
     @ex(
-        help="list templates",
-        description="list templates",
-        arguments=ZABBIX_PARGS(
+        help=_("list templates"),
+        description=_("list templates"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "template id",
+                        "help": _("template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1103,7 +1109,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "name",
@@ -1147,14 +1153,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="templates", headers=headers, fields=fields, maxsize=60)
 
     @ex(
-        help="list hosts linked to the template",
-        description="list hosts linked to the template",
-        arguments=ZABBIX_PARGS(
+        help=_("list hosts linked to the template"),
+        description=_("list hosts linked to the template"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1171,14 +1177,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="hosts", headers=headers, fields=fields)
 
     @ex(
-        help="list groups the template belongs to",
-        description="list groups the template belongs to",
-        arguments=ZABBIX_PARGS(
+        help=_("list groups the template belongs to"),
+        description=_("list groups the template belongs to"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1195,14 +1201,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="groups", headers=headers, fields=fields)
 
     @ex(
-        help="delete template",
-        description="delete template",
-        arguments=ZABBIX_PARGS(
+        help=_("delete template"),
+        description=_("delete template"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "template id",
+                        "help": _("template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1214,17 +1220,17 @@ class ZabbixPlatformController(BaseController):
     def template_del(self):
         oid = self.app.pargs.id
         self.client.template.delete(oid)
-        self.app.render({"msg": "delete template %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete template {oid}"}, headers=["msg"])
 
     @ex(
-        help="list interfaces",
-        description="list interfaces",
-        arguments=ZABBIX_PARGS(
+        help=_("list interfaces"),
+        description=_("list interfaces"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1283,14 +1289,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="interfaces", headers=headers, fields=fields, maxsize=60)
 
     @ex(
-        help="list hosts that use the interface",
-        description="list hosts that use the interface",
-        arguments=ZABBIX_PARGS(
+        help=_("list hosts that use the interface"),
+        description=_("list hosts that use the interface"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1307,14 +1313,14 @@ class ZabbixPlatformController(BaseController):
         self.app.render(res, key="hosts", headers=headers, fields=fields)
 
     @ex(
-        help="delete interface",
-        description="delete interface",
-        arguments=ZABBIX_PARGS(
+        help=_("delete interface"),
+        description=_("delete interface"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1326,17 +1332,17 @@ class ZabbixPlatformController(BaseController):
     def interface_del(self):
         oid = self.app.pargs.id
         self.client.interface.delete(oid)
-        self.app.render({"msg": "delete interface %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete interface {oid}"}, headers=["msg"])
 
     @ex(
-        help="list alerts",
-        description="list alerts",
-        arguments=ZABBIX_PARGS(
+        help=_("list alerts"),
+        description=_("list alerts"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "alert id",
+                        "help": _("alert id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1345,7 +1351,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "clock",
@@ -1393,14 +1399,14 @@ class ZabbixPlatformController(BaseController):
             )
 
     @ex(
-        help="list it services",
-        description="list it services",
-        arguments=ZABBIX_PARGS(
+        help=_("list it services"),
+        description=_("list it services"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "alert id",
+                        "help": _("alert id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1409,7 +1415,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-sla"],
                     {
-                        "help": "if true pirnt calculated sla",
+                        "help": _("if true pirnt calculated sla"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -1502,14 +1508,14 @@ class ZabbixPlatformController(BaseController):
             )
 
     @ex(
-        help="list problems",
-        description="list problems",
-        arguments=ZABBIX_ARGS(
+        help=_("list problems"),
+        description=_("list problems"),
+        arguments=zabbix_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1534,14 +1540,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="list proxys",
-        description="list proxys",
-        arguments=ZABBIX_PARGS(
+        help=_("list proxys"),
+        description=_("list proxys"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "proxy id",
+                        "help": _("proxy id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1550,7 +1556,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": "hostid",
@@ -1619,14 +1625,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="proxys", headers=headers, fields=fields)
 
     @ex(
-        help="add proxy",
-        description="add proxy",
-        arguments=ZABBIX_ARGS(
+        help=_("add proxy"),
+        description=_("add proxy"),
+        arguments=zabbix_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "proxy hostname",
+                        "help": _("proxy hostname"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1638,17 +1644,17 @@ class ZabbixPlatformController(BaseController):
     def proxy_add(self):
         name = self.app.pargs.name
         res = self.client.proxy.create(name)
-        self.app.render({"msg": "add proxy %s" % res["proxyids"]})
+        self.app.render({"msg": f"add proxy {res['proxyids']}"})
 
     @ex(
-        help="delete proxy",
-        description="delete proxy",
-        arguments=ZABBIX_PARGS(
+        help=_("delete proxy"),
+        description=_("delete proxy"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "proxy id",
+                        "help": _("proxy id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1660,21 +1666,21 @@ class ZabbixPlatformController(BaseController):
     def proxy_del(self):
         oid = self.app.pargs.id
         self.client.proxy.delete(oid)
-        self.app.render({"msg": "delete proxy %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete proxy {oid}"}, headers=["msg"])
 
     ############
     # user
     ############
 
     @ex(
-        help="add user",
-        description="add user",
-        arguments=ZABBIX_PARGS(
+        help=_("add user"),
+        description=_("add user"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["username"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1683,7 +1689,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["passwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1692,7 +1698,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["usrgrpid"],
                     {
-                        "help": "user group id",
+                        "help": _("user group id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -1701,7 +1707,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["email"],
                     {
-                        "help": "user email",
+                        "help": _("user email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1719,17 +1725,17 @@ class ZabbixPlatformController(BaseController):
         email_array = email.split(",")
         res = self.client.user.add(username, passwd, usrgrpid, email_array)
         # self.app.render({"msg": "add group %s" % res["userids"]})
-        self.app.render({"msg": "add user %s" % res})  # userids
+        self.app.render({"msg": f"add user {res}"})  # userids
 
     @ex(
-        help="update user",
-        description="update user",
-        arguments=ZABBIX_PARGS(
+        help=_("update user"),
+        description=_("update user"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["user_id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -1738,7 +1744,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["email"],
                     {
-                        "help": "users email - separated by comma",
+                        "help": _("users email - separated by comma"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1747,7 +1753,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["severity"],
                     {
-                        "help": "severity - 48 default (32 Disaster + 16 High)",
+                        "help": _("severity - 48 default (32 Disaster + 16 High)"),
                         "action": "store",
                         "type": int,
                         "default": 48,
@@ -1767,17 +1773,17 @@ class ZabbixPlatformController(BaseController):
 
         res = self.client.user.update(user_id, email_array, severity)
         # self.app.render({"msg": "add group %s" % res["userids"]})
-        self.app.render({"msg": "update user %s" % res})  # userids
+        self.app.render({"msg": f"update user {res}"})  # userids
 
     @ex(
-        help="list users",
-        description="list users",
-        arguments=ZABBIX_ARGS(
+        help=_("list users"),
+        description=_("list users"),
+        arguments=zabbix_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1804,7 +1810,7 @@ class ZabbixPlatformController(BaseController):
                     usrgrps_name = ""
                     for usrgrp in usrgrps:
                         usrgrps_name += ", " + usrgrp["name"]
-                    if len(usrgrps_name):
+                    if len(usrgrps_name) > 0:
                         usrgrps_name = usrgrps_name[2:]
 
                     user["usrgrps_name"] = usrgrps_name
@@ -1814,14 +1820,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="delete user",
-        description="delete user",
-        arguments=ZABBIX_PARGS(
+        help=_("delete user"),
+        description=_("delete user"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1833,21 +1839,21 @@ class ZabbixPlatformController(BaseController):
     def user_del(self):
         oid = self.app.pargs.id
         self.client.user.delete(oid)
-        self.app.render({"msg": "delete user %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete user {oid}"}, headers=["msg"])
 
     ############
     # user group
     ############
 
     @ex(
-        help="add usergroup",
-        description="add usergroup",
-        arguments=ZABBIX_PARGS(
+        help=_("add usergroup"),
+        description=_("add usergroup"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["usergroupname"],
                     {
-                        "help": "usergroup name",
+                        "help": _("usergroup name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1856,7 +1862,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -1870,17 +1876,17 @@ class ZabbixPlatformController(BaseController):
         hostgroup_id = self.app.pargs.hostgroup_id
         res = self.client.usergroup.add(usergroupname, hostgroup_id)
         # self.app.render({"msg": "add group %s" % res["usergroupids"]})
-        self.app.render({"msg": "add usergroup %s" % res})  # usergroupids
+        self.app.render({"msg": f"add usergroup {res}"})  # usergroupids
 
     @ex(
-        help="list user groups",
-        description="list user groups",
-        arguments=ZABBIX_PARGS(
+        help=_("list user groups"),
+        description=_("list user groups"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["-id"],
                     {
-                        "help": "user group id",
+                        "help": _("user group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1889,7 +1895,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-field"],
                     {
-                        "help": "sort field",
+                        "help": _("sort field"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1922,7 +1928,7 @@ class ZabbixPlatformController(BaseController):
                     users_name = ""
                     for user in users:
                         users_name += ", " + user["alias"]
-                    if len(users_name):
+                    if len(users_name) > 0:
                         users_name = users_name[2:]
 
                     usrgrps["users_name"] = users_name
@@ -1940,14 +1946,14 @@ class ZabbixPlatformController(BaseController):
             self.app.render(res, key="groups", headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="delete user group",
-        description="delete user group",
-        arguments=ZABBIX_PARGS(
+        help=_("delete user group"),
+        description=_("delete user group"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "user group id",
+                        "help": _("user group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1959,21 +1965,21 @@ class ZabbixPlatformController(BaseController):
     def usergroup_del(self):
         oid = self.app.pargs.id
         self.client.usergroup.delete(oid)
-        self.app.render({"msg": "delete user group %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete user group {oid}"}, headers=["msg"])
 
     ############
     # action
     ############
 
     @ex(
-        help="list actions",
-        description="list actions",
-        arguments=ZABBIX_ARGS(
+        help=_("list actions"),
+        description=_("list actions"),
+        arguments=zabbix_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1982,7 +1988,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["-eventsource"],
                     {
-                        "help": "eventsource id - 0 = trigger, 2 = auto registration",
+                        "help": _("eventsource id - 0 = trigger, 2 = auto registration"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1995,30 +2001,26 @@ class ZabbixPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.action.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
-            filter = {}
+            lfilter = {}
             eventsource = getattr(self.app.pargs, "eventsource", None)
             if eventsource is not None:
-                filter.update({"eventsource": eventsource})
-            res = self.client.action.list(**filter)
+                lfilter.update({"eventsource": eventsource})
+            res = self.client.action.list(**lfilter)
             headers = ["actionid", "name", "status", "eventsource"]
             fields = ["actionid", "name", "status", "eventsource"]
             self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="add action",
-        description="add action",
-        arguments=ZABBIX_PARGS(
+        help=_("add action"),
+        description=_("add action"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["name"],
                     {
-                        "help": "action name",
+                        "help": _("action name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2027,7 +2029,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["usrgrp_id"],
                     {
-                        "help": "usrgrp id",
+                        "help": _("usrgrp id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2036,7 +2038,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2050,17 +2052,17 @@ class ZabbixPlatformController(BaseController):
         usrgrp_id = self.app.pargs.usrgrp_id
         hostgroup_id = self.app.pargs.hostgroup_id
         res = self.client.action.add_trigger(name, usrgrp_id, hostgroup_id)
-        self.app.render({"msg": "add action %s" % res})
+        self.app.render({"msg": f"add action {res}"})
 
     @ex(
-        help="update action trigger",
-        description="update action trigger",
-        arguments=ZABBIX_PARGS(
+        help=_("update action trigger"),
+        description=_("update action trigger"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["action_id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2069,7 +2071,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2078,7 +2080,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["severity"],
                     {
-                        "help": "severity (number)",
+                        "help": _("severity (number)"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2092,17 +2094,17 @@ class ZabbixPlatformController(BaseController):
         hostgroup_id = self.app.pargs.hostgroup_id
         severity = self.app.pargs.severity
         res = self.client.action.update_trigger(action_id, hostgroup_id, severity)
-        self.app.render({"msg": "update action trigger %s" % res})
+        self.app.render({"msg": f"update action trigger {res}"})
 
     @ex(
-        help="update action trigger",
-        description="update action trigger",
-        arguments=ZABBIX_PARGS(
+        help=_("update action trigger"),
+        description=_("update action trigger"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["action_id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2111,7 +2113,7 @@ class ZabbixPlatformController(BaseController):
                 (
                     ["severity"],
                     {
-                        "help": "severity (number)",
+                        "help": _("severity (number)"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2124,17 +2126,17 @@ class ZabbixPlatformController(BaseController):
         action_id = self.app.pargs.action_id
         severity = self.app.pargs.severity
         res = self.client.action.update_trigger_severity(action_id, severity)
-        self.app.render({"msg": "update action trigger severity %s" % res})
+        self.app.render({"msg": f"update action trigger severity {res}"})
 
     @ex(
-        help="delete action",
-        description="delete action",
-        arguments=ZABBIX_PARGS(
+        help=_("delete action"),
+        description=_("delete action"),
+        arguments=zabbix_pargs(
             [
                 (
                     ["id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2146,4 +2148,4 @@ class ZabbixPlatformController(BaseController):
     def action_del(self):
         oid = self.app.pargs.id
         self.client.action.delete(oid)
-        self.app.render({"msg": "delete action %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete action {oid}"}, headers=["msg"])

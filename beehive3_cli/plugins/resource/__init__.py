@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from typing import List
 
 
 def add_template_dir(app):
     from os import path
 
     app.add_template_dir(path.join(path.dirname(__file__), "templates"))
+
+
+def load_only(app, components: List[str]):
+    print(components)
 
 
 def load(app):

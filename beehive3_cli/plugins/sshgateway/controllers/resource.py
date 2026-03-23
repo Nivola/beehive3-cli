@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from cement import ex
 from beecell.simple import set_request_params
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
-from cement import ex
+from beehive3_cli.translate import _
 
 
 class SshGatewayResourceController(BaseController):
@@ -12,8 +13,8 @@ class SshGatewayResourceController(BaseController):
         label = "res_sshgateway"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "ssh gateway orchestrator"
-        help = "ssh gateway orchestrator"
+        description = _("ssh gateway orchestrator")
+        help = _("ssh gateway orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/sshgateway", "subsystem": "resource"}
 
@@ -62,18 +63,18 @@ class SshGatewayResourceController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(SshGatewayResourceController, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     @ex(
-        help="get configuration",
-        description="get configuration",
+        help=_("get configuration"),
+        description=_("get configuration"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "configuration id",
+                        "help": _("configuration id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -85,7 +86,7 @@ class SshGatewayResourceController(BaseController):
     def configuration_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/configuration/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/configuration/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -97,7 +98,7 @@ class SshGatewayResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/configuration" % self.baseuri
+            uri = f"{self.baseuri}/configuration"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -107,14 +108,14 @@ class SshGatewayResourceController(BaseController):
             )
 
     @ex(
-        help="add configuration",
-        description="add configuration",
+        help=_("add configuration"),
+        description=_("add configuration"),
         arguments=ARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container uuid",
+                        "help": _("container uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -123,7 +124,7 @@ class SshGatewayResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "configuration name",
+                        "help": _("configuration name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -133,7 +134,7 @@ class SshGatewayResourceController(BaseController):
                     ["gw_type"],
                     {
                         "metavar": "gw_type",
-                        "help": "ssh gateway type (gw_dbaas,gw_vm,gw_ext)",
+                        "help": _("ssh gateway type (gw_dbaas,gw_vm,gw_ext)"),
                         "choices": ["gw_dbaas", "gw_vm", "gw_ext"],
                         "action": "store",
                         "type": str,
@@ -143,17 +144,17 @@ class SshGatewayResourceController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "configuration description",
+                        "help": _("configuration description"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["-res_id"], {"help": "resource uuid of the destination cli object"}),
+                (["-res_id"], {"help": _("resource uuid of the destination cli object")}),
                 (
                     ["-ip_port"],
                     {
-                        "help": "ip and port. only if gw_type=gw_ext",
+                        "help": _("ip and port. only if gw_type=gw_ext"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -176,23 +177,23 @@ class SshGatewayResourceController(BaseController):
         configuration = {}
         configuration.update(set_request_params(self.app.pargs, ["container", "name", "desc", "gw_type", "res_id"]))
         data = {"configuration": configuration}
-        uri = "%s/configuration" % (self.baseuri)
+        uri = f"{self.baseuri}/configuration"
         res = self.cmp_post(uri, data=data)
         self.app.render(res, details=True)
 
     @ex(
-        help="update configuration",
-        description="update configuration",
+        help=_("update configuration"),
+        description=_("update configuration"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "resource entity id", "action": "store", "type": str},
+                    {"help": _("resource entity id"), "action": "store", "type": str},
                 ),
                 (
                     ["-name"],
                     {
-                        "help": "resource entity name",
+                        "help": _("resource entity name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -201,8 +202,7 @@ class SshGatewayResourceController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "resource entity description",
-                        "action": "store",
+                        "help": _("resource entity description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -214,19 +214,19 @@ class SshGatewayResourceController(BaseController):
     def configuration_update(self):
         oid = self.app.pargs.id
         data = set_request_params(self.app.pargs, ["name", "desc"])
-        uri = "%s/configuration/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/configuration/{oid}"
         self.cmp_put(uri, data={"configuration": data})
-        self.app.render({"msg": "update configuration %s" % oid})
+        self.app.render({"msg": f"update configuration {oid}"})
 
     @ex(
-        help="delete configurations",
-        description="delete configurations",
+        help=_("delete configurations"),
+        description=_("delete configurations"),
         arguments=ARGS(
             [
                 (
                     ["ids"],
                     {
-                        "help": "comma separated configuration ids",
+                        "help": _("comma separated configuration ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -238,5 +238,5 @@ class SshGatewayResourceController(BaseController):
         oids = self.app.pargs.ids.split(",")
 
         for oid in oids:
-            uri = "%s/configuration/%s?" % (self.baseuri, oid)
-            self.cmp_delete(uri, entity="configuration %s" % oid)
+            uri = f"{self.baseuri}/configuration/{oid}?"
+            self.cmp_delete(uri, entity=f"configuration {oid}")

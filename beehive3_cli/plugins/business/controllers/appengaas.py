@@ -1,26 +1,33 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
+
 from beecell.types.type_dict import dict_get
 from beehive3_cli.core.controller import ARGS
 from beehive3_cli.plugins.business.controllers.business import BusinessControllerChild
+from beehive3_cli.translate import _
 
 
 class AppEngineServiceController(BusinessControllerChild):
     class Meta:
         label = "appeng"
-        description = "appengine service management"
-        help = "appengine service management"
+        description = _("appengine service management")
+        help = _("appengine service management")
 
     @ex(
-        help="get appengine service info",
-        description="This command is used to retrieve information about an App Engine service running on a Nivola account. It requires the account ID as the only required argument to identify the target account. The command will then return details about the App Engine service configuration and status for that account.",
+        help=_("get appengine service info"),
+        description=_(
+            "This command is used to retrieve information about an App Engine service running on a Nivola account. "
+            "It requires the account ID as the only required argument to identify the target account. "
+            "The command will then return details about the App Engine service configuration and status for "
+            "that account."
+        ),
         arguments=ARGS(
             [
-                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["account"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -28,17 +35,20 @@ class AppEngineServiceController(BusinessControllerChild):
         account = self.app.pargs.account
         account = self.get_account(account).get("uuid")
         data = {"owner-id": account}
-        uri = "%s/appengineservices" % self.baseuri
+        uri = f"{self.baseuri}/appengineservices"
         res = self.cmp_get(uri, data=urlencode(data))
         res = dict_get(res, "DescribeAppengineResponse.appengineSet.0")
         self.app.render(res, details=True, maxsize=100)
 
     @ex(
-        help="get appengine service quotas",
-        description="This command gets the appengine service quotas for a given account id. The account id is a required argument to retrieve the quotas for that specific account.",
+        help=_("get appengine service quotas"),
+        description=_(
+            "This command gets the appengine service quotas for a given account id. "
+            "The account id is a required argument to retrieve the quotas for that specific account."
+        ),
         arguments=ARGS(
             [
-                (["account"], {"help": "account id", "action": "store", "type": str}),
+                (["account"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -46,7 +56,7 @@ class AppEngineServiceController(BusinessControllerChild):
         account = self.app.pargs.account
         account = self.get_account(account).get("uuid")
         data = {"owner-id": account}
-        uri = "%s/appengineservices/describeaccountattributes" % self.baseuri
+        uri = f"{self.baseuri}/appengineservices/describeaccountattributes"
         res = self.cmp_get(uri, data=urlencode(data))
         res = dict_get(res, "DescribeAccountAttributesResponse.accountAttributeSet")
         headers = ["name", "value", "used"]
@@ -63,31 +73,43 @@ class AppEngineInstanceController(BusinessControllerChild):
         stacked_on = "appeng"
         stacked_type = "nested"
         label = "app_instances"
-        description = "appengine instances service management"
-        help = "appengine instances service management"
+        description = _("appengine instances service management")
+        help = _("appengine instances service management")
 
     @ex(
-        help="get appengine types",
-        description="This command is used to retrieve the available types for App Engine applications instances. App Engine applications can run in flexible or standard environment and each environment supports different instance types. This command lists out all the supported instance types for better decision making on which type of instance is suitable for the App Engine application being developed or migrated.",
+        help=_("get appengine types"),
+        description=_(
+            "This command is used to retrieve the available types for App Engine applications instances. "
+            "App Engine applications can run in flexible or standard environment and each environment supports "
+            "different instance types. "
+            "This command lists out all the supported instance types for better decision making on which type of "
+            "instance is suitable for the App Engine application being developed or migrated."
+        ),
         arguments=ARGS(),
     )
     def types(self):
         data = {"plugintype": "AppEngineInstance", "page": 0, "size": 100}
-        uri = "%s/srvcatalogs/all/defs" % self.baseuri
+        uri = f"{self.baseuri}/srvcatalogs/all/defs"
         res = self.cmp_get(uri, data=urlencode(data))
         headers = ["id", "instance_type", "desc", "status", "active", "creation"]
         fields = ["uuid", "name", "desc", "status", "active", "date.creation"]
         self.app.render(res, key="servicedefs", headers=headers, fields=fields)
 
     @ex(
-        help="list app engine",
-        description="This command is used to list all the application instances running on App Engine. App Engine is a platform as a service that allows you to build and run applications on Google's infrastructure. The 'app-instances list' command retrieves information about all the instances of applications currently running on App Engine without needing any additional arguments.",
+        help=_("list app engine"),
+        description=_(
+            "This command is used to list all the application instances running on App Engine. "
+            "App Engine is a platform as a service that allows you to build and run applications "
+            "on Google's infrastructure. "
+            "The 'app-instances list' command retrieves information about all the instances "
+            "of applications currently running on App Engine without needing any additional arguments."
+        ),
         arguments=ARGS(
             [
                 (
                     ["-accounts"],
                     {
-                        "help": "list of account id comma separated",
+                        "help": _("list of account id comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -96,7 +118,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-ida"],
                     {
-                        "help": "list of appengin id comma separated",
+                        "help": _("list of appengin id comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -105,7 +127,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-tags"],
                     {
-                        "help": "list of tag comma separated",
+                        "help": _("list of tag comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -114,7 +136,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-page"],
                     {
-                        "help": "list page [default=0]",
+                        "help": _("list page [default=0]"),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -123,7 +145,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-size"],
                     {
-                        "help": "list page size [default=20]",
+                        "help": _("list page size [default=20]"),
                         "action": "store",
                         "type": int,
                         "default": 20,
@@ -143,7 +165,7 @@ class AppEngineInstanceController(BusinessControllerChild):
             "page": "NextToken",
         }
         data = self.format_paginated_query(params, mappings=mappings, aliases=aliases)
-        uri = "%s/appengineservices/instance/describeappinstances" % self.baseuri
+        uri = f"{self.baseuri}/appengineservices/instance/describeappinstances"
         res = self.cmp_get(uri, data=data)
         res = res.get("DescribeAppInstancesResponse")
         page = self.app.pargs.page
@@ -189,13 +211,19 @@ class AppEngineInstanceController(BusinessControllerChild):
         )
 
     @ex(
-        help="get appengine",
-        description="This command is used to retrieve information about application instances running in an App Engine application. It requires the App Engine ID as a required argument to identify the specific App Engine application to query. The command will return details about the running instances for the given App Engine application.",
+        help=_("get appengine"),
+        description=_(
+            "This command is used to retrieve information about application instances running in "
+            "an App Engine application. "
+            "It requires the App Engine ID as a required argument to identify the specific App "
+            "Engine application to query. "
+            "The command will return details about the running instances for the given App Engine application."
+        ),
         arguments=ARGS(
             [
                 (
                     ["appengine"],
-                    {"help": "appengine id", "action": "store", "type": str},
+                    {"help": _("appengine id"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -205,7 +233,7 @@ class AppEngineInstanceController(BusinessControllerChild):
         data = {}
         data["InstanceId.N"] = [appengine]
 
-        uri = "%s/appengineservices/instance/describeappinstances" % self.baseuri
+        uri = f"{self.baseuri}/appengineservices/instance/describeappinstances"
         res = self.cmp_get(uri, data=urlencode(data, doseq=True))
 
         if self.format == "text":
@@ -217,29 +245,33 @@ class AppEngineInstanceController(BusinessControllerChild):
             self.app.render(res, details=True)
 
     @ex(
-        help="create a share",
-        description="This command adds an app instance to an existing appengine. The required arguments are the appengine name, parent account id, farm name, appengine type, subnet id and security group id.",
+        help=_("create a share"),
+        description=_(
+            "This command adds an app instance to an existing appengine. "
+            "The required arguments are the appengine name, parent account id, "
+            "farm name, appengine type, subnet id and security group id."
+        ),
         arguments=ARGS(
             [
-                (["name"], {"help": "appengine name", "action": "store", "type": str}),
+                (["name"], {"help": _("appengine name"), "action": "store", "type": str}),
                 (
                     ["account"],
-                    {"help": "parent account id", "action": "store", "type": str},
+                    {"help": _("parent account id"), "action": "store", "type": str},
                 ),
                 (
                     ["farm-name"],
-                    {"help": "name of the farm", "action": "store", "type": int},
+                    {"help": _("name of the farm"), "action": "store", "type": int},
                 ),
-                (["type"], {"help": "appengine type", "action": "store", "type": str}),
+                (["type"], {"help": _("appengine type"), "action": "store", "type": str}),
                 (
                     ["subnet"],
-                    {"help": "appengine subnet id", "action": "store", "type": str},
+                    {"help": _("appengine subnet id"), "action": "store", "type": str},
                 ),
-                (["sg"], {"help": "security group id", "action": "store", "type": str}),
+                (["sg"], {"help": _("security group id"), "action": "store", "type": str}),
                 (
                     ["-key-name"],
                     {
-                        "help": "ssh key name",
+                        "help": _("ssh key name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -248,7 +280,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-sharesize"],
                     {
-                        "help": "share size in GB",
+                        "help": _("share size in GB"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -257,7 +289,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-public"],
                     {
-                        "help": "if True appengine has public ip address",
+                        "help": _("if True appengine has public ip address"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -266,7 +298,7 @@ class AppEngineInstanceController(BusinessControllerChild):
                 (
                     ["-public-subnet"],
                     {
-                        "help": "public subnet",
+                        "help": _("public subnet"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -312,20 +344,24 @@ class AppEngineInstanceController(BusinessControllerChild):
         if is_public is True:
             data["instance"]["PublicSubnetId"] = self.get_service_instance(public_subnet, account_id=account)
 
-        uri = "%s/appengineservices/instance/createappinstances" % self.baseuri
+        uri = f"{self.baseuri}/appengineservices/instance/createappinstances"
         res = self.cmp_post(uri, data=data, timeout=600)
         res = dict_get(res, "CreateAppInstanceResponse.instancesSet.0.instanceId")
-        self.app.render({"msg": "add appengine %s" % res})
+        self.app.render({"msg": f"add appengine {res}"})
 
     @ex(
-        help="delete an appengine",
-        description="This command deletes an App Engine instance from Nivola Cloud. The appengine ID is required to identify which App Engine instance to delete from the cloud platform.",
-        arguments=ARGS([(["appengine"], {"help": "appengine id", "action": "store", "type": str})]),
+        help=_("delete an appengine"),
+        description=_(
+            "This command deletes an App Engine instance from Nivola Cloud. "
+            "The appengine ID is required to identify which App Engine instance "
+            "to delete from the cloud platform."
+        ),
+        arguments=ARGS([(["appengine"], {"help": _("appengine id"), "action": "store", "type": str})]),
     )
     def delete(self):
         uuid = self.app.pargs.appengine
-        uri = "%s/appengineservices/instance/deleteappinstances" % self.baseuri
-        res = self.cmp_delete(
+        uri = f"{self.baseuri}/appengineservices/instance/deleteappinstances"
+        self.cmp_delete(
             uri,
             data={"InstanceId.N": [uuid]},
             timeout=600,

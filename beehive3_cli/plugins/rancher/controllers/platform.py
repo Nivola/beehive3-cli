@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.types.type_list import merge_list
 from cement import ex
 from beedrones.rancher.client import RancherManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, PAGINATION_ARGS
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
-def RANCHER_ARGS(*list_args):
+def rancher_args(*list_args):
     orchestrator_args = [
         # (['-C', '--cluster'], {'action': 'store', 'dest': 'cluster', 'help': 'rancher cluster reference label'}),
     ]
@@ -22,11 +23,11 @@ class RancherPlatformController(BaseController):
         label = "rancher"
         stacked_on = "platform"
         stacked_type = "nested"
-        description = "rancher platform management"
-        help = "rancher platform management"
+        description = _("rancher platform management")
+        help = _("rancher platform management")
 
     def pre_command_run(self):
-        super(RancherPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
         orchestrators = self.config.get("orchestrators", {}).get("rancher", {})
@@ -38,11 +39,11 @@ class RancherPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No rancher default platform is available for this environment. Select another " "environment"
+                    "No rancher default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid labels are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid labels are: {', '.join(orchestrators.keys())}")
         self.conf = orchestrators.get(label)
 
         uri = self.conf.get("uri")
@@ -52,15 +53,15 @@ class RancherPlatformController(BaseController):
     #
     # Base commands
     #
-    @ex(help="ping rancher", description="ping rancher", arguments=RANCHER_ARGS())
+    @ex(help=_("ping rancher"), description=_("ping rancher"), arguments=rancher_args())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get server version",
-        description="get server version",
-        arguments=RANCHER_ARGS(),
+        help=_("get server version"),
+        description=_("get server version"),
+        arguments=rancher_args(),
     )
     def version(self):
         res = self.client.version()
@@ -70,14 +71,14 @@ class RancherPlatformController(BaseController):
     # Users management
     #
     @ex(
-        help="get users",
-        description="get users",
-        arguments=RANCHER_ARGS(
+        help=_("get users"),
+        description=_("get users"),
+        arguments=rancher_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -125,14 +126,14 @@ class RancherPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add user",
-        description="add user",
-        arguments=RANCHER_ARGS(
+        help=_("add user"),
+        description=_("add user"),
+        arguments=rancher_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -141,7 +142,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "user password",
+                        "help": _("user password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -150,7 +151,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "description",
+                        "help": _("description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -159,7 +160,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-chpwd"],
                     {
-                        "help": "change password flag, true or false",
+                        "help": _("change password flag, true or false"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -168,7 +169,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-role"],
                     {
-                        "help": "user role, one among admin, restricted-admin, user, user-base",
+                        "help": _("user role, one among admin, restricted-admin, user, user-base"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -195,24 +196,24 @@ class RancherPlatformController(BaseController):
         res = self.client.user.add(**data)
         if res.get("type") == "user":
             oid = res.get("id")
-            self.app.render({"msg": "Create user %s" % oid})
+            self.app.render({"msg": f"Create user {oid}"})
 
             role = self.app.pargs.role
             if role is not None:
                 self.client.user.set_global_role(oid, role)
-                self.app.render({"msg": "Set global role %s to user %s" % (role, oid)})
+                self.app.render({"msg": f"Set global role {role} to user {oid}"})
         else:
-            self.app.render({"msg": "%s" % res.get("message")})
+            self.app.render({"msg": f"{res.get('message')}"})
 
     @ex(
-        help="delete user",
-        description="delete user",
-        arguments=RANCHER_ARGS(
+        help=_("delete user"),
+        description=_("delete user"),
+        arguments=rancher_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -224,17 +225,17 @@ class RancherPlatformController(BaseController):
     def user_del(self):
         oid = self.app.pargs.id
         self.client.user.delete(oid)
-        self.app.render({"msg": "Delete user %s" % oid})
+        self.app.render({"msg": f"Delete user {oid}"})
 
     @ex(
-        help="add user",
-        description="add user",
-        arguments=RANCHER_ARGS(
+        help=_("add user"),
+        description=_("add user"),
+        arguments=rancher_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -242,7 +243,7 @@ class RancherPlatformController(BaseController):
                 ),
                 (
                     ["role"],
-                    {"help": "role", "action": "store", "type": str, "default": None},
+                    {"help": _("role"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -250,21 +251,21 @@ class RancherPlatformController(BaseController):
     def user_set_global_role(self):
         oid = self.app.pargs.id
         role = self.app.pargs.role
-        res = self.client.user.set_global_role(oid, role)
-        self.app.render({"msg": "Set global role %s to user %s" % (role, oid)})
+        self.client.user.set_global_role(oid, role)
+        self.app.render({"msg": f"Set global role {role} to user {oid}"})
 
     #
     # Clusters management
     #
     @ex(
-        help="get clusters",
-        description="get clusters",
-        arguments=RANCHER_ARGS(
+        help=_("get clusters"),
+        description=_("get clusters"),
+        arguments=rancher_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -348,14 +349,14 @@ class RancherPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="Get projects within a cluster",
-        description="Get projects within a cluster",
-        arguments=RANCHER_ARGS(
+        help=_("Get projects within a cluster"),
+        description=_("Get projects within a cluster"),
+        arguments=rancher_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -390,14 +391,14 @@ class RancherPlatformController(BaseController):
         self.app.render(res, key="data", headers=headers, fields=fields)
 
     @ex(
-        help="cluster user",
-        description="cluster user",
-        arguments=RANCHER_ARGS(
+        help=_("cluster user"),
+        description=_("cluster user"),
+        arguments=rancher_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "cluster name",
+                        "help": _("cluster name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -406,7 +407,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-k8sv"],
                     {
-                        "help": "kubernetes version",
+                        "help": _("kubernetes version"),
                         "action": "store",
                         "type": str,
                         "default": "v1.20.11-rancher1-1",
@@ -415,7 +416,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-netp"],
                     {
-                        "help": "network provider, one among flannel, calico, canal, weave",
+                        "help": _("network provider, one among flannel, calico, canal, weave"),
                         "action": "store",
                         "type": str,
                         "default": "canal",
@@ -424,7 +425,7 @@ class RancherPlatformController(BaseController):
                 (
                     ["-cloudp"],
                     {
-                        "help": "cloud provider",
+                        "help": _("cloud provider"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -447,19 +448,19 @@ class RancherPlatformController(BaseController):
         res = self.client.cluster.add(**data)
         if res.get("type") == "cluster":
             oid = res.get("id")
-            self.app.render({"msg": "Create cluster %s" % oid})
+            self.app.render({"msg": f"Create cluster {oid}"})
         else:
-            self.app.render({"msg": "%s" % res.get("message")})
+            self.app.render({"msg": f"{res.get('message')}"})
 
     @ex(
-        help="Get cluster registration command",
-        description="Get cluster registration command",
-        arguments=RANCHER_ARGS(
+        help=_("Get cluster registration command"),
+        description=_("Get cluster registration command"),
+        arguments=rancher_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -482,14 +483,14 @@ class RancherPlatformController(BaseController):
         )
 
     @ex(
-        help="delete cluster",
-        description="delete cluster",
-        arguments=RANCHER_ARGS(
+        help=_("delete cluster"),
+        description=_("delete cluster"),
+        arguments=rancher_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -501,7 +502,7 @@ class RancherPlatformController(BaseController):
     def cluster_del(self):
         oid = self.app.pargs.id
         self.client.cluster.delete(oid)
-        self.app.render({"msg": "Delete cluster %s" % oid})
+        self.app.render({"msg": f"Delete cluster {oid}"})
 
     #
     # Projects management

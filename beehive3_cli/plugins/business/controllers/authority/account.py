@@ -1,19 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
-# SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from os.path import split
+from typing import List, Dict
+from urllib.parse import urlencode
 
 from cement import ex
+from beecell.file import read_file_v2
+from beecell.types.type_dict import dict_get, flatten_dict
 from beecell.types.type_string import str2bool
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.plugins.business.controllers.authority import AuthorityControllerChild
+from beehive3_cli.translate import _
 
 
 class AccountController(AuthorityControllerChild):
     class Meta:
         label = "accounts"
-        description = "account management"
-        help = "account management"
+        description = _("account management")
+        help = _("account management")
 
         headers = [
             "uuid",
@@ -26,7 +32,7 @@ class AccountController(AuthorityControllerChild):
             "core services",
             "base services",
             "status",
-            "date",
+            "date creation",
         ]
         fields = [
             "uuid",
@@ -42,16 +48,26 @@ class AccountController(AuthorityControllerChild):
             "date.creation",
         ]
 
+    def pre_command_run(self):
+        super().pre_command_run()
+        self.config_path = self.app.config.get("beehive", "cmp_post_install_path")
+
     @ex(
-        help="get accounts",
-        description="This command is used to retrieve accounts information from the Nivola CMP platform. It allows fetching accounts without any filtering criteria by not specifying optional arguments like size or environment. The accounts returned will not be limited or filtered in any way. This command is useful to get a complete list of all accounts to check or work with.",
-        example="beehive bu accounts get -size 0 > head 10;beehive bu accounts get DOIT -e <env>",
+        help=_("get accounts"),
+        description=_(
+            "This command is used to retrieve accounts information from the Nivola CMP platform. "
+            "It allows fetching accounts without any filtering criteria by not specifying "
+            "optional arguments like size or environment. "
+            "The accounts returned will not be limited or filtered in any way. "
+            "This command is useful to get a complete list of all accounts to check or work with."
+        ),
+        example="beehive bu accounts get DOIT -e <env>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -60,7 +76,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-objid"],
                     {
-                        "help": "authorization id",
+                        "help": _("authorization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -69,7 +85,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-name"],
                     {
-                        "help": "account name",
+                        "help": _("account name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -78,7 +94,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-division-id"],
                     {
-                        "help": "division uuid",
+                        "help": _("division uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -87,7 +103,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-contact"],
                     {
-                        "help": "account contact",
+                        "help": _("account contact"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -96,7 +112,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "account email",
+                        "help": _("account email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -105,16 +121,25 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email-support"],
                     {
-                        "help": "account email support",
+                        "help": _("account email support"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
                 (
-                    ["-active"],
+                    ["-expired"],
                     {
-                        "help": "deleted account",
+                        "help": _("search expired account") + "; 'True'/'False' 'y'/'n' ",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-status"],
+                    {
+                        "help": _("status account"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -125,20 +150,22 @@ class AccountController(AuthorityControllerChild):
     )
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
-        active = getattr(self.app.pargs, "active", None)
-        from beecell.types.type_string import str2bool
-
-        b_active = str2bool(active)
+        status = getattr(self.app.pargs, "status", None)
+        expired = getattr(self.app.pargs, "expired", None)
+        b_expired = str2bool(expired)
 
         if oid is not None:
-            res = self.get_account(oid, b_active)
+            res = self.get_account(oid, b_expired)
             oid = res["uuid"]
 
             if self.is_output_text():
                 self.app.render(res, details=True)
 
+                if b_expired:
+                    return
+
                 self.c("\ncapabilities", "underline")
-                uri = "%s/accounts/%s/capabilities" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/accounts/{oid}/capabilities"
                 capabilities = self.cmp_get(uri).get("capabilities")
                 headers = [
                     "name",
@@ -228,10 +255,19 @@ class AccountController(AuthorityControllerChild):
             ]
             data = self.format_paginated_query(params)
 
-            if b_active == False:
-                data += "&filter_expired=True&active=False"
+            if status is not None:
+                status_d = {
+                    "ACTIVE": 1,
+                    "CLOSED": 22,
+                    "DELETED": 6,
+                }
+                data += f"&service_status_id={status_d[status]}"
 
-            uri = "%s/accounts" % self.baseuri
+            if b_expired is True:
+                # data += "&filter_expired=True&active=False"
+                data += "&filter_expired=True"
+
+            uri = f"{self.baseuri}/accounts"
             res = self.cmp_get(uri, data=data)
 
             from cement import App
@@ -245,15 +281,15 @@ class AccountController(AuthorityControllerChild):
             )
 
     @ex(
-        help="get account triplet",
-        description="This command get account triplet",
+        help=_("get account triplet"),
+        description=_("This command get account triplet"),
         example="beehive bu accounts triplet prodis",
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -264,7 +300,7 @@ class AccountController(AuthorityControllerChild):
     )
     def triplet(self):
         oid = getattr(self.app.pargs, "id", None)
-        res_account = self.get_account(oid, True)
+        res_account = self.get_account(oid)
 
         # get account
         account_name = res_account["name"]
@@ -279,19 +315,19 @@ class AccountController(AuthorityControllerChild):
         res_org = self.get_organization(organization_id)
         org_name = res_org["name"]
 
-        triplet = "%s.%s.%s" % (org_name, div_name, account_name)
-        print("triplet: %s" % triplet)
+        triplet = f"{org_name}.{div_name}.{account_name}"
+        print(f"triplet: {triplet}")
 
     @ex(
-        help="check account exists",
-        description="This command is used to check if account exists.",
+        help=_("check account exists"),
+        description=_("This command is used to check if account exists."),
         example="beehive bu accounts check aaa -e <env>",
         arguments=PARGS(
             [
                 (
                     ["triplet"],
                     {
-                        "help": "account triplet name",
+                        "help": _("account triplet name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -302,21 +338,26 @@ class AccountController(AuthorityControllerChild):
     )
     def check(self):
         triplet = self.app.pargs.triplet
-        uri = "/v2.0/nws/accounts/%s/checkname" % triplet
+        uri = f"/v2.0/nws/accounts/{triplet}/checkname"
         res = self.cmp_get(uri, data={})
-        print("res: %s" % res)
+        print(f"res: {res}")
 
     @ex(
-        help="get account definitions",
-        description="This command retrieves the account definition for a specified account id. The required 'id' argument expects the unique identifier of the account whose definition is being retrieved. This allows viewing the details of an account's configuration and settings.",
-        example="beehive bu accounts definition-get UPO;beehive bu accounts definition-get id <uuid>",
+        help=_("get account definitions"),
+        description=_(
+            "This command retrieves the account definition for a specified account id. "
+            "The required 'id' argument expects the unique identifier of the account "
+            "whose definition is being retrieved. This allows viewing the details "
+            "of an account's configuration and settings."
+        ),
+        example="beehive bu accounts definition-get id <uuid>",
         arguments=PARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
                 (
                     ["-plugintype"],
                     {
-                        "help": "filter by definition plugin",
+                        "help": _("filter by definition plugin"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -325,7 +366,16 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-category"],
                     {
-                        "help": "filet by category ",
+                        "help": _("filet by category "),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": _("name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -334,7 +384,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-container"],
                     {
-                        "help": "get only containers definitions",
+                        "help": _("get only containers definitions"),
                         "action": "store",
                         "type": bool,
                         "default": None,
@@ -358,8 +408,10 @@ class AccountController(AuthorityControllerChild):
             data["category"] = self.app.pargs.category
         if self.app.pargs.container:
             data["only_container"] = self.app.pargs.container
+        if self.app.pargs.name:
+            data["name"] = self.app.pargs.name
 
-        uri = "%s/accounts/%s/definitions" % ("/v2.0/nws", oid)
+        uri = f"/v2.0/nws/accounts/{oid}/definitions"
         res = self.cmp_get(uri, data=data)
 
         if self.is_output_text():
@@ -371,16 +423,22 @@ class AccountController(AuthorityControllerChild):
             self.app.render(res, key="definitions", details=True)
 
     @ex(
-        help="add account definitions",
-        description="This CLI command adds account definitions to the specified account. The required 'id' argument specifies the account ID to add definitions to. Additional definition IDs can also be provided as arguments to add multiple definitions in a single command. Definitions provide additional context and categorization for accounts.",
-        example="beehive bu accounts definition-add <uuid> <uuid> -e <env>;beehive bu accounts definition-add aou-novara-siovc OracleLinux85",
+        help=_("add account definitions"),
+        description=_(
+            "This CLI command adds account definitions to the specified account. "
+            "The required 'id' argument specifies the account ID to add definitions to. "
+            "Additional definition IDs can also be provided as arguments to add "
+            "multiple definitions in a single command. "
+            "Definitions provide additional context and categorization for accounts."
+        ),
+        example="beehive bu accounts definition-add aou-novara-siovc OracleLinux85",
         arguments=PARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
                 (
                     ["definitions"],
                     {
-                        "help": "comma separated list of definition ids",
+                        "help": _("comma separated list of definition ids"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -394,21 +452,82 @@ class AccountController(AuthorityControllerChild):
         oid = self.get_account(oid).get("uuid")
         definitions = self.app.pargs.definitions
         data = {"definitions": definitions.split(",")}
-        uri = "%s/accounts/%s/definitions" % ("/v2.0/nws", oid)
+        uri = f"/v2.0/nws/accounts/{oid}/definitions"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add definitions %s to account %s" % (res.get("definitions", []), oid)})
+        self.app.render({"msg": f"add definitions {res.get('definitions', [])} to account {oid}"})
+   
+    @ex(
+        help=_("add Kms Domain definition to an account"),
+        description=_( "This command adds a kms domain definitions to the specified account. " ),
+        arguments=PARGS(
+            [
+                (["id"], {"help": _("account id or name"), "action": "store", "type": str}),
+                (
+                    ["domain"],
+                    {
+                        "help": _("Kms domain name"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def kms_domain_add(self):
+        oid = self.app.pargs.id
+        oid = self.get_account(oid).get("uuid")
+        domain = self.app.pargs.domain
+        data = {"definitions": [f"KMS-DOMAIN-{domain}"]}
+        uri = f"/v2.0/nws/accounts/{oid}/definitions"
+        res = self.cmp_post(uri, data=data)
+        self.app.render({"msg": f"add definitions {res.get('definitions', [])} to account {oid}"})
 
     @ex(
-        help="add account",
-        description="This command allows you to add a new account to the system. You need to provide the name of the account and the division UUID it belongs to as required arguments.",
-        example="beehive bu accounts add test123 Datacenter;beehive bu accounts add smranags Agricoltura -managed True -acronym smranags",
+        help=_("delete account definitions"),
+        description=_(
+            "This CLI command delete account definitions from  the specified account. "
+            "It requires to specifies the account ID and the definition to remove. "
+            "Definitions provide additional context and categorization for accounts."
+        ),
+        example="beehive bu accounts definition-del <uuid> <uuid> -e <env>",
+        arguments=PARGS(
+            [
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (
+                    ["definition"],
+                    {
+                        "help": _("definition uuid or name"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def definition_del(self):
+        oid = self.app.pargs.id
+        oid = self.get_account(oid).get("uuid")
+        definition = self.app.pargs.definition
+        uri = f"/v2.0/nws/accounts/{oid}/definitions/{definition}"
+        self.cmp_delete(uri)
+        self.app.render({"msg": f"deleted definition {definition} from account {oid}"})
+
+    @ex(
+        help=_("add account"),
+        description=_(
+            "This command allows you to add a new account to the system. "
+            "You need to provide the name of the account and the division UUID it belongs to as required arguments."
+        ),
+        example="beehive bu accounts add smranags Agricoltura -managed True -acronym smranags",
         arguments=ARGS(
             [
-                (["name"], {"help": "account name", "action": "store", "type": str}),
+                (["name"], {"help": _("account name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "account description",
+                        "help": _("account description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -416,13 +535,13 @@ class AccountController(AuthorityControllerChild):
                 ),
                 (
                     ["division"],
-                    {"help": "division uuid", "action": "store", "type": str},
+                    {"help": _("division uuid"), "action": "store", "type": str},
                 ),
                 # (['-price_list'], {'help': 'account price list id', 'action': 'store', 'type': int, 'default': None}),
                 (
                     ["-contact"],
                     {
-                        "help": "account contact",
+                        "help": _("account contact"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -431,7 +550,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "account email",
+                        "help": _("account email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -440,7 +559,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email-support"],
                     {
-                        "help": "account email support",
+                        "help": _("account email support"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -449,7 +568,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email-support-link"],
                     {
-                        "help": "account email support link",
+                        "help": _("account email support link"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -458,7 +577,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-note"],
                     {
-                        "help": "account note",
+                        "help": _("account note"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -467,7 +586,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-acronym"],
                     {
-                        "help": "account acronym",
+                        "help": _("account acronym"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -476,7 +595,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-managed"],
                     {
-                        "help": "if true set account as managed",
+                        "help": _("if true set account as managed"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -485,7 +604,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-account_type"],
                     {
-                        "help": "account account type",
+                        "help": _("account account type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -494,7 +613,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-management_model"],
                     {
-                        "help": "account management model",
+                        "help": _("account management model"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -503,7 +622,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-pods"],
                     {
-                        "help": "account pods",
+                        "help": _("account pods"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -537,21 +656,24 @@ class AccountController(AuthorityControllerChild):
         if self.app.pargs.pods is not None:
             data["account"].update({"pods": self.app.pargs.pods})
 
-        uri = "%s/accounts" % self.baseuri
+        uri = f"{self.baseuri}/accounts"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "Add account %s" % res})
+        self.app.render({"msg": f"Add account {res}"})
 
     @ex(
-        help="update account",
-        description="This command updates an existing account. It requires the account id as the only required argument to identify which account needs to be updated.",
+        help=_("update account"),
+        description=_(
+            "This command updates an existing account. "
+            "It requires the account id as the only required argument to identify which account needs to be updated."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
-                # (["-name"], {"help": "account name", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                # (["-name"], {"help": _("account name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "account description",
+                        "help": _("account description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -559,12 +681,12 @@ class AccountController(AuthorityControllerChild):
                 ),
                 # (
                 #     ["-division"],
-                #     {"help": "division uuid", "action": "store", "type": str},
+                #     {"help": _("division uuid"), "action": "store", "type": str},
                 # ),
                 (
                     ["-price_list"],
                     {
-                        "help": "account price list id",
+                        "help": _("account price list id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -573,7 +695,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-contact"],
                     {
-                        "help": "account contact",
+                        "help": _("account contact"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -582,7 +704,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "account email",
+                        "help": _("account email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -591,7 +713,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email-support"],
                     {
-                        "help": "account email support",
+                        "help": _("account email support"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -600,7 +722,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-email-support-link"],
                     {
-                        "help": "account email support link",
+                        "help": _("account email support link"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -609,7 +731,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-acronym"],
                     {
-                        "help": "account acronym",
+                        "help": _("account acronym"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -618,7 +740,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-note"],
                     {
-                        "help": "account note",
+                        "help": _("account note"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -627,7 +749,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-account_type"],
                     {
-                        "help": "account account type",
+                        "help": _("account account type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -636,7 +758,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-management_model"],
                     {
-                        "help": "account management model",
+                        "help": _("account management model"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -645,7 +767,7 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-pods"],
                     {
-                        "help": "account pods",
+                        "help": _("account pods"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -760,16 +882,20 @@ class AccountController(AuthorityControllerChild):
         data = {"account": account}
         # print("data: %s" % data)
 
-        uri = "%s/accounts/%s" % (self.baseuri, oid)
-        self.cmp_put(uri, data=data)
-        self.app.render({"msg": "Update resource %s with data %s" % (oid, account)})
+        uri = f"{self.baseuri}/accounts/{oid}"
+        res = self.cmp_put(uri, data=data)
+        print(res)
+        self.app.render({"msg": f"Update resource {oid} with data {account}"})
 
     @ex(
-        help="refresh account",
-        description="This command refreshes an existing account by updating it with the latest information from the backend. The account id is required to identify which account to refresh.",
+        help=_("refresh account"),
+        description=_(
+            "This command refreshes an existing account by updating it with the latest information from the backend. "
+            "The account id is required to identify which account to refresh."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -777,21 +903,76 @@ class AccountController(AuthorityControllerChild):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
         data = {"account": {}}
-        uri = "%s/accounts/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}"
         self.cmp_patch(uri, data=data, timeout=600)
-        self.app.render({"msg": "Refresh account %s" % oid})
+        self.app.render({"msg": f"Refresh account {oid}"})
 
     @ex(
-        help="delete account",
-        description="This command closes an existing account. It requires the account id as the only required argument to identify the account to close.",
-        example="beehive bu accounts delete <uuid> -e <env>;beehive bu accounts delete <uuid>",
+        help=_("close account"),
+        description=_(
+            "This command closes an existing account. "
+            "It requires the account id as the only required argument to identify the account to close."
+        ),
+        example="beehive bu accounts delete <uuid>",
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (
+                    ["--no-delete-services"],
+                    {
+                        "help": _("no delete all child services"),
+                        "action": "store_false",
+                        # "type": bool,
+                        "dest": "delete_services",
+                        # "default": True,
+                    },
+                ),
+                (
+                    ["--no-delete-tags"],
+                    {
+                        "help": _("if true delete all tags"),
+                        "action": "store_false",
+                        "dest": "delete_tags",
+                        # "type": bool,
+                        # "default": True,
+                    },
+                ),
+            ]
+        ),
+    )
+    def delete(self):
+        oid = self.app.pargs.id
+        # delete_services = str2bool(self.app.pargs.delete_services)
+        # delete_tags = str2bool(self.app.pargs.delete_tags)
+        delete_services = self.app.pargs.delete_services
+        delete_tags = self.app.pargs.delete_tags
+
+        oid = self.get_account(oid).get("uuid")
+        uri = f"/v2.0/nws/accounts/{oid}"
+        data = {
+            "delete_services": delete_services,
+            "delete_tags": delete_tags,
+            "close_account": True,
+        }
+        entity = f"account {oid}"
+        res = self.cmp_delete(uri, entity=entity, data=data, output=False)
+        if res is not None:
+            print(f"{entity} closed")
+
+    @ex(
+        help=_("dev: real delete account"),
+        description=_(
+            "This command real delete an existing account. "
+            "It requires the account id as the only required argument to identify the account to delete."
+        ),
+        example="beehive bu accounts real-delete <uuid> -e <env>",
+        arguments=ARGS(
+            [
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
                 (
                     ["-delete_services"],
                     {
-                        "help": "if true delete all child services",
+                        "help": _("if true delete all child services"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -800,113 +981,185 @@ class AccountController(AuthorityControllerChild):
                 (
                     ["-delete_tags"],
                     {
-                        "help": "if true delete all tags",
+                        "help": _("if true delete all tags"),
                         "action": "store",
                         "type": str,
-                        "default": "false",
+                        "default": "true",
                     },
                 ),
             ]
         ),
+        hide=True,
     )
-    def delete(self):
+    def real_delete(self):
         oid = self.app.pargs.id
         delete_services = str2bool(self.app.pargs.delete_services)
         delete_tags = str2bool(self.app.pargs.delete_tags)
         oid = self.get_account(oid).get("uuid")
-        uri = "/v2.0/nws/accounts/%s" % oid
+        uri = f"/v2.0/nws/accounts/{oid}"
         data = {
             "delete_services": delete_services,
             "delete_tags": delete_tags,
-            "close_account": True,
         }
-        entity = "account %s" % oid
+        entity = f"account {oid}"
         res = self.cmp_delete(uri, entity=entity, data=data, output=False)
         if res is not None:
-            print("%s closed" % entity)
+            print(f"{entity} deleted")
 
     @ex(
-        help="get account active services info",
-        description="This command retrieves the active services information for a given account. The 'id' argument is required and specifies the account identifier for which to retrieve the active services info.",
-        example="beehive bu accounts service-active-get CloudEntiMgmt|more;beehive bu accounts service-active-get CloudEntiMgmt",
+        help=_("get account active services info"),
+        description=_(
+            "This command retrieves the active services information for a given account. "
+            "The 'id' argument is required and specifies the account identifier for "
+            "which to retrieve the active services info."
+        ),
+        example="beehive bu accounts service-active-get CloudEntiMgmt -plugin_name DatabaseService",
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (["-plugin_name"], {"help": _("plugin_name"), "action": "store", "type": str, "default": None}),
             ]
         ),
     )
     def service_active_get(self):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
-        uri = "%s/accounts/%s/activeservices" % (self.baseuri, oid)
-        res = self.cmp_get(uri).get("services", {}).get("service_container", [])
+        uri = f"{self.baseuri}/accounts/{oid}/activeservices"
+        data_filter = {}
+
+        plugin_name = self.app.pargs.plugin_name
+        if plugin_name is not None:
+            data_filter.update({
+                "plugin_name": plugin_name
+            })
+
+        res = self.cmp_get(uri, data=data_filter).get("services", {}).get("service_container", [])
         for item in res:
             metrics = item.pop("tot_metrics", [])
-            self.c("\nservice %s" % item["plugin_type"], "underline")
+            self.c(f"\nservice {item['plugin_type']}", "underline")
             self.app.render(item, details=True)
             self.app.render(metrics, headers=["metric", "unit", "value", "quota"])
 
     @ex(
-        help="delete account services",
-        description="This command deletes account services by specifying the account id as a required argument. It also accepts a -y flag to skip confirmation prompt.",
-        example="beehive bu accounts service-del <uuid> -y;beehive bu accounts service-del <uuid> -y",
-        arguments=ARGS([(["id"], {"help": "account id", "action": "store", "type": str})]),
+        help=_("delete account services one by one"),
+        description=_(
+            "This command deletes account services by specifying the account id as a required argument. "
+            "It also accepts a -y flag to skip confirmation prompt."
+        ),
+        example="beehive bu accounts service-del <uuid> -y",
+        arguments=ARGS([(["id"], {"help": _("account id"), "action": "store", "type": str})]),
     )
     def service_del(self):
+        """delete  serivices in account one by one in correct order
+        | plugintype             |objclass
+        | MonitoringAlert        |beehive_service.plugins.monitoringservice.controller_alert.ApiMonitoringAlert
+        | NetworkSshGateway      |beehive_service_netaas.networkservice.controller.ApiSshGateway
+        | NetworkLoadBalancer    |beehive_service_netaas.networkservice.controller.ApiNetworkLoadBalancer
+        | NetworkListener        |beehive_service_netaas.networkservice.controller.ApiNetworkListener
+        | NetworkTargetGroup     |beehive_service_netaas.networkservice.controller.ApiNetworkTargetGroup
+        | NetworkHealthMonitor   |beehive_service_netaas.networkservice.controller.ApiNetworkHealthMonitor
+        | MonitoringInstance     |beehive_service.plugins.monitoringservice.controller.ApiMonitoringInstance
+        | MonitoringFolder       |beehive_service.plugins.monitoringservice.controller.ApiMonitoringFolder
+        | MonitoringService      |beehive_service.plugins.monitoringservice.controller.ApiMonitoringService
+        | LoggingInstance        |beehive_service.plugins.loggingservice.controller.ApiLoggingInstance
+        | LoggingSpace           |beehive_service.plugins.loggingservice.controller.ApiLoggingSpace
+        | LoggingService         |beehive_service.plugins.loggingservice.controller.ApiLoggingService
+        | ComputeCustomization   |beehive_service.plugins.computeservice.controller.ApiComputeCustomization
+        | VirtualService         |beehive_service.entity.service_type.ApiServiceType
+        | NetworkGateway         |beehive_service_netaas.networkservice.controller.ApiNetworkGateway
+        | NetworkService         |beehive_service_netaas.networkservice.controller.ApiNetworkService
+        | ComputeKeyPairs        |beehive_service.plugins.computeservice.controller.ApiComputeKeyPairs
+        | ComputeVolume          |beehive_service.plugins.computeservice.controller.ApiComputeVolume
+        | AppEngineInstance      |beehive_service.plugins.appengineservice.controller.ApiAppEngineInstance
+        | AppEngineService       |beehive_service.plugins.appengineservice.controller.ApiAppEngineService
+        | StorageEFS             |beehive_service.plugins.storageservice.controller.ApiStorageEFS
+        | StorageService         |beehive_service.plugins.storageservice.controller.ApiStorageService
+        | DatabaseInstance       |beehive_service.plugins.databaseservice.controller.ApiDatabaseServiceInstance
+        | DatabaseService        |beehive_service.plugins.databaseservice.controller.ApiDatabaseService
+        | ComputeSecurityGroup   |beehive_service.plugins.computeservice.controller.ApiComputeSecurityGroup
+        | ComputeVPC             |beehive_service.plugins.computeservice.controller.ApiComputeVPC
+        | ComputeSubnet          |beehive_service.plugins.computeservice.controller.ApiComputeSubnet
+        | ComputeImage           |beehive_service.plugins.computeservice.controller.ApiComputeImage
+        | ComputeInstance        |beehive_service.plugins.computeservice.controller.ApiComputeInstance
+        | ComputeService         |beehive_service.plugins.computeservice.controller.ApiComputeService
+        """
         oid = self.app.pargs.id
-        oid = self.get_account(oid).get("uuid")
+        account = self.get_account(oid)
+        oid = account.get("uuid")
+        account_type = account.get("account_type")
+        accountname = account.get("name")
 
+        plugintypes: List[str] = []
         # delete all child services
+        # print(f"Account {accountname} {oid} is {account_type}")
         uri = "/v2.0/nws/serviceinsts"
-        res = self.cmp_get(uri, data={"account_id": oid, "size": -1}).get("serviceinsts", [])
-        for item in res:
-            # delete service
-            uri = "/v2.0/nws/serviceinsts/%s" % item["uuid"]
-            entity = "service %s" % item["name"]
-            res = self.cmp_delete(uri, data={}, timeout=600, entity=entity, output=False)
-            state = self.wait_for_service(item["uuid"], delta=2)
-            if state == "DELETED":
-                print("%s deleted" % entity)
-
-    # @ex(
-    #     help='get account consumes',
-    #     description='get account consumes',
-    #     arguments=PARGS([
-    #         (['id'], {'help': 'account id', 'action': 'store', 'type': str})
-    #     ])
-    # )
-    # def consume_get(self):
-    #     oid = self.app.pargs.id
-    #     oid = self.get_account(oid).get('uuid')
-    #     uri = '%s/accounts/%s/costs' % (self.baseuri, oid)
-    #     params = []
-    #     data = self.format_paginated_query(params)
-    #     res = self.cmp_get(uri, data=data)
-    #     self.app.render(res, key='reports', headers=['id', 'period', 'plugin_name', 'metric_type_id', 'value',
-    #                                                  'cost', 'is_reported'], maxsize=80)
+        if account_type == "private":
+            print(f"No network services deleted on Account {accountname}[{oid}] it is {account_type}")
+            plugintypes = [
+                "ComputeImage",
+                "LoggingInstance",
+                "MonitoringInstance",
+                "ComputeInstance",
+                "AppEngineInstance",
+                "StorageEFS",
+                "DatabaseInstance",
+                "ComputeVolume",
+                "ComputeSecurityGroup",
+            ]
+        else:
+            plugintypes = [
+                "LoggingSpace",
+                "MonitoringFolder",
+                "MonitoringAlert",
+                "LoggingInstance",
+                "MonitoringInstance",
+                "ComputeInstance",
+                "AppEngineInstance",
+                "DatabaseInstance",
+                "StorageEFS",
+                "ComputeVolume",
+                "ComputeKeyPairs",
+                "ComputeSecurityGroup",
+                "ComputeSubnet",
+                "ComputeVPC",
+                "ComputeImage",
+            ]
+        for plugin in plugintypes:
+            print(f"Searching for {plugin} ...")
+            res = self.cmp_get(uri, data={"account_id": oid, "plugintype": plugin, "size": -1}).get("serviceinsts", [])
+            for item in res:
+                print(
+                    f" account: {item['account']['name'] } plugintype {item['plugintype']} "
+                    f" uuid{item['uuid']} name: {item['name']}  [{plugin}]"
+                )
+                self.generic_service_delete(uuid=item["uuid"], name=item["name"], plugin=plugin)
 
     def loop_roles(self, x):
         sout = ""
         if x is not None:
             for s in x:
-                sout += "%s - %s - %s \n" % (s["id"], s["name"], s["desc"])
+                sout += f"{s['id']} - {s['name']} - {s['desc']} \n"
         return sout
 
     @ex(
-        help="get account user roles",
-        description="This command retrieves the user roles associated with a specific account. The account is identified by supplying the account ID as the only required argument. The account ID can be specified as either an integer value or a UUID string.",
-        example="beehive bu accounts user-role-get 672;beehive bu accounts user-role-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "account id", "action": "store", "type": str})]),
+        help=_("get account user roles"),
+        description=_(
+            "This command retrieves the user roles associated with a specific account. "
+            "The account is identified by supplying the account ID as the only required argument. "
+            "The account ID can be specified as either an integer value or a UUID string."
+        ),
+        example="beehive bu accounts user-role-get <uuid>",
+        arguments=ARGS([(["id"], {"help": _("account id"), "action": "store", "type": str})]),
     )
     def user_role_get(self):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
-        uri = "%s/accounts/%s/userroles" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/userroles"
         params = []
         data = self.format_paginated_query(params)
         res = self.cmp_get(uri, data=data)
 
-        transform = {"roles": lambda x: self.loop_roles(x), "roles.colortext": True}
+        transform = {"roles": self.loop_roles, "roles.colortext": True}
         from cement import App
 
         app: App = self.app
@@ -921,14 +1174,18 @@ class AccountController(AuthorityControllerChild):
 
     #############################
     @ex(
-        help="Administer account",
-        description="This CLI command 'beehive bu accounts manage' is used to administer account. It configures session permission in order to manage an account. There are no required arguments for this command.",
+        help=_("Administer account"),
+        description=_(
+            "This CLI command 'beehive bu accounts manage' is used to administer account. "
+            "It configures session permission in order to manage an account. "
+            "There are no required arguments for this command."
+        ),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "the account id to manage",
+                        "help": _("the account id to manage"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -947,14 +1204,18 @@ class AccountController(AuthorityControllerChild):
                 print(result.get("msg"))
 
     @ex(
-        help="View account",
-        description="This CLI command allows you to view details of an account. It does not require any arguments as it will display the details of the currently active account based on the session permissions.",
+        help=_("View account"),
+        description=_(
+            "This CLI command allows you to view details of an account. "
+            "It does not require any arguments as it will display the details "
+            "of the currently active account based on the session permissions."
+        ),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "the account id to manage",
+                        "help": _("the account id to manage"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -973,14 +1234,17 @@ class AccountController(AuthorityControllerChild):
                 print(result.get("msg"))
 
     @ex(
-        help="Operate on account",
-        description="This CLI command operates on accounts in the beehive bu system. It configures the session permission needed to perform operations on accounts.",
+        help=_("Operate on account"),
+        description=_(
+            "This CLI command operates on accounts in the beehive bu system. "
+            "It configures the session permission needed to perform operations on accounts."
+        ),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "the account id to manage",
+                        "help": _("the account id to manage"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -998,43 +1262,254 @@ class AccountController(AuthorityControllerChild):
             if self.is_output_text():
                 print(result.get("msg"))
 
+    @ex(
+        help=_("set account svms"),
+        description=_("set zone svms account can see"),
+        arguments=ARGS(
+            [
+                (
+                    ["account_id"],
+                    {
+                        "help": _("the account id to manage"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["file"],
+                    {
+                        "help": _("svm data file"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def svm_set(self):
+        """
+        sets the svms the account can see, by setting them in the core storage service
+        """
+
+        def get_orchestrator(site_name, orch_type, cluster):
+            uri = f"/v1.0/nrs/provider/sites/{site_name}"
+            site = self.cmp_get(uri)
+            orchestrators = dict_get(site, "site.attributes.orchestrators")
+            container_id = None
+            for orch in orchestrators:
+                if orch.get("type") == orch_type and orch.get("name") == cluster:
+                    return orch.get("id"), orch.get("name")
+            if container_id is None:
+                raise Exception(f"No {orch_type} orchestrator {cluster} found in {site_name}")
+            return None
+
+        def get_remote_svm(site_name, svm_name, cid):
+            data = urlencode({"type": "OntapNetapp.Svm", "name": svm_name}, doseq=True)
+            uri = f"/v1.0/nrs/containers/{cid}/discover_remote"
+            svms = self.cmp_get(uri, data=data, timeout=20)
+            svms = svms.get("discover_resources")
+            count = len(svms)
+            if count != 1:
+                raise Exception(f"Svm {svm_name} not found or is not unique in site {site_name} (container id {cid})")
+            return svms[0]
+
+        def storage_service_info(account_uuid):
+            self.app.render({"msg": f"Retrieving storage core service for account {account_uuid} ..."})
+            data = {"owner-id": account_uuid}
+            uri = "/v1.0/nws/storageservices"
+            res = self.cmp_get(uri, data=urlencode(data)).get("DescribeStorageResponse")
+            total = res.get("storageTotal")
+            storage_set = res.get("storageSet")
+            if total != 1 or not storage_set or (isinstance(storage_set, list) and len(storage_set) > 1):
+                raise Exception(
+                    f"Account {account_id} has {total} StorageService instance! It should have ONE."
+                )
+            return storage_set[0]
+
+        account_id = self.app.pargs.account_id
+        data_filepath = self.app.pargs.file
+        filepath = f"{self.config_path}/{data_filepath}"
+
+        self.app.render({"msg": f"Checking account {account_id} configuration..."})
+
+        # query account
+        uri = f"/v1.0/nws/accounts/{account_id}"
+        account = self.cmp_get(uri).get("account")
+
+        # check account has storage core service and compute zone
+        storage_service = storage_service_info(account.get("uuid"))
+        # storage_service_uuid = storage_service.get("uuid")
+        compute_zone_uuid = storage_service.get("resource_uuid")
+        if compute_zone_uuid is None:
+            raise Exception("compute zone uuid not found")
+
+        # verify account isn't already configured for staas v2
+        config = self.api.resource.entity.get_config(compute_zone_uuid).get("config")
+        if config.get("staas"):
+            self.app.error("Account is already configured: ")
+            self.app.render(config.get("staas"), details=True)
+            self.app.warning("If the configuration is not correct, unset it with svm-unset")
+            return
+
+        # parse configuration file
+        _, filename = split(filepath)
+        if not filename:
+            raise Exception(f"Invalid path {filepath}")
+
+        # get the name of the division the account belongs to and verify it is equal to that in file name
+        division_id = account.get("division_id")
+        uri = f"/v1.0/nws/divisions/{division_id}"
+        division = self.cmp_get(uri).get("division")
+        division_name = division.get("name")
+        if not division_name:
+            raise Exception(f"Unable to find division name for account {account_id}")
+
+        if division_name.lower() not in filename.lower():
+            raise Exception(
+                f"The account's division ({division_name}) is different from that "
+                "specified inside the file name ({filename})"
+            )
+
+        # read svm config file
+        self.app.render({"msg": f"Reading file {filename}..."})
+        data = read_file_v2(filepath)
+
+        # querying remote ontap to validate svms
+        self.app.render({"msg": "Validating data ..."})
+
+        staas_cfg_root = dict_get(data, "configs.staas")
+        if not isinstance(staas_cfg_root, dict):
+            raise Exception("Invalid type for configs staas element configuration")
+
+        staas_sites_cfg: List[Dict] = staas_cfg_root.get("sites")
+        if not isinstance(staas_sites_cfg, list):
+            raise Exception("Invalid sites element configuration")
+
+        for item in staas_sites_cfg:
+            site_name = item.get("site")
+            cluster = item.get("cluster")
+            if not site_name or not cluster:
+                raise Exception(f"Invalid site configuration. Site or cluster missing. Parsed: {item}")
+            # get ontap orchestrator id for given site
+            container_id, container_name = get_orchestrator(site_name, "ontap", cluster)
+            self.app.render({"msg": f"Site: {site_name} - Cluster: {cluster} - Container: {container_name}"})
+
+            for svm in item.get("svm"):
+                svm_name = svm.get("name")
+
+                if not svm_name:
+                    raise Exception(f"Invalid site svm configuration. Parsed: {svm}")
+
+                self.app.render({"msg": f"Checking svm {svm_name} is valid..."})
+                # verify remote svm exists
+                remote_svm = get_remote_svm(site_name, svm_name, container_id)
+                svm.update({"ext_id": remote_svm.get("uuid")})
+                self.app.render({"msg": f"{svm_name} verified"})
+
+        # write metadata in compute zone
+        self.app.render({"msg": "Updating account compute zone"})
+        staas_sites_cfg = {item.pop("site"): item for item in staas_sites_cfg}
+        staas_cfg_flat = flatten_dict({"staas.sites": staas_sites_cfg}, delimiter=".")
+        for k, v in staas_cfg_flat.items():
+            self.api.resource.entity.set_config(compute_zone_uuid, key=k, value=v)
+        staas_relationships_cfg = staas_cfg_root.get("relationships")
+        staas_relationships_cfg_flat = flatten_dict({"staas.relationships": staas_relationships_cfg}, delimiter=".")
+        for k, v in staas_relationships_cfg_flat.items():
+            self.api.resource.entity.set_config(compute_zone_uuid, key=k, value=v)
+
+        # update core storage service
+        # self.api.business.service.instance.set_config(storage_service_uuid, key="api_version", value="v2.0")
+        self.app.render({"msg": "Done"})
+
+    @ex(
+        help=_("unset account svms"),
+        description=_("unset zone svms account can see"),
+        arguments=ARGS(
+            [
+                (
+                    ["account_id"],
+                    {
+                        "help": _("the account id to manage"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                )
+            ]
+        ),
+    )
+    def svm_unset(self):
+        def get_core_service(account_id, plugintype):
+            self.app.render({"msg": f"Retrieving storage core service for account {account_id} ..."})
+            data = {"flag_container": True, "plugintype": plugintype, "account_id": account_id}
+            uri = "/v1.0/nws/serviceinsts"
+            res = self.cmp_get(uri, data=data)
+            count = res.get("count", 0)
+            if count != 1:
+                raise Exception(
+                    f"Account {account_id} has {count} StorageService instance! It should have ONE."
+                )
+            return res.get("serviceinsts")[0]
+
+        account_id = self.app.pargs.account_id
+
+        # get account core storage service
+        storage_service = get_core_service(account_id, "StorageService")
+        storage_service_uuid = storage_service.get("uuid")
+        compute_zone_uuid = storage_service.get("resource_uuid")
+        if compute_zone_uuid is None:
+            raise Exception("compute zone uuid not found")
+        self.app.render({"msg": f"Got storage core service {storage_service_uuid}"})
+
+        self.api.resource.entity.set_config(compute_zone_uuid, "staas", None)
+        # self.api.business.service.instance.set_config(storage_service_uuid, key="api_version", value="v1.0")
+
 
 class AccountAuthController(AuthorityControllerChild):
     class Meta:
         label = "accounts_auth"
-        description = "account authorization"
-        help = "account authorization"
+        description = _("account authorization")
+        help = _("account authorization")
 
     @ex(
-        help="get account roles",
-        description="This command retrieves the roles associated with a specific account. The account is identified by its unique id, which must be provided. Roles define access permissions and privileges for accounts in Nivola CMP.",
+        help=_("get account roles"),
+        description=_(
+            "This command retrieves the roles associated with a specific account. "
+            "The account is identified by its unique id, which must be provided. "
+            "Roles define access permissions and privileges for accounts in Nivola CMP."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
     def role_get(self):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
-        uri = "%s/accounts/%s/roles" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/roles"
         res = self.cmp_get(uri)
         self.app.render(res, key="roles", headers=["name", "desc", "role"], maxsize=200)
 
     @ex(
-        help="get account users",
-        description="This command retrieves account user details by specifying the account id as a required argument. It accepts the account id as a required parameter and returns user details for that specific account.",
-        example="beehive bu accounts-auth user-get <uuid>;beehive bu accounts-auth user-get <uuid>",
+        help=_("get account users"),
+        description=_(
+            "This command retrieves account user details by specifying the account id as a required argument. "
+            "It accepts the account id as a required parameter and returns user details for that specific account."
+        ),
+        example="beehive bu accounts-auth user-get <uuid>",
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
     def user_get(self):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
-        uri = "%s/accounts/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/users"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -1045,15 +1520,19 @@ class AccountAuthController(AuthorityControllerChild):
         )
 
     @ex(
-        help="add account role to a user",
-        description="This command adds an account role to a specific user for the given account. It requires the account id, role name and user name as arguments to identify the account, role and user respectively to add the role association.",
+        help=_("add account role to a user"),
+        description=_(
+            "This command adds an account role to a specific user for the given account. "
+            "It requires the account id, role name and user name as arguments to identify "
+            "the account, role and user respectively to add the role association."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
-                (["role"], {"help": "account role", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (["role"], {"help": _("account role"), "action": "store", "type": str}),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -1064,23 +1543,25 @@ class AccountAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/accounts/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/users"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="add account user from account",
-        description=""" This command reaads user an roles from a source accont in ordere to add the same roles to the same users for the destination account.
-        It requires the source account id and the destination account id.
-        """,
+        help=_("add account user from account"),
+        description=_(
+            "This command reaads user an roles from a source accont in ordere "
+            "to add the same roles to the same users for the destination account."
+            "It requires the source account id and the destination account id."
+        ),
         arguments=ARGS(
             [
-                (["srcid"], {"help": "source account id", "action": "store", "type": str}),
-                (["destid"], {"help": "destintion account id", "action": "store", "type": str}),
+                (["srcid"], {"help": _("source account id"), "action": "store", "type": str}),
+                (["destid"], {"help": _("destintion account id"), "action": "store", "type": str}),
                 (
                     ["--onebyone"],
                     {
-                        "help": "confirm for each user",
+                        "help": _("confirm for each user"),
                         "action": "store_true",
                         # "type": bool,
                         "default": False,
@@ -1095,7 +1576,7 @@ class AccountAuthController(AuthorityControllerChild):
         onebyone = self.app.pargs.onebyone
         srcuuid = self.get_account(srcid).get("uuid")
         destuuid = self.get_account(destid).get("uuid")
-        uri = "%s/accounts/%s/users" % (self.baseuri, srcuuid)
+        uri = f"{self.baseuri}/accounts/{srcuuid}/users"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -1104,17 +1585,14 @@ class AccountAuthController(AuthorityControllerChild):
             fields=["uuid", "name", "desc", "role"],
             # maxsize=200,
         )
-        if self.confirm("add user roles to %s (%s)" % (destid, destuuid)):
+        if self.confirm(f"add user roles to {destid} ({destuuid})"):
             srcdata = res.get("users", [])
             counter = 0
             for user in srcdata:
                 user_role = user.get("role", "viewer")
-                msg: str = "adding %s (%s) as %s to %s" % (
-                    user.get("name", ""),
-                    user.get("desc", ""),
-                    user_role,
-                    destid,
-                )
+                user_name = user.get("name", "")
+                user_desc = user.get("desc", "")
+                msg = f"adding {user_name} ({user_desc}) as {user_role} to {destid}"
                 if not onebyone or self.confirm(msg):
                     print(msg, end="...", flush=True)
                     data = {"user": {"user_id": user.get("uuid"), "role": user_role}}
@@ -1129,26 +1607,20 @@ class AccountAuthController(AuthorityControllerChild):
                         print(self.app.colored_text.red("Fail"))
             print(f"added {counter} users to {destid}")
 
-        # self.app.render(
-        #     res,
-        #     key="users",
-        #     headers=["id", "name", "desc", "role"],
-        #     fields=["uuid", "name", "desc", "role"],
-        #     maxsize=200,
-        # )
-
-        pass
-
     @ex(
-        help="remove account role from a user",
-        description="This command removes an account role from a specific user. The required arguments are the account id, role and user to delete the authorization for. This deletes the permission for the given user to access the specified role on the account.",
+        help=_("remove account role from a user"),
+        description=_(
+            "This command removes an account role from a specific user. "
+            "The required arguments are the account id, role and user to delete the authorization for. "
+            "This deletes the permission for the given user to access the specified role on the account."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
-                (["role"], {"help": "account role", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (["role"], {"help": _("account role"), "action": "store", "type": str}),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -1159,24 +1631,27 @@ class AccountAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/accounts/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/users"
         res = self.cmp_delete(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="get account groups",
-        description="This command retrieves account groups for a specified account id. The required 'id' argument should provide the account identifier to fetch groups for.",
-        example="beehive bu accounts-auth group-get procedo;beehive bu accounts-auth group-get master",
+        help=_("get account groups"),
+        description=_(
+            "This command retrieves account groups for a specified account id. "
+            "The required 'id' argument should provide the account identifier to fetch groups for."
+        ),
+        example="beehive bu accounts-auth group-get master",
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
             ]
         ),
     )
     def group_get(self):
         oid = self.app.pargs.id
         oid = self.get_account(oid).get("uuid")
-        uri = "%s/accounts/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/groups"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -1187,15 +1662,19 @@ class AccountAuthController(AuthorityControllerChild):
         )
 
     @ex(
-        help="add account role to a group",
-        description="This command adds an account role to an authorization group. The required arguments are the account ID, the account role to add, and the name of the authorization group to add the role to.",
+        help=_("add account role to a group"),
+        description=_(
+            "This command adds an account role to an authorization group. "
+            "The required arguments are the account ID, the account role to add, "
+            "and the name of the authorization group to add the role to."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
-                (["role"], {"help": "account role", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (["role"], {"help": _("account role"), "action": "store", "type": str}),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -1206,20 +1685,24 @@ class AccountAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/accounts/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/groups"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove account role from a group",
-        description="This command removes an account role from an authorization group. The required arguments are the account ID, the account role, and the authorization group to remove the role from.",
+        help=_("remove account role from a group"),
+        description=_(
+            "This command removes an account role from an authorization group. "
+            "The required arguments are the account ID, the account role, "
+            "and the authorization group to remove the role from."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
-                (["role"], {"help": "account role", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
+                (["role"], {"help": _("account role"), "action": "store", "type": str}),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -1230,7 +1713,7 @@ class AccountAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/accounts/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/groups"
         res = self.cmp_delete(uri, data)
         self.app.render({"msg": res})
 
@@ -1238,19 +1721,24 @@ class AccountAuthController(AuthorityControllerChild):
 class AccountCapabilityController(AuthorityControllerChild):
     class Meta:
         label = "accounts_capabilities"
-        description = "accounts capabilities"
-        help = "accounts capabilities"
+        description = _("accounts capabilities")
+        help = _("accounts capabilities")
 
     @ex(
-        help="get account capabilities",
-        description="This command retrieves the capabilities of an account. Capabilities determine the actions and resources an account is authorized to access. By specifying an account ID, this command will return the capabilities assigned to that specific account.",
-        example="beehive bu accounts-capabilities get  EnteCloud-ComputeService-rupar73;beehive bu accounts-capabilities get EnteCloud-ComputeService-rupar73",
+        help=_("get account capabilities"),
+        description=_(
+            "This command retrieves the capabilities of an account. "
+            "Capabilities determine the actions and resources an account is authorized to access. "
+            "By specifying an account ID, this command will return the capabilities "
+            "assigned to that specific account."
+        ),
+        example="beehive bu accounts-capabilities get  EnteCloud-ComputeService-rupar73",
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1259,7 +1747,7 @@ class AccountCapabilityController(AuthorityControllerChild):
                 (
                     ["-capability"],
                     {
-                        "help": "capability name",
+                        "help": _("capability name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1272,11 +1760,11 @@ class AccountCapabilityController(AuthorityControllerChild):
         oid = getattr(self.app.pargs, "id", None)
         oid = self.get_account(oid).get("uuid")
         data = self.format_paginated_query([])
-        uri = "%s/accounts/%s/capabilities" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/capabilities"
         res = self.cmp_get(uri, data=data)
         if self.is_output_text():
             for item in res.get("capabilities"):
-                self.c("\n%s" % item.pop("name"), "underline")
+                self.c(f"\n{item.pop('name')}", "underline")
                 services = item.pop("services")
                 self.app.render(item, details=True)
                 print()
@@ -1286,42 +1774,20 @@ class AccountCapabilityController(AuthorityControllerChild):
         else:
             self.app.render(res, details=True)
 
-        # name = getattr(self.app.pargs, 'capability', None)
-        #
-        # if name is not None:
-        #     data = urlencode({'name': name})
-        #     uri = '%s/accounts/%s/capabilities' % (self.baseuri, oid)
-        #     res = self.cmp_get(uri, data=data)
-        #
-        #     if self.is_output_text():
-        #         res = res.get('capabilities')
-        #         if len(res) == 0:
-        #             raise Exception('No capability find with name %s' % name)
-        #         services = res[0].pop('services')
-        #         self.app.render(res[0], details=True)
-        #         print('\nservices:')
-        #         self.app.render(services, headers=['type', 'name', 'status', 'require.name'], maxsize=200)
-        #     else:
-        #         self.app.render(res, details=True)
-        # else:
-        #     data = self.format_paginated_query([])
-        #     uri = '%s/accounts/%s/capabilities' % (self.baseuri, oid)
-        #     res = self.cmp_get(uri, data=data)
-        #     headers = ['status', 'name', 'services.required', 'services.created', 'services.error']
-        #     fields = ['status', 'name', 'report.required', 'report.created', 'report.error']
-        #     self.app.render(res, key='capabilities', headers=headers, fields=fields, maxsize=40)
-
     @ex(
-        help="add account capabilities",
-        description="This command adds capabilities for a given account. It requires the account id and a comma separated list of capability names or ids as arguments.",
-        example="beehive bu accounts-capabilities add prd_regpie CsiCloud-MonitoringService-base;beehive bu accounts-capabilities add <uuid> EnteCloud-NetworkService-base ",
+        help=_("add account capabilities"),
+        description=_(
+            "This command adds capabilities for a given account. "
+            "It requires the account id and a comma separated list of capability names or ids as arguments."
+        ),
+        example="beehive bu accounts-capabilities add prd_regpie CsiCloud-MonitoringService-base",
         arguments=PARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
                 (
                     ["capabilities"],
                     {
-                        "help": "comma separated list of capability names or ids",
+                        "help": _("comma separated list of capability names or ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -1334,27 +1800,30 @@ class AccountCapabilityController(AuthorityControllerChild):
         oid = self.get_account(oid).get("uuid")
         capabilities = self.app.pargs.capabilities
         capabilities = capabilities.split(",")
-        uri = "%s/accounts/%s/capabilities" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/capabilities"
         for capability in capabilities:
-            print("adding capability %s ..." % capability)
+            print(f"adding capability {capability} ...")
             try:
                 self.cmp_post(uri, data={"capabilities": [capability]})
-            except Exception as ex:
-                msg = self.app.colored_text.red(str(ex))
+            except Exception as exc:
+                msg = self.app.colored_text.red(str(exc))
                 print(msg)
                 continue
 
     @ex(
-        help="update account capabilities",
-        description="This command updates capabilities for a given account. It requires the account id and a comma separated list of capability names or ids as arguments.",
-        example="beehive bu accounts-capabilities update prd_regpie CsiCloud-MonitoringService-base;beehive bu accounts-capabilities update <uuid> EnteCloud-NetworkService-base ",
+        help=_("update account capabilities"),
+        description=_(
+            "This command updates capabilities for a given account. "
+            "It requires the account id and a comma separated list of capability names or ids as arguments."
+        ),
+        example="beehive bu accounts-capabilities update prd_regpie CsiCloud-MonitoringService-base",
         arguments=PARGS(
             [
-                (["id"], {"help": "account id", "action": "store", "type": str}),
+                (["id"], {"help": _("account id"), "action": "store", "type": str}),
                 (
                     ["capabilities"],
                     {
-                        "help": "comma separated list of capability names or ids",
+                        "help": _("comma separated list of capability names or ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -1367,13 +1836,13 @@ class AccountCapabilityController(AuthorityControllerChild):
         oid = self.get_account(oid).get("uuid")
         capabilities = self.app.pargs.capabilities
         capabilities = capabilities.split(",")
-        uri = "%s/accounts/%s/capabilities" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/capabilities"
         for capability in capabilities:
-            print("updating capability %s ..." % capability)
+            print(f"updating capability {capability} ...")
             try:
                 self.cmp_put(uri, data={"capabilities": [capability]})
-            except Exception as ex:
-                msg = self.app.colored_text.red(str(ex))
+            except Exception as exception:
+                msg = self.app.colored_text.red(str(exception))
                 print(msg)
                 continue
 
@@ -1381,19 +1850,21 @@ class AccountCapabilityController(AuthorityControllerChild):
 class AccountTagController(AuthorityControllerChild):
     class Meta:
         label = "accounts_tags"
-        description = "manage tags for account"
-        help = "manage tags for account"
+        description = _("manage tags for account")
+        help = _("manage tags for account")
 
     @ex(
-        help="get accounts",
-        description="This command is used to retrieve accounts information from the Nivola CMP platform. It allows fetching accounts without any filtering criteria by not specifying optional arguments like size or environment. The accounts returned will not be limited or filtered in any way. This command is useful to get a complete list of all accounts to check or work with.",
-        example="beehive bu accounts get -size 0 > head 10;beehive bu accounts get DOIT -e <env>",
+        help=_("get account tag"),
+        description=_(
+            "This command is used to retrieve account tags."
+        ),
+        example="beehive bu accounts-tags get <account-id> -e <env>",
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1407,7 +1878,7 @@ class AccountTagController(AuthorityControllerChild):
         oid = self.get_account(oid).get("uuid")
         params = []
         data = self.format_paginated_query(params)
-        uri = "%s/accounts/%s/tags" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/accounts/{oid}/tags"
         res = self.cmp_get(uri, data=data)
         self.app.render(
             res,
@@ -1415,3 +1886,41 @@ class AccountTagController(AuthorityControllerChild):
             headers=["uuid", "name", "desc", "active", "creation"],
             fields=["uuid", "name", "desc", "active", "date.creation"],
         )
+
+
+    @ex(
+        help=_("add account tag"),
+        description=_(
+            "This CLI command adds account tag to the specified account."
+        ),
+        example="beehive bu accounts-tags add <account> <value> -e <env>",
+        arguments=PARGS(
+            [
+                (
+                    ["id"],
+                    {"help": _("account id"), "action": "store", "type": str}),
+                (
+                    ["tagvalue"],
+                    {
+                        "help": _("tag value"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def add(self):
+        oid = self.app.pargs.id
+        account_oid = self.get_account(oid).get("uuid")
+        tagvalue = self.app.pargs.tagvalue
+        data = {
+            "tag": {
+                "account": account_oid,
+                "value": tagvalue,
+            }
+        }
+        uri = "/v1.0/nws/tags"
+        res = self.cmp_post(uri, data=data)
+        self.app.render({"msg": f"add tag {res.get('uuid', '')} to account {oid}"})

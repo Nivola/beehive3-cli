@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from urllib.parse import urlencode
 from cement import ex
 from beehive3_cli.core.controller import PARGS, ARGS, StringAction
 from beehive3_cli.plugins.auth.controllers.auth import AuthChildController
+from beehive3_cli.translate import _
 
 
 class AuthRoleController(AuthChildController):
@@ -13,19 +14,19 @@ class AuthRoleController(AuthChildController):
         stacked_on = "auth"
         stacked_type = "nested"
         label = "roles"
-        description = "roles management"
-        help = "roles management"
+        description = _("roles management")
+        help = _("roles management")
 
     @ex(
-        help="get roles",
-        description="get roles",
-        example="beehive auth roles get-perms <uuid>;beehive auth roles get -id <uuid>",
+        help=_("get roles"),
+        description=_("get roles"),
+        example="beehive auth roles get -id <uuid>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "account uuid",
+                        "help": _("account uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -34,7 +35,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-user"],
                     {
-                        "help": "user uuid",
+                        "help": _("user uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -43,7 +44,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-group"],
                     {
-                        "help": "group uuid",
+                        "help": _("group uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -52,7 +53,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-names"],
                     {
-                        "help": "name filter",
+                        "help": _("name filter"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -61,7 +62,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-alias"],
                     {
-                        "help": "role alias",
+                        "help": _("role alias"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -70,7 +71,10 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-perms"],
                     {
-                        "help": "comma separated permission data (objtype,objdef,objid,objaction) Es. service,Organization.Division.Account,aaa//bbb//ccc,*",
+                        "help": _(
+                            "comma separated permission data (objtype,objdef,objid,objaction) "
+                            "E.g.. service,Organization.Division.Account,aaa//bbb//ccc,*"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -82,28 +86,28 @@ class AuthRoleController(AuthChildController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/roles/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/roles/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 # get users
                 data = urlencode({"role": oid, "size": -1})
-                uri = "%s/users" % self.baseuri
+                uri = f"{self.baseuri}/users"
                 users = self.cmp_get(uri, data).get("users")
 
                 # get groups
                 data = urlencode({"role": oid, "size": -1})
-                uri = "%s/groups" % self.baseuri
+                uri = f"{self.baseuri}/groups"
                 groups = self.cmp_get(uri, data).get("groups")
 
                 self.app.render(res, key="role", details=True)
-                self.c("\nusers", "underline")
+                self.print_section_heading("users")
                 self.app.render(
                     users,
                     headers=self._meta.user_headers,
                     fields=self._meta.user_fields,
                 )
-                self.c("\ngroups", "underline")
+                self.print_section_heading("groups")
                 self.app.render(
                     groups,
                     headers=self._meta.group_headers,
@@ -120,11 +124,11 @@ class AuthRoleController(AuthChildController):
                 # data += "&" + urlencode(ndata)
                 perms = self.app.pargs.perms.split("|")
                 for perm in perms:
-                    ndata = "&perms.N=%s" % perm
+                    ndata = f"&perms.N={perm}"
                 data += ndata
 
             # print("data: %s" % data)
-            uri = "%s/roles" % self.baseuri
+            uri = f"{self.baseuri}/roles"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -134,16 +138,15 @@ class AuthRoleController(AuthChildController):
             )
 
     @ex(
-        help="add role",
-        description="add role",
+        help=_("add role"),
+        description=_("add role"),
         arguments=ARGS(
             [
-                (["name"], {"help": "role name", "action": "store", "type": str}),
+                (["name"], {"help": _("role name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "role description",
-                        "action": "store",
+                        "help": _("role description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -156,20 +159,20 @@ class AuthRoleController(AuthChildController):
     def add(self):
         name = self.app.pargs.name
         data = {"role": {"name": name, "desc": self.app.pargs.desc}}
-        uri = "%s/roles" % self.baseuri
+        uri = f"{self.baseuri}/roles"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add role %s" % res["uuid"]})
+        self.app.render({"msg": f"add role {res['uuid']}"})
 
     @ex(
-        help="update role",
-        description="update role",
+        help=_("update role"),
+        description=_("update role"),
         arguments=ARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -178,8 +181,7 @@ class AuthRoleController(AuthChildController):
                 (
                     ["-desc"],
                     {
-                        "help": "role description",
-                        "action": "store",
+                        "help": _("role description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -197,34 +199,34 @@ class AuthRoleController(AuthChildController):
                 "desc": self.app.pargs.desc,
             }
         }
-        uri = "%s/roles/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/roles/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update role %s" % oid})
+        self.app.render({"msg": f"update role {oid}"})
 
     @ex(
-        help="delete role",
-        description="delete role",
+        help=_("delete role"),
+        description=_("delete role"),
         arguments=ARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/roles/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="role %s" % oid)
+        uri = f"{self.baseuri}/roles/{oid}"
+        self.cmp_delete(uri, entity=f"role {oid}")
 
     @ex(
-        help="expire role",
-        description="expire role",
+        help=_("expire role"),
+        description=_("expire role"),
         arguments=ARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["-days"],
                     {
-                        "help": "role name",
+                        "help": _("role name"),
                         "action": "store",
                         "type": str,
                         "default": "0",
@@ -236,16 +238,16 @@ class AuthRoleController(AuthChildController):
     def expire(self):
         oid = self.app.pargs.id
         days = self.app.pargs.days
-        uri = "%s/roles/%s/expire/%s" % (self.baseuri, oid, days)
-        self.cmp_delete(uri, entity="role %s" % oid, output=False)
+        uri = f"{self.baseuri}/roles/{oid}/expire/{days}"
+        self.cmp_delete(uri, entity=f"role {oid}", output=False)
 
     @ex(
-        help="get permissions of role",
-        description="get permissions of role",
-        example="beehive auth roles get-perms <uuid> -size 50;beehive auth roles get-perms <uuid>",
+        help=_("get permissions of role"),
+        description=_("get permissions of role"),
+        example="beehive auth roles get-perms <uuid>",
         arguments=PARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -253,8 +255,8 @@ class AuthRoleController(AuthChildController):
         oid = self.app.pargs.id
         params = []
         data = self.format_paginated_query(params)
-        data += "&role=%s" % oid
-        uri = "%s/objects/perms" % self.baseuri
+        data += f"&role={oid}"
+        uri = f"{self.baseuri}/objects/perms"
         res = self.cmp_get(uri, data=data)
         self.app.render(
             res,
@@ -264,15 +266,15 @@ class AuthRoleController(AuthChildController):
         )
 
     @ex(
-        help="add permissions to role",
-        description="add permissions to role",
+        help=_("add permissions to role"),
+        description=_("add permissions to role"),
         arguments=ARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -292,20 +294,20 @@ class AuthRoleController(AuthChildController):
                 "perms": {"append": perms, "remove": []},
             }
         }
-        uri = "%s/roles/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/roles/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add perm %s to role %s" % (res["perm_append"], oid)})
+        self.app.render({"msg": f"add perm {res['perm_append']} to role {oid}"})
 
     @ex(
-        help="delete permissions from role",
-        description="delete permissions from role",
+        help=_("delete permissions from role"),
+        description=_("delete permissions from role"),
         arguments=ARGS(
             [
-                (["id"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -325,31 +327,31 @@ class AuthRoleController(AuthChildController):
                 "perms": {"append": [], "remove": perms},
             }
         }
-        uri = "%s/roles/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/roles/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "delete perm %s from role %s" % (res["perm_remove"], oid)})
+        self.app.render({"msg": f"delete perm {res['perm_remove']} from role {oid}"})
 
     @ex(
-        help="Use role",
-        description="Modify session permission to role permission. ",
+        help=_("Use role"),
+        description=_("Modify session permission to role permission. "),
         arguments=ARGS(
             [
-                (["roleid"], {"help": "role uuid", "action": "store", "type": str}),
+                (["roleid"], {"help": _("role uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def use_role(self):
         oid = self.app.pargs.roleid
-        uri = "%s/roles/use/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/roles/use/{oid}"
         self.cmp_get(uri)
         self.app.render({"msg": f"set current session to role {oid} permission"})
 
     @ex(
-        help="reset permissions to full user permission",
-        description="Modify reset current sessione to full user permissions",
+        help=_("reset permissions to full user permission"),
+        description=_("Modify reset current sessione to full user permissions"),
         arguments=ARGS([]),
     )
     def reset_role(self):
-        uri = "%s/roles/reset" % (self.baseuri)
+        uri = f"{self.baseuri}/roles/reset"
         self.cmp_get(uri)
         self.app.render({"msg": "reset permissions to full user permission"})

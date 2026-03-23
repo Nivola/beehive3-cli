@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from re import match
 from urllib.parse import urlencode
 from cement import ex
+
 from beecell.simple import format_date
 from beehive3_cli.core.controller import PARGS, ARGS, StringAction
 from beehive3_cli.plugins.auth.controllers.auth import AuthChildController
+from beehive3_cli.translate import _
 
 
 class AuthUserController(AuthChildController):
@@ -16,19 +18,19 @@ class AuthUserController(AuthChildController):
         stacked_on = "auth"
         stacked_type = "nested"
         label = "users"
-        description = "users management"
-        help = "users management"
+        description = _("users management")
+        help = _("users management")
 
     @ex(
-        help="get users",
-        description="get users",
-        example="beehive auth users get -group GR-xxxx;beehive auth users get -id <uuid>",
+        help=_("get users"),
+        description=_("get users"),
+        example="beehive auth users get -group GR-xxxx; beehive auth users get -id <uuid>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "user uuid",
+                        "help": _("user uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -37,7 +39,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-role"],
                     {
-                        "help": "role uuid",
+                        "help": _("role uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -46,7 +48,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-group"],
                     {
-                        "help": "group uuid",
+                        "help": _("group uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -55,7 +57,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-name"],
                     {
-                        "help": "name filter",
+                        "help": _("name filter"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -64,7 +66,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-desc"],
                     {
-                        "help": "user desc",
+                        "help": _("user desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -73,7 +75,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-email"],
                     {
-                        "help": "email address",
+                        "help": _("email address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -82,7 +84,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-taxcode"],
                     {
-                        "help": "taxcode",
+                        "help": _("taxcode"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -91,7 +93,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap address",
+                        "help": _("ldap address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -100,7 +102,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-expiry-date"],
                     {
-                        "help": "expiry date. Syntax YYYY-MM-DD",
+                        "help": _("expiry date. Syntax YYYY-MM-DD"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -109,7 +111,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -121,7 +123,7 @@ class AuthUserController(AuthChildController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/users/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/users/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -129,9 +131,9 @@ class AuthUserController(AuthChildController):
 
                 # get roles
                 data = urlencode({"user": oid, "size": -1})
-                uri = "%s/roles" % self.baseuri
+                uri = f"{self.baseuri}/roles"
                 roles = self.cmp_get(uri, data).get("roles")
-                self.c("\nroles", "underline")
+                self.print_section_heading("roles")
                 role_headers = [
                     "uuid",
                     "name",
@@ -149,9 +151,9 @@ class AuthUserController(AuthChildController):
 
                 # get groups
                 data = urlencode({"user": oid, "size": -1})
-                uri = "%s/groups" % self.baseuri
+                uri = f"{self.baseuri}/groups"
                 groups = self.cmp_get(uri, data).get("groups")
-                self.c("\ngroups", "underline")
+                self.print_section_heading("groups")
                 self.app.render(
                     groups,
                     headers=self._meta.group_headers,
@@ -159,9 +161,9 @@ class AuthUserController(AuthChildController):
                 )
 
                 # get attributes
-                uri = "%s/users/%s/attributes" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/users/{oid}/attributes"
                 attribs = self.cmp_get(uri).get("user_attributes", [])
-                self.c("\nattributes", "underline")
+                self.print_section_heading("attributes")
                 self.app.render(attribs, headers=["name", "value", "desc"])
             else:
                 self.app.render(res, key="user", details=True)
@@ -175,7 +177,7 @@ class AuthUserController(AuthChildController):
             if self.app.pargs.perms:
                 ndata = {"perms.N": self.app.pargs.perms.split(",")}
                 data += urlencode(ndata)
-            uri = "%s/users" % self.baseuri
+            uri = f"{self.baseuri}/users"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -185,17 +187,19 @@ class AuthUserController(AuthChildController):
             )
 
     @ex(
-        help="add user",
-        description="add user",
-        example="beehive auth users add abc.def@ghi.lmno -storetype LDAPUSER -email abc.def@ghi.lmno -desc 'Abc Def';beehive auth users add abc.def@ghi.lmno -storetype LDAPUSER -email abc.def@ghi.lmno -desc Abc_Def",
+        help=_("add user"),
+        description=_("add user"),
+        example=(
+            "beehive auth users add abc.def@ghi.lmno -storetype LDAPUSER "
+            "-email abc.def@ghi.lmno -desc Abc_Def"
+        ),
         arguments=ARGS(
             [
-                (["name"], {"help": "user name", "action": "store", "type": str}),
+                (["name"], {"help": _("user name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "user description",
-                        "action": "store",
+                        "help": _("user description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -205,7 +209,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-storetype"],
                     {
-                        "help": "can be DBUSER, LDAPUSER",
+                        "help": _("can be DBUSER, LDAPUSER"),
                         "action": "store",
                         "type": str,
                         "default": "DBUSER",
@@ -214,7 +218,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-password"],
                     {
-                        "help": "user password. Set only for DBUSER",
+                        "help": _("user password. Set only for DBUSER"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -223,7 +227,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-expirydate"],
                     {
-                        "help": "user expire date. Syntax yyyy-mm-dd",
+                        "help": _("user expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -232,7 +236,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-email"],
                     {
-                        "help": "email address",
+                        "help": _("email address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -241,7 +245,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-taxcode"],
                     {
-                        "help": "taxcode",
+                        "help": _("taxcode"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -250,7 +254,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap address",
+                        "help": _("ldap address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -265,7 +269,7 @@ class AuthUserController(AuthChildController):
         taxcode = self.app.pargs.taxcode
         ldap = self.app.pargs.ldap
 
-        if name is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
+        if name is not None and not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
             raise Exception("name is not correct. Name syntax is <name>@<domain>")
 
         if self.app.pargs.expirydate is None:
@@ -288,7 +292,7 @@ class AuthUserController(AuthChildController):
             data["user"]["password"] = self.app.pargs.password
 
         if email is not None:
-            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
+            if not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
                 raise Exception("email is not correct. Email syntax is <name>@<domain>")
             data["user"]["email"] = email
 
@@ -296,24 +300,24 @@ class AuthUserController(AuthChildController):
             data["user"]["taxcode"] = taxcode
 
         if ldap is not None:
-            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
+            if not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
                 raise Exception("ldap is not correct. Ldap syntax is <name>@<domain>")
             data["user"]["ldap"] = ldap
 
-        uri = "%s/users" % self.baseuri
+        uri = f"{self.baseuri}/users"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add user %s" % res["uuid"]})
+        self.app.render({"msg": f"add user {res['uuid']}"})
 
     @ex(
-        help="add system user",
-        description="add system user",
+        help=_("add system user"),
+        description=_("add system user"),
         arguments=ARGS(
             [
-                (["name"], {"help": "user name", "action": "store", "type": str}),
+                (["name"], {"help": _("user name"), "action": "store", "type": str}),
                 (
                     ["password"],
                     {
-                        "help": "user password. Set only for DBUSER",
+                        "help": _("user password. Set only for DBUSER"),
                         "action": "store",
                         "type": str,
                     },
@@ -327,24 +331,24 @@ class AuthUserController(AuthChildController):
                 "name": self.app.pargs.name,
                 "active": True,
                 "pwd": self.app.pargs.password,
-                "desc": "User %s" % self.app.pargs.name,
+                "desc": f"User {self.app.pargs.name}",
                 "system": True,
             }
         }
-        uri = "%s/users" % self.baseuri
+        uri = f"{self.baseuri}/users"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add user %s" % res["uuid"]})
+        self.app.render({"msg": f"add user {res['uuid']}"})
 
     @ex(
-        help="update user",
-        description="update user",
+        help=_("update user"),
+        description=_("update user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -353,8 +357,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-desc"],
                     {
-                        "help": "user description",
-                        "action": "store",
+                        "help": _("user description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -364,7 +367,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-active"],
                     {
-                        "help": "user active",
+                        "help": _("user active"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -373,7 +376,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-provider"],
                     {
-                        "help": "authentication provider",
+                        "help": _("authentication provider"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -382,7 +385,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-password"],
                     {
-                        "help": "user password. Set only for DBUSER",
+                        "help": _("user password. Set only for DBUSER"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -391,7 +394,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-expirydate"],
                     {
-                        "help": "user expire date. Syntax yyyy-mm-dd",
+                        "help": _("user expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -400,7 +403,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-email"],
                     {
-                        "help": "email address",
+                        "help": _("email address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -409,7 +412,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-taxcode"],
                     {
-                        "help": "taxcode (codice fiscale)",
+                        "help": _("taxcode (codice fiscale)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -418,7 +421,7 @@ class AuthUserController(AuthChildController):
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap (servizi rete)",
+                        "help": _("ldap (servizi rete)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -431,11 +434,11 @@ class AuthUserController(AuthChildController):
         oid = self.app.pargs.id
 
         name = self.app.pargs.name
-        if name is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
+        if name is not None and not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", name):
             raise Exception("name is not correct. Name syntax is <name>@<domain>")
 
         email = self.app.pargs.email
-        if email is not None and not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
+        if email is not None and not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", email):
             raise Exception("email is not correct. Email syntax is <name>@<domain>")
 
         taxcode = self.app.pargs.taxcode
@@ -463,7 +466,7 @@ class AuthUserController(AuthChildController):
             )
 
         if ldap is not None:
-            if not match("[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
+            if not match(r"[a-zA-z0-9\.]+@[a-zA-z0-9\.]+", ldap):
                 raise Exception("ldap is not correct. Ldap syntax is <name>@<domain>")
             data_user.update(
                 {
@@ -472,52 +475,52 @@ class AuthUserController(AuthChildController):
             )
 
         data = {"user": data_user}
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update user %s" % oid})
+        self.app.render({"msg": f"update user {oid}"})
 
     @ex(
-        help="delete user",
-        description="delete user",
-        example="beehive auth users delete <uuid>;beehive auth users delete abc.def@ghi.lmn ",
+        help=_("delete user"),
+        description=_("delete user"),
+        example="beehive auth users delete <uuid>; beehive auth users delete abc.def@ghi.lmn ",
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/users/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="user %s" % oid)
+        uri = f"{self.baseuri}/users/{oid}"
+        self.cmp_delete(uri, entity=f"user {oid}")
 
     @ex(
-        help="get user secret",
-        description="get user secret",
+        help=_("get user secret"),
+        description=_("get user secret"),
         example="beehive auth users get-secret <uuid> -e <env> ",
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def get_secret(self):
         oid = self.app.pargs.id
-        uri = "%s/users/%s/secret" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}/secret"
         res = self.cmp_get(uri)
         self.app.render(res, key="user", headers=["secret"], details=True, maxsize=200)
 
     @ex(
-        help="add role to user",
-        description="add role to user",
+        help=_("add role to user"),
+        description=_("add role to user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
-                (["role"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
+                (["role"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["-expirydate"],
                     {
-                        "help": "user expire date. Syntax yyyy-mm-dd",
+                        "help": _("user expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -541,17 +544,17 @@ class AuthUserController(AuthChildController):
                 "roles": {"append": [(role, expirydate)], "remove": []},
             }
         }
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add role %s to user %s" % (role, oid)})
+        self.app.render({"msg": f"add role {role} to user {oid}"})
 
     @ex(
-        help="delete role from user",
-        description="delete role from user",
+        help=_("delete role from user"),
+        description=_("delete role from user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
-                (["role"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
+                (["role"], {"help": _("role uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -563,17 +566,17 @@ class AuthUserController(AuthChildController):
                 "roles": {"append": [], "remove": [role]},
             }
         }
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del role %s from user %s" % (role, oid)})
+        self.app.render({"msg": f"del role {role} from user {oid}"})
 
     @ex(
-        help="add group to user",
-        description="add group to user",
+        help=_("add group to user"),
+        description=_("add group to user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
-                (["group"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
+                (["group"], {"help": _("group uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -586,17 +589,17 @@ class AuthUserController(AuthChildController):
                 "users": {"append": [oid], "remove": []},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, group)
+        uri = f"{self.baseuri}/groups/{group}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add group %s to user %s" % (group, oid)})
+        self.app.render({"msg": f"add group {group} to user {oid}"})
 
     @ex(
-        help="delete group from user",
-        description="delete group from user",
+        help=_("delete group from user"),
+        description=_("delete group from user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
-                (["group"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
+                (["group"], {"help": _("group uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -608,17 +611,17 @@ class AuthUserController(AuthChildController):
                 "users": {"append": [], "remove": [oid]},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, group)
+        uri = f"{self.baseuri}/groups/{group}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del group %s from user %s" % (group, oid)})
+        self.app.render({"msg": f"del group {group} from user {oid}"})
 
     @ex(
-        help="get permissions of user",
-        description="get permissions of user",
-        example="beehive auth users get-perms client_abc.def@ghi.lmno;beehive auth users get-perms clientabc.def@ghi.lmno",
+        help=_("get permissions of user"),
+        description=_("get permissions of user"),
+        example="beehive auth users get-perms clientabc.def@ghi.lmno",
         arguments=PARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -626,8 +629,8 @@ class AuthUserController(AuthChildController):
         oid = self.app.pargs.id
         params = []
         data = self.format_paginated_query(params)
-        data += "&user=%s" % oid
-        uri = "%s/objects/perms" % self.baseuri
+        data += f"&user={oid}"
+        uri = f"{self.baseuri}/objects/perms"
         res = self.cmp_get(uri, data=data)
         self.app.render(
             res,
@@ -637,16 +640,16 @@ class AuthUserController(AuthChildController):
         )
 
     @ex(
-        help="add permissions to user",
-        description="add permissions to user",
+        help=_("add permissions to user"),
+        description=_("add permissions to user"),
         example="beehive auth users add-perms abc.def@ghi.lmno <uuid>",
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -666,20 +669,20 @@ class AuthUserController(AuthChildController):
                 "perms": {"append": perms, "remove": []},
             }
         }
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add perm %s to user %s" % (res["perm_append"], oid)})
+        self.app.render({"msg": f"add perm {res['perm_append']} to user {oid}"})
 
     @ex(
-        help="delete permissions from user",
-        description="delete permissions from user",
+        help=_("delete permissions from user"),
+        description=_("delete permissions from user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -699,27 +702,27 @@ class AuthUserController(AuthChildController):
                 "perms": {"append": [], "remove": perms},
             }
         }
-        uri = "%s/users/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "delete perm %s from user %s" % (res["perm_remove"], oid)})
+        self.app.render({"msg": f"delete perm {res['perm_remove']} from user {oid}"})
 
     @ex(
-        help="add attribute to user",
-        description="add attribute to user",
+        help=_("add attribute to user"),
+        description=_("add attribute to user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
                 (
                     ["attrib"],
-                    {"help": "attribute name", "action": "store", "type": str},
+                    {"help": _("attribute name"), "action": "store", "type": str},
                 ),
                 (
                     ["value"],
-                    {"help": "attribute value", "action": "store", "type": str},
+                    {"help": _("attribute value"), "action": "store", "type": str},
                 ),
                 (
                     ["desc"],
-                    {"help": "attribute description", "action": "store", "type": str},
+                    {"help": _("attribute description"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -734,19 +737,19 @@ class AuthUserController(AuthChildController):
                 "desc": self.app.pargs.desc,
             }
         }
-        uri = "%s/users/%s/attributes" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/users/{oid}/attributes"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "dd/update user %s attrib %s" % (oid, attrib)})
+        self.app.render({"msg": f"dd/update user {oid} attrib {attrib}"})
 
     @ex(
-        help="delete attribute from user",
-        description="delete attribute from user",
+        help=_("delete attribute from user"),
+        description=_("delete attribute from user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("user uuid"), "action": "store", "type": str}),
                 (
                     ["attrib"],
-                    {"help": "attribute name", "action": "store", "type": str},
+                    {"help": _("attribute name"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -754,6 +757,6 @@ class AuthUserController(AuthChildController):
     def del_attrib(self):
         oid = self.app.pargs.id
         attrib = self.app.pargs.attrib
-        uri = "%s/users/%s/attributes/%s" % (self.baseuri, oid, attrib)
+        uri = f"{self.baseuri}/users/{oid}/attributes/{attrib}"
         self.cmp_delete(uri)
-        self.app.render({"msg": "delete user %s attrib %s" % (oid, attrib)})
+        self.app.render({"msg": f"delete user {oid} attrib {attrib}"})

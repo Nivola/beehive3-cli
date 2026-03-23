@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 
 def add_template_dir(app):
@@ -16,12 +16,13 @@ def load(app):
         DatabaseAdminController,
         LoadBalancerAdminController,
         MigrationP5p6AdminController,
+        EfsAdminController
     )
 
     app.handler.register(AdminController)
     app.handler.register(ComputeAdminController)
     app.handler.register(DatabaseAdminController)
-    # app.handler.register(EfsAdminController) TODO add back when finished
+    app.handler.register(EfsAdminController)
     app.handler.register(LoadBalancerAdminController)
     # app.handler.register(ServiceUtilsAdminController) # TODO add back when finished
     # app.handler.register(AccountUtilsAdminController) # TODO add back when finished

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from six import ensure_str
 from cement import ex
+
 from beehive3_cli.core.controller import ARGS, BaseController
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
 class AuthLdapController(BaseController):
@@ -13,13 +14,13 @@ class AuthLdapController(BaseController):
         stacked_on = "auth"
         stacked_type = "nested"
         label = "ldap"
-        description = "ldap management"
-        help = "ldap management"
+        description = _("ldap management")
+        help = _("ldap management")
 
     def pre_command_run(self):
         from beecell.auth import LdapAuth, SystemUser
 
-        super(AuthLdapController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
         ldaps = self.config.get("ldap", None)
@@ -29,7 +30,7 @@ class AuthLdapController(BaseController):
         label = self.app.pargs.ldap
 
         if label is None or label not in ldaps:
-            raise Exception("Valid label are: %s" % ", ".join(ldaps.keys()))
+            raise Exception(f"Valid label are: {', '.join(ldaps.keys())}")
         conf = ldaps.get(label)
 
         self.search_filter = conf.get("search_filter")
@@ -38,25 +39,26 @@ class AuthLdapController(BaseController):
             SystemUser,
             port=conf.get("port"),
             timeout=conf.get("timeout"),
-            ssl=conf.get("ssl"),
+            ssl=conf.get("ssl", True),
             dn=conf.get("dn"),
             search_filter=self.search_filter,
             search_id=conf.get("search_id"),
             bind_user=conf.get("bind_user"),
             bind_pwd=conf.get("bind_pwd"),
+            max_retries=0
         )
 
     @ex(
-        help="login user",
-        description="login user",
+        help=_("login user"),
+        description=_("login user"),
         arguments=ARGS(
             [
-                (["email"], {"help": "user email", "action": "store", "type": str}),
-                (["pwd"], {"help": "user password", "action": "store", "type": str}),
+                (["email"], {"help": _("user email"), "action": "store", "type": str}),
+                (["pwd"], {"help": _("user password"), "action": "store", "type": str}),
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap reference label",
+                        "help": _("ldap reference label"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -69,33 +71,34 @@ class AuthLdapController(BaseController):
         name = self.app.pargs.email
         pwd = self.app.pargs.pwd
         user = self.client.login(name, pwd)
+        self.client.close()
         if user is not None:
             user = user.get_dict()
         self.app.render(user, details=True)
 
     @ex(
-        help="search users",
-        description="search users",
+        help=_("search users"),
+        description=_("search users"),
         example="beehive auth ldap search abc.def@ghi.lmno -ldap xxxxx",
         arguments=ARGS(
             [
                 (
                     ["value"],
-                    {"help": "value to search", "action": "store", "type": str},
+                    {"help": _("value to search"), "action": "store", "type": str},
                 ),
-                (
-                    ["-filter"],
-                    {
-                        "help": "search filter",
-                        "action": "store",
-                        "type": str,
-                        "default": "mail",
-                    },
-                ),
+                #(
+                #    ["-filter"],
+                #    {
+                #        "help": _("search filter"),
+                #        "action": "store",
+                #        "type": str,
+                #        "default": "mail",
+                #    },
+                #),
                 (
                     ["-fields"],
                     {
-                        "help": "query fields",
+                        "help": _("query fields"),
                         "action": "store",
                         "type": str,
                         "default": "cn,mail,uidNumber,uid",
@@ -104,7 +107,7 @@ class AuthLdapController(BaseController):
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap reference label",
+                        "help": _("ldap reference label"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -117,63 +120,32 @@ class AuthLdapController(BaseController):
         value = self.app.pargs.value
         # filter = self.app.pargs.filter
         fields = self.app.pargs.fields
-        filter = self.search_filter.format(username=value)
-        self.client.authenticate(self.client.bind_user, self.client.bind_pwd)
-
+        s_filter = self.search_filter.format(username=value)
+        self.client.set_admin_credentials()
         ldap_fields = fields.split(",")
-        users = self.client.search_users(filter, ldap_fields)
+        users = self.client.search_users(s_filter, ldap_fields)
         self.client.close()
         self.app.render(users, headers=fields)
 
-    def infos(self):
-        file = self.get_arg(name="file")
-        values = self.load_file(file)
-
-        self.client.authenticate(self.client.bind_user, self.client.bind_pwd)
-
-        for item in values.split("\n"):
-            item = item.split(",")
-            if len(item) > 1:
-                matricola = item[1].split("@")[0]
-                filter = "(sAMAccountName=%s)" % matricola
-                user = self.client.search_users(filter)[0]
-                mail = user["mail"]
-                name = mail.split("@")[0].split(".")
-                name[0] = name[0][0].upper() + name[0][1:]
-                name[1] = name[1][0].upper() + name[1][1:]
-                name = "%s %s" % (name[0], name[1])
-                # print('%s,%s,%s,%s' % (item[0], item[1], name, user['mail']))
-                print("UPDATE `auth`.`user` SET `desc`='%s', `email`='%s' WHERE id=%s;" % (name, user["mail"], item[0]))
-
-        self.client.close()
 
     @ex(
-        help="get user",
-        description="get user ",
-        example="beehive auth ldap get abc.def@ghi.lmno -e <env> -ldap xxxxx; beehive auth ldap get abc.def@ghi.lmno -e <env> -ldap xxxxx",
+        help=_("get user"),
+        description=_("get user "),
+        example="beehive auth ldap get abc.def@ghi.lmno -e <env> -ldap xxxxx",
         arguments=ARGS(
             [
                 (
                     ["user_key"],
                     {
-                        "help": "user key like user email",
+                        "help": _("user key like user email"),
                         "action": "store",
                         "type": str,
-                    },
-                ),
-                (
-                    ["-filter"],
-                    {
-                        "help": "search filter",
-                        "action": "store",
-                        "type": str,
-                        "default": "(mail={username})",
                     },
                 ),
                 (
                     ["-ldap"],
                     {
-                        "help": "ldap reference label",
+                        "help": _("ldap reference label"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -184,16 +156,6 @@ class AuthLdapController(BaseController):
     )
     def get(self):
         key = self.app.pargs.user_key
-        filter = self.search_filter
-        self.client.authenticate(self.client.bind_user, self.client.bind_pwd)
-        user = self.client.search_user({"username": key}, filter)
-        data = {"name": user[0]}
-        for k, v in user[1].items():
-            try:
-                if len(v) == 1:
-                    v = v[0]
-                data[ensure_str(k)] = ensure_str(v)
-            except:
-                data[ensure_str(k)] = ""
-
-        self.app.render(data, details=True)
+        self.client.set_admin_credentials()
+        user_dict = self.client.search_user(search_params={"username": key}, search_filter=self.search_filter, convert_to_dict=True)
+        self.app.render(user_dict, details=True)

@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-from sys import stdout
-from json import loads
-from time import sleep
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from ujson import loads
 from cement import ex
 from beecell.simple import merge_list
 from beedrones.winapi.client import WinapiManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, PAGINATION_ARGS
-from beehive3_cli.core.util import load_environment_config, rotating_bar
+from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
-def WINAPI_ARGS(*list_args):
+def winapi_args(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "winapi platform reference label",
+                "help": _("winapi platform reference label"),
             },
         )
     ]
@@ -27,18 +27,16 @@ def WINAPI_ARGS(*list_args):
 
 
 class WinAPIPlatformController(BaseController):
-    # headers = ['id', 'name']
-    # entity_class = None
 
     class Meta:
         stacked_on = "platform"
         stacked_type = "nested"
         label = "winapi"
-        description = "winapi (veeam) platform management"
-        help = "winapi platform  management"
+        description = _("winapi (veeam) platform management")
+        help = _("winapi platform  management")
 
     def pre_command_run(self):
-        super(WinAPIPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -56,11 +54,8 @@ class WinAPIPlatformController(BaseController):
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         self.conf = orchestrators.get(label)
-
-        # uri = '%s://%s:%s%s' % (self.conf.get('proto'), self.conf.get('hosts')[0], self.conf.get('port'),
-        #                         self.conf.get('path'))
 
         winapiconn = {
             "host": self.conf.get("host"),
@@ -75,55 +70,27 @@ class WinAPIPlatformController(BaseController):
         # self.jobs = WinapiJob
         # self.client.authorize(self.conf.get('user'), self.conf.get('pwd'), key=self.key)
 
-    def __wait_for_job(self, job_query_func, job_id, maxtime=600, delta=1):
-        job = job_query_func(job_id)
-        status = job["status"]
-        elapsed = 0
-        bar = rotating_bar()
-        while status not in ["successful", "failed", "error", "canceled"]:
-            # stdout.write(".")
-            stdout.write(next(bar))
-            stdout.flush()
-            job = job_query_func(job_id)
-            status = job["status"]
-            sleep(delta)
-            elapsed += delta
-            if elapsed >= maxtime:
-                raise TimeoutError("job %s query timeout" % job_id)
-        if status in ["failed", "error"]:
-            self.app.log.error(job["result_traceback"])
-            raise Exception("job %s error" % job_id)
-        elif status == "cancelled":
-            self.app.log.error(job["job %s cancelled" % job_id])
-            raise Exception("job %s cancelled" % job_id)
-        else:
-            self.app.log.info("job %s successful" % job_id)
-
-    @ex(help="ping awx", description="ping awx", arguments=WINAPI_ARGS())
+    @ex(help=_("ping awx"), description=_("ping awx"), arguments=winapi_args())
     def ping(self):
         res = self.client.ping()
         # res = {'ping': 'okkk'}
         self.app.render({"ping": res}, headers=["ping"])
 
-    @ex(help="get jobs", description="get veaam jobs", arguments=WINAPI_ARGS())
+    @ex(help=_("get jobs"), description=_("get veaam jobs"), arguments=winapi_args())
     def get_jobs(self):
         res = self.client.job.get_jobs()
         res_decoded = res.decode("utf-8")
-        res_json = eval(res_decoded)
+        res_json = loads(res_decoded)
         self.app.render(res_json["data"], headers=["Name", "Type", "UID"])
 
     @ex(
-        help="get jobs status",
-        description="get the status of veeam jobs ",
-        arguments=WINAPI_ARGS(),
+        help=_("get jobs status"),
+        description=_("get the status of veeam jobs "),
+        arguments=winapi_args(),
     )
     def get_jobs_status(self):
         res = self.client.job.get_jobs_status()
-        # res_decoded = res.decode('utf-8')
-        res_json = eval(res)
-
-        # print(res_json['data'])
-        # res_json = eval(res_decoded)
+        res_json = loads(res)
 
         self.app.render(
             res_json["data"],
@@ -139,14 +106,14 @@ class WinAPIPlatformController(BaseController):
         )
 
     @ex(
-        help="get job ID info",
-        description="get info of  job ID",
-        arguments=WINAPI_ARGS(
+        help=_("get job ID info"),
+        description=_("get info of  job ID"),
+        arguments=winapi_args(
             [
                 (
                     ["--job_id"],
                     {
-                        "help": "job id to retrieve info",
+                        "help": _("job id to retrieve info"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -172,14 +139,14 @@ class WinAPIPlatformController(BaseController):
         )
 
     @ex(
-        help="get job id includes",
-        description="get vms under backup into job ID",
-        arguments=WINAPI_ARGS(
+        help=_("get job id includes"),
+        description=_("get vms under backup into job ID"),
+        arguments=winapi_args(
             [
                 (
                     ["--job_id"],
                     {
-                        "help": "job id to retrieve info",
+                        "help": _("job id to retrieve info"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -195,14 +162,14 @@ class WinAPIPlatformController(BaseController):
         self.app.render(data, headers=["DisplayName", "Name", "@Href", "HierarchyObjRef", "Order"])
 
     @ex(
-        help="start job ID",
-        description="start backup og a job with id JOB_ID",
-        arguments=WINAPI_ARGS(
+        help=_("start job ID"),
+        description=_("start backup og a job with id JOB_ID"),
+        arguments=winapi_args(
             [
                 (
                     ["--job_id"],
                     {
-                        "help": "job id to retrieve info",
+                        "help": _("job id to retrieve info"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -215,18 +182,17 @@ class WinAPIPlatformController(BaseController):
         job_id = self.app.pargs.job_id
         res = self.client.job.start_job(job_id)
         data = res["data"]["data"]["Task"]
-        # print(res['data']['data']['Task'])
         self.app.render(data, headers=["@Type", "Operation", "State", "TaskId", "Result"])
 
     @ex(
-        help="stop job ID",
-        description="stop backup og a job with id JOB_ID",
-        arguments=WINAPI_ARGS(
+        help=_("stop job ID"),
+        description=_("stop backup og a job with id JOB_ID"),
+        arguments=winapi_args(
             [
                 (
                     ["--job_id"],
                     {
-                        "help": "job id to retrieve info",
+                        "help": _("job id to retrieve info"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -240,18 +206,17 @@ class WinAPIPlatformController(BaseController):
         res = self.client.job.stop_job(job_id)
         print(res)
         data = res["data"]["Task"]
-        # print(res['data']['data']['Task'])
         self.app.render(data, headers=["@Type", "Operation", "State", "TaskId", "Result"])
 
     @ex(
-        help="get the restore points of a vm",
-        description="Get ALL the restore points of a vm",
-        arguments=WINAPI_ARGS(
+        help=_("get the restore points of a vm"),
+        description=_("Get ALL the restore points of a vm"),
+        arguments=winapi_args(
             [
                 (
                     ["--vm_name"],
                     {
-                        "help": "name of the vm to retrieve the restore points",
+                        "help": _("name of the vm to retrieve the restore points"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -265,4 +230,3 @@ class WinAPIPlatformController(BaseController):
         res = self.client.restore.get_vm_restore_points(vm_name)
         str_json = loads(res.decode("utf-8"))
         self.app.render(str_json["RestorePoints"], headers=["UID", "Name"])
-        # self.app.render(str_json['RestorePoints']['Links']['link'], headers=['Href', 'Name', 'Type'])

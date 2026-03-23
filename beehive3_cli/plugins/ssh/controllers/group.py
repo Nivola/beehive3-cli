@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.connect import SshConnectionManager
 from beehive3_cli.core.controller import PARGS, ARGS, StringAction
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
+from beehive3_cli.translate import _
 
 
 class SshGroupController(SshControllerChild):
@@ -13,27 +14,27 @@ class SshGroupController(SshControllerChild):
         stacked_on = "ssh"
         stacked_type = "nested"
         label = "node_groups"
-        description = "node group management"
-        help = "node group management"
+        description = _("node group management")
+        help = _("node group management")
 
         headers = ["id", "name", "desc", "date", "objid"]
         fields = ["uuid", "name", "desc", "date.creation", "__meta__.objid"]
 
     def pre_command_run(self):
-        super(SshGroupController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
     @ex(
-        help="get node groups",
-        description="get node groups",
-        example="beehive ssh node-groups get -field NAME xxxx;beehive ssh node-groups get -e <env>",
+        help=_("get node groups"),
+        description=_("get node groups"),
+        example="beehive ssh node-groups get -field NAME xxxx; beehive ssh node-groups get -e <env>",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "nodegroup uuid",
+                        "help": _("nodegroup uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -45,27 +46,27 @@ class SshGroupController(SshControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/groups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/groups/{oid}"
             res = self.cmp_get(uri)
             self.app.render(res, key="group", details=True)
         else:
             params = []
             data = self.format_paginated_query(params)
-            uri = "%s/groups" % self.baseuri
+            uri = f"{self.baseuri}/groups"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="groups", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="add node group",
-        description="add node group",
+        help=_("add node group"),
+        description=_("add node group"),
         example="beehive ssh node-groups add",
         arguments=ARGS(
             [
-                (["name"], {"help": "nodegroup name", "action": "store", "type": str}),
+                (["name"], {"help": _("nodegroup name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "nodegroup description",
+                        "help": _("nodegroup description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -74,7 +75,7 @@ class SshGroupController(SshControllerChild):
                 (
                     ["-attrib"],
                     {
-                        "help": "nodegroup attributes",
+                        "help": _("nodegroup attributes"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -88,28 +89,28 @@ class SshGroupController(SshControllerChild):
         desc = self.app.pargs.desc
         attribute = self.app.pargs.attrib
         data = {"group": {"name": name, "desc": desc, "attribute": attribute}}
-        uri = "%s/groups" % self.baseuri
+        uri = f"{self.baseuri}/groups"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add nodegroup %s" % res.get("uuid")})
+        self.app.render({"msg": f"add nodegroup {res.get('uuid')}"})
 
     @ex(
-        help="delete node group",
-        description="delete node group",
-        arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("delete node group"),
+        description=_("delete node group"),
+        arguments=ARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/groups/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="nodegroup %s" % oid)
+        uri = f"{self.baseuri}/groups/{oid}"
+        self.cmp_delete(uri, entity=f"nodegroup {oid}")
 
     @ex(
-        help="add node to node group",
-        description="add node to node group",
+        help=_("add node to node group"),
+        description=_("add node to node group"),
         example="beehive ssh node-groups node-add",
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
-                (["node"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
+                (["node"], {"help": _("node uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -117,17 +118,17 @@ class SshGroupController(SshControllerChild):
         oid = self.app.pargs.id
         node = self.app.pargs.node
         data = {"node": node}
-        uri = "%s/groups/%s/node" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/node"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add node %s to nodegroup %s" % (node, oid)})
+        self.app.render({"msg": f"add node {node} to nodegroup {oid}"})
 
     @ex(
-        help="delete node from node group",
-        description="delete node from node group",
+        help=_("delete node from node group"),
+        description=_("delete node from node group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
-                (["node"], {"help": "node uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
+                (["node"], {"help": _("node uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -135,15 +136,15 @@ class SshGroupController(SshControllerChild):
         oid = self.app.pargs.id
         node = self.app.pargs.node
         data = {"node": node}
-        uri = "%s/groups/%s/node" % (self.baseuri, oid)
-        self.cmp_delete(uri, data=data, entity="node %s from nodegroup %s" % (node, oid))
+        uri = f"{self.baseuri}/groups/{oid}/node"
+        self.cmp_delete(uri, data=data, entity=f"node {node} from nodegroup {oid}")
 
 
 class SshGroupAuthController(SshControllerChild):
     class Meta:
         label = "node_groups_auth"
-        description = "manage node group authorization"
-        help = "manage node group authorization"
+        description = _("manage node group authorization")
+        help = _("manage node group authorization")
 
     def pre_command_run(self):
         super(SshControllerChild, self).pre_command_run()
@@ -151,25 +152,25 @@ class SshGroupAuthController(SshControllerChild):
         self.configure_cmp_api_client()
 
     @ex(
-        help="get node group roles",
-        description="get node group roles",
-        arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get node group roles"),
+        description=_("get node group roles"),
+        arguments=ARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def role_get(self):
         oid = self.app.pargs.id
-        uri = "%s/groups/%s/roles" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/roles"
         res = self.cmp_get(uri)
         self.app.render(res, key="roles", headers=["name", "desc"], maxsize=200)
 
     @ex(
-        help="get node group users",
-        description="get node group users",
-        example="beehive ssh node-groups-auth user-get <uuid> -e <env>;beehive ssh node-groups-auth user-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get node group users"),
+        description=_("get node group users"),
+        example="beehive ssh node-groups-auth user-get <uuid> -e <env>",
+        arguments=ARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def user_get(self):
         oid = self.app.pargs.id
-        uri = "%s/groups/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/users"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -180,19 +181,19 @@ class SshGroupAuthController(SshControllerChild):
         )
 
     @ex(
-        help="add node group role to a user",
-        description="add node group role to a user",
-        example="beehive ssh node-groups-auth user-add <uuid> <uuid> <uuid> -e <env>;beehive ssh node-groups-auth user-add <uuid> connect 2148@domnt.csi.it",
+        help=_("add node group role to a user"),
+        description=_("add node group role to a user"),
+        example="beehive ssh node-groups-auth user-add <uuid> <uuid> <uuid> -e <env>",
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -202,24 +203,24 @@ class SshGroupAuthController(SshControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/groups/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/users"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove node group role from a user",
-        description="remove node group role from a user",
-        example="beehive ssh node-groups-auth user-del <uuid> connect 71439;beehive ssh node-groups-auth user-del <uuid> connect 2021",
+        help=_("remove node group role from a user"),
+        description=_("remove node group role from a user"),
+        example="beehive ssh node-groups-auth user-del <uuid> connect 2021",
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -229,19 +230,19 @@ class SshGroupAuthController(SshControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/groups/%s/users" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data, entity="role %s from user %s" % (role, user))
+        uri = f"{self.baseuri}/groups/{oid}/users"
+        res = self.cmp_delete(uri, data, entity=f"role {role} from user {user}")
         self.app.render({"msg": res})
 
     @ex(
-        help="get node group groups",
-        description="get node group groups",
-        example="beehive ssh node-groups-auth group-get <uuid>;beehive ssh node-groups-auth group-get <uuid>",
-        arguments=ARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get node group groups"),
+        description=_("get node group groups"),
+        example="beehive ssh node-groups-auth group-get <uuid>",
+        arguments=ARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def group_get(self):
         oid = self.app.pargs.id
-        uri = "%s/groups/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/groups"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -252,19 +253,19 @@ class SshGroupAuthController(SshControllerChild):
         )
 
     @ex(
-        help="add node group role to a group",
-        description="add node group role to a group",
-        example="beehive ssh node-groups-auth group-add <uuid> connect GR-devops;beehive ssh node-groups-auth group-add <uuid> connect GR-comunemilano-ced-connect",
+        help=_("add node group role to a group"),
+        description=_("add node group role to a group"),
+        example="beehive ssh node-groups-auth group-add <uuid> connect GR-devops",
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -274,24 +275,24 @@ class SshGroupAuthController(SshControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/groups/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/groups"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove node group role from a group",
-        description="remove node group role from a group",
+        help=_("remove node group role from a group"),
+        description=_("remove node group role from a group"),
         example="beehive ssh node-groups-auth group-del <uuid> connect GR-sdptoolc-jv-sdpqueryapi",
         arguments=ARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "authorization role", "action": "store", "type": str},
+                    {"help": _("authorization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -301,8 +302,8 @@ class SshGroupAuthController(SshControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/groups/%s/groups" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data, entity="role %s from group %s" % (role, group))
+        uri = f"{self.baseuri}/groups/{oid}/groups"
+        res = self.cmp_delete(uri, data, entity=f"role {role} from group {group}")
         self.app.render({"msg": res})
 
 
@@ -312,8 +313,8 @@ class SshGroupActionController(SshControllerChild):
         # aliases = ['actions']
         # stacked_on = 'nodegroups'
         # stacked_type = 'nested'
-        description = "manage node group action"
-        help = "manage node group action"
+        description = _("manage node group action")
+        help = _("manage node group action")
 
         headers = [
             "id",
@@ -341,14 +342,14 @@ class SshGroupActionController(SshControllerChild):
         ]
 
     @ex(
-        help="get node groups actions",
-        description="get node groups actions",
+        help=_("get node groups actions"),
+        description=_("get node groups actions"),
         arguments=ARGS(
             [
                 (
                     ["-node"],
                     {
-                        "help": "node filter",
+                        "help": _("node filter"),
                         "action": "store",
                         "type": str,
                         "default": "*",
@@ -357,7 +358,7 @@ class SshGroupActionController(SshControllerChild):
                 (
                     ["-datefrom"],
                     {
-                        "help": "date from. Syntax dd-mm-yyyy",
+                        "help": _("date from. Syntax dd-mm-yyyy"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -366,7 +367,7 @@ class SshGroupActionController(SshControllerChild):
                 (
                     ["-dateto"],
                     {
-                        "help": "date to. Syntax dd-mm-yyyy",
+                        "help": _("date to. Syntax dd-mm-yyyy"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -380,7 +381,7 @@ class SshGroupActionController(SshControllerChild):
         params = ["datefrom", "dateto"]
         mappings = {}
         data = self.format_paginated_query(params, mappings=mappings)
-        uri = "%s/nodes/%s/actions" % (self.baseuri, node)
+        uri = f"{self.baseuri}/nodes/{node}/actions"
         res = self.cmp_get(uri, data=data)
         self.app.render(res, key="actions", headers=self._meta.headers, fields=self._meta.fields)
 
@@ -389,17 +390,17 @@ class SshGroupActionController(SshControllerChild):
         oid = self.app.pargs.id
         data = self.format_paginated_query([])
         if oid is not None:
-            data += "&group_id=%s" % oid
+            data += f"&group_id={oid}"
 
-        uri = "%s/nodes" % self.baseuri
+        uri = f"{self.baseuri}/nodes"
         res = self.cmp_get(uri, data=data)
 
         # print paging
         if "page" in res:
-            print("Page: %s" % res["page"])
-            print("Count: %s" % res["count"])
-            print("Total: %s" % res["total"])
-            print("Order: %s %s" % (res.get("sort").get("field"), res.get("sort").get("order")))
+            print(f"Page: {res['page']}")
+            print(f"Count: {res['count']}")
+            print(f"Total: {res['total']}")
+            print(f"Order: {res.get('sort').get('field')} {res.get('sort').get('order')}")
 
         tmpl = "{uuid:36.36} {name:40.40} {desc:40.40} {ip_address:15.15} {info:%s.%s}" % (size, size)
         line = "".join(["-" for i in range(40)])
@@ -430,58 +431,58 @@ class SshGroupActionController(SshControllerChild):
                     print(tmpl.format(**item))
                 else:
                     self.app.log.warning(info["stderr"])
-            except Exception as ex:
-                self.app.log.warning(ex)
+            except Exception as exc:
+                self.app.log.warning(exc)
 
     @ex(
-        help="get version of operating system",
-        description="get version of operating system",
-        arguments=PARGS([(["id"], {"help": "node group uuid", "action": "store", "type": str})]),
+        help=_("get version of operating system"),
+        description=_("get version of operating system"),
+        arguments=PARGS([(["id"], {"help": _("node group uuid"), "action": "store", "type": str})]),
     )
     def sysinfo(self):
         self.__info("cat /etc/redhat-release")
 
     @ex(
-        help="get version of the kernel",
-        description="get version of the kernel",
-        arguments=PARGS([(["id"], {"help": "node group uuid", "action": "store", "type": str})]),
+        help=_("get version of the kernel"),
+        description=_("get version of the kernel"),
+        arguments=PARGS([(["id"], {"help": _("node group uuid"), "action": "store", "type": str})]),
     )
     def kernelinfo(self):
         self.__info("uname -sr")
 
     @ex(
-        help="get uptime",
-        description="get uptime",
-        arguments=PARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get uptime"),
+        description=_("get uptime"),
+        arguments=PARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def uptime(self):
         self.__info("uptime", size=40)
 
     @ex(
-        help="get date",
-        description="get date",
-        arguments=PARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get date"),
+        description=_("get date"),
+        arguments=PARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def date(self):
         self.__info("date", size=40)
 
     @ex(
-        help="get ntpd status",
-        description="get ntpd status",
-        arguments=PARGS([(["id"], {"help": "nodegroup uuid", "action": "store", "type": str})]),
+        help=_("get ntpd status"),
+        description=_("get ntpd status"),
+        arguments=PARGS([(["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str})]),
     )
     def ntpd(self):
         self.__info("systemctl status ntpd |grep Active", size=60)
 
     @ex(
-        help="ping nodes",
-        description="ping nodes",
+        help=_("ping nodes"),
+        description=_("ping nodes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "nodegroup uuid",
+                        "help": _("nodegroup uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -496,17 +497,17 @@ class SshGroupActionController(SshControllerChild):
         oid = self.app.pargs.id
         data = self.format_paginated_query([])
         if oid is not None:
-            data += "&group_id=%s" % oid
+            data += f"&group_id={oid}"
 
-        uri = "%s/nodes" % self.baseuri
+        uri = f"{self.baseuri}/nodes"
         res = self.cmp_get(uri, data=data)
 
         # print paging
         if "page" in res:
-            print("Page: %s" % res["page"])
-            print("Count: %s" % res["count"])
-            print("Total: %s" % res["total"])
-            print("Order: %s %s" % (res.get("sort").get("field"), res.get("sort").get("order")))
+            print(f"Page: {res['page']}")
+            print(f"Count: {res['count']}")
+            print(f"Total: {res['total']}")
+            print(f"Order: {res.get('sort').get('field')} {res.get('sort').get('order')}")
 
         tmpl = "{uuid:36.36} {name:40.40} {desc:40.40} {ip_address:15.15} {info:40.40}"
         line = "".join(["-" for i in range(40)])
@@ -534,21 +535,21 @@ class SshGroupActionController(SshControllerChild):
                         item["info"] = self.app.color_error("OK")
                     else:
                         item["info"] = self.app.color_error("KO")
-                except Exception as ex:
-                    self.app.log.warning(ex)
+                except Exception as exception:
+                    self.app.log.warning(exception)
                     item["info"] = self.app.color_error("KO")
 
                 print(tmpl.format(**item))
 
     @ex(
-        help="ultra ping nodes",
-        description="ultra ping nodes",
+        help=_("ultra ping nodes"),
+        description=_("ultra ping nodes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "nodegroup uuid",
+                        "help": _("nodegroup uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -563,17 +564,17 @@ class SshGroupActionController(SshControllerChild):
         oid = self.app.pargs.id
         data = self.format_paginated_query([])
         if oid is not None:
-            data += "&group_id=%s" % oid
+            data += f"&group_id={oid}"
 
-        uri = "%s/nodes" % self.baseuri
+        uri = f"{self.baseuri}/nodes"
         res = self.cmp_get(uri, data=data)
 
         # print paging
         if "page" in res:
-            print("Page: %s" % res["page"])
-            print("Count: %s" % res["count"])
-            print("Total: %s" % res["total"])
-            print("Order: %s %s" % (res.get("sort").get("field"), res.get("sort").get("order")))
+            print(f"Page: {res['page']}")
+            print(f"Count: {res['count']}")
+            print(f"Total: {res['total']}")
+            print(f"Order: {res.get('sort').get('field')} {res.get('sort').get('order')}")
 
         tmpl = "{uuid:36.36} {name:45.45} {desc:40.40} {ip_address:15.15} {info:40.40}"
         line = "".join(["-" for i in range(50)])
@@ -603,17 +604,17 @@ class SshGroupActionController(SshControllerChild):
                 if len(info["stdout"]) > 0 and info["stdout"][0] == response:
                     self.app.log.debug(info)
                     res = True
-                    msg.append("%s: %s" % (name, self.app.color_error("OK")))
+                    msg.append(f"{name}: {self.app.color_error('OK')}")
                 else:
                     self.app.log.warning(info)
                     res = False
                     error = info["stderr"]
-                    msg.append("%s: %s" % (name, self.app.color_error("KO")))
-            except Exception as ex:
-                self.app.log.warning(ex)
-                error = str(ex)
+                    msg.append(f"{name}: {self.app.color_error('KO')}")
+            except Exception as exc:
+                self.app.log.warning(exc)
+                error = str(exc)
                 res = False
-                msg.append("%s: %s" % (name, self.app.color_error("KO")))
+                msg.append(f"{name}: {self.app.color_error('KO')}")
 
             return res, error
 
@@ -630,9 +631,9 @@ class SshGroupActionController(SshControllerChild):
                 else:
                     res = False
                     msg.append("ping: " + self.app.color_error("KO"))
-            except Exception as ex:
+            except Exception as exc:
                 res = False
-                self.app.log.warning(ex)
+                self.app.log.warning(exc)
                 msg.append("ping: " + self.app.color_error("KO"))
 
             # exec command on node
@@ -653,15 +654,17 @@ class SshGroupActionController(SshControllerChild):
                 print(tmpl.format(**item))
 
     @ex(
-        help="execute command on group of nodes",
-        description="execute command on group of nodes",
+        help=_("execute command on group of nodes"),
+        description=_("execute command on group of nodes"),
         arguments=PARGS(
             [
-                (["id"], {"help": "nodegroup uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("nodegroup uuid"), "action": "store", "type": str}),
                 (
                     ["cmd"],
                     {
-                        "help": "shell command, Syntax: delimit command with. Write /- when use - char. Example: ls /-l",
+                        "help": _(
+                            "shell command, Syntax: delimit command with. Write /- when use - char. Example: ls /-l"
+                        ),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -670,7 +673,7 @@ class SshGroupActionController(SshControllerChild):
                 (
                     ["-user"],
                     {
-                        "help": "node user name",
+                        "help": _("node user name"),
                         "action": "store",
                         "type": str,
                         "default": "root",

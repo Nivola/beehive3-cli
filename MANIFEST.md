@@ -3,7 +3,6 @@ beecell==1.16.0
 beedrones==1.16.0
 bee_client==1.16.0
 cement==3.0.10
-colorlog==6.8.2
 elasticsearch==8.1.3
 kubernetes==21.7.0
 oauthlib==3.2.2
@@ -16,6 +15,6 @@ scp==0.13.6
 sh==1.14.2
 tabulate==0.8.10
 texttable==1.6.7
+textual==5.3.0
 tinydb==4.5.2
 ujson==5.10.0
-

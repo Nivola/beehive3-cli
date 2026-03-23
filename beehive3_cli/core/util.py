@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import stdout
-from typing import Generator, List, Callable, Tuple, Optional, AbstractSet
+from typing import Generator, List, Callable, Tuple, Optional, AbstractSet, TYPE_CHECKING, Set
 from uuid import UUID
 from re import match
 from functools import wraps
@@ -13,8 +13,10 @@ from pygments.style import Style
 from pygments.token import Token
 from cement.utils import fs
 from beecell.simple import read_file
+from beehive3_cli.translate import _
 from beehive3_cli.core.exc import CliManagerError
-
+if TYPE_CHECKING:
+    from beehive3_cli.main import CliManager
 
 class TreeStyle(Style):
     """
@@ -54,7 +56,7 @@ def duration(precision=3):
             start = time()
             ret = fn(*args, **kwargs)
             elapsed = round(time() - start, precision)
-            print("%s.%s duration: %s" % (fn.__module__, fn.__name__, elapsed))
+            print(f"{fn.__module__}.{fn.__name__} duration: {elapsed}")
             return ret
 
         return decorated
@@ -62,30 +64,30 @@ def duration(precision=3):
     return wrapper
 
 
-def load_config(file_name, secret=None):
+def load_config(file_name, secret: Optional[str]=None):
     """load config from file"""
     data = read_file(file_name, secret=secret)
     return data
 
 
-def load_environment_config(app, env=None):
+def load_environment_config(app: 'CliManager', env=None):
     """load environment config"""
     if env is None:
         env = app.env
-    file = fs.join_exists(app.environment_config_path, "%s.yml" % env)
+    file = fs.join_exists(app.environment_config_path, f"{env}.yml")
 
     if file[1] is True:
         env_configs = load_config(file[0], secret=app.key)
     else:
-        raise CliManagerError("No configuration file found for the environment specified")
+        raise CliManagerError(_("No configuration file found for the environment specified"))
 
     if env_configs is None or env_configs.get("cmp", None) is None:
-        raise CliManagerError("No configuration file found for the environment specified")
+        raise CliManagerError(_("No configuration file found for the environment specified"))
 
     return env_configs
 
 
-def list_environments(app):
+def list_environments(app: 'CliManager'):
     """list environments"""
     envs = []
     # print("environment_config_path: %s" % app.environment_config_path)
@@ -96,7 +98,7 @@ def list_environments(app):
     return envs
 
 
-def get_orchestrator_config(app, orch: str, label: str) -> dict:
+def get_orchestrator_config(app: 'CliManager', orch: str, label: str) -> dict:
     """
     return orchestrator configuration
     - orch: orchestrator type e.g. ontap, zabbix, vsphere
@@ -105,7 +107,8 @@ def get_orchestrator_config(app, orch: str, label: str) -> dict:
     config = load_environment_config(app)
     orchestrators = config.get("orchestrators", {}).get(orch, {})
     if label not in orchestrators:
-        raise CliManagerError(f"Valid labels are: {', '.join(orchestrators.keys())}")
+        msg = _("Valid labels are: ") + ', '.join(orchestrators.keys())
+        raise CliManagerError(msg)
     return orchestrators.get(label)
 
 
@@ -172,16 +175,16 @@ class ColoredText:
     )
 
     def escape(self, style):
-        return "\33[%sm" % style
+        return f"\33[{style}m"
 
     def output(self, data, color):
         return self.escape(getattr(self, color)) + data + self.escape(self.RESET)
 
     def warning(self, data):
-        return self.format("WARNING : " + str(data), self.YELLOW)
+        return self.format(_("WARNING: ") + str(data), self.YELLOW)
 
     def error(self, data):
-        return self.format("ERROR : " + str(data), self.LRED)
+        return self.format(_("ERROR: ") + str(data), self.RED)
 
     def format(self, data, style):
         return self.escape(style) + data + self.escape(self.RESET)
@@ -213,39 +216,50 @@ class ColoredText:
     def underline(self, data):
         return self.format(data, self.UNDERLINE)
 
-    def cur_up(self, n: int) -> str:
+    @staticmethod
+    def cur_up(n: int) -> str:
         """move cursor up n line"""
         return f"\33[{n}A"
 
-    def cur_down(self, n: int) -> str:
+    @staticmethod
+    def cur_down(n: int) -> str:
         """move cursor down n line"""
         return f"\33[{n}B"
 
-    def cur_right(self, n: int) -> str:
+    @staticmethod
+    def cur_right(n: int) -> str:
         """move cursor right n cols"""
         return f"\33[{n}C"
 
-    def cur_left(self, n: int) -> str:
+    @staticmethod
+    def cur_left(n: int) -> str:
         """move cursor left n cols"""
         return f"\33[{n}D"
 
-    def cur_at_coll(self, n: int) -> str:
+    @staticmethod
+    def cur_at_coll(n: int) -> str:
         """move cursor n collumn"""
         return f"\33[{n}G"
 
-    def clear_line(self) -> str:
+    @staticmethod
+    def clear_line() -> str:
         """erase line and move at 0 col"""
         return "\33[2K\33[0G"
 
-    def clear_to_end(self) -> str:
+    @staticmethod
+    def clear_to_end() -> str:
         """erase to end line do not move cursor"""
         return "\33[0K"
 
-    def clear_from_start(self) -> str:
+    @staticmethod
+    def clear_from_start() -> str:
         """erase from start tu cursor and move at 0 col"""
-        return f"\33[1K\33[0G"
+        return "\33[1K\33[0G"
 
-    def prompt(self, question: str, style: int = None, scroll: bool = False) -> str:
+    def prompt(
+        self, question: str, style: Optional[int] = None,
+        scroll: bool = False, case_sensitive = False
+    ) -> str:
         """
         Display prompt.
         """
@@ -256,37 +270,43 @@ class ColoredText:
             ret = input(self.clear_line() + question)
         if not scroll:
             stdout.write(self.cur_up(1))
+        if not case_sensitive:
+            ret = ret.lower()
         return ret
 
     def prompt_choice(
         self,
-        prompt_msg="Are you sure?",
-        options=None,
+        prompt_msg=_("Are you sure?"),
+        options: Optional[List[str]]=None,
         scroll: bool = True,
-        loop_until_valid=True,
-        except_on_invalid=False,
+        loop_until_valid = True,
+        except_on_invalid = False,
+        case_sensitive = False,
     ) -> Optional[str]:
         """
         Ask user to choose among a list of options.
-        loop_until_valid: continue until a valid option is chosen.
-        except_on_invalid: raise exception if invalid value is received
-        return valid chosen option or None or CliManagerError
+
+        :param prompt_msg: the prompt message
+        :param options: the options to choose among. defaults to ["y", "n"]
+        :param loop_until_valid: continue until a valid option is chosen. (default=True)
+        :param except_on_invalid: raise exception if invalid value is received (default=False)
+        :param case_sensitive: whether option matching should be case sensitive (default=False)
+        :return: valid chosen option or None or CliManagerError
         """
         if options is None:
             options = ["y", "n"]
 
         while True:
             msg = prompt_msg + " [" + str("/".join(options)) + "] "
-            choice = self.prompt(msg, self.YELLOW, scroll)
+            choice = self.prompt(question=msg, style=self.YELLOW, scroll=scroll,case_sensitive=case_sensitive)
             if choice in options:
                 return choice
-            else:
-                if loop_until_valid:
-                    continue
-                elif except_on_invalid:
-                    raise CliManagerError(f"Invalid choice: {choice}.")
-                else:
-                    return None
+            if loop_until_valid:
+                continue
+            if except_on_invalid:
+                msg = _("Invalid choice: ") + f"{choice}" + "."
+                raise CliManagerError(msg)
+            return None
 
 
 class CmpUtils:
@@ -298,14 +318,14 @@ class CmpUtils:
     DEFAULT_CHECK_DELTA = 2
 
     DEFAULT_TASK_TIMEOUT = 600
-    DEFAULT_TASK_EXIT_STATUSES: AbstractSet[str] = {"SUCCESS", "FAILURE", "TIMEOUT"}
-    DEFAULT_TASK_KEYS: AbstractSet[str] = {"jobid", "taskid", "nvl_TaskId"}
+    DEFAULT_TASK_EXIT_STATUSES: Set[str] = {"SUCCESS", "FAILURE", "TIMEOUT"}
+    DEFAULT_TASK_KEYS: Set[str] = {"jobid", "taskid", "nvl_TaskId"}
 
     DEFAULT_INSTANCE_TIMEOUT = 600
-    DEFAULT_INSTANCE_EXIT_STATUSES: AbstractSet[str] = {"ACTIVE", "ERROR", "DELETED"}
+    DEFAULT_INSTANCE_EXIT_STATUSES: Set[str] = {"ACTIVE", "ERROR", "DELETED"}
 
     @staticmethod
-    def get_task_id_from(from_var, key_path: List[str] = None, keys: AbstractSet[str] = None):
+    def get_task_id_from(from_var, key_path: Optional[List[str]] = None, keys: Optional[AbstractSet[str]] = None):
         """
         get task id from api response, if present. None if a string can't be found.
         key_path = list of keys following hierarchy inside dict
@@ -371,6 +391,8 @@ class CmpUtils:
 
             sleep(delta)
             elapsed += delta
+        if output:
+            stoprotation()
         elapsed_real = f"{(time()-start_time):.2f}"
         return (status, elapsed_real)
 
@@ -401,7 +423,7 @@ class CmpUtils:
         output=True,
         delta: int = DEFAULT_CHECK_DELTA,
         max_time: int = DEFAULT_TASK_TIMEOUT,
-        exit_statuses: AbstractSet[str] = None,
+        exit_statuses: Optional[AbstractSet[str]] = None,
     ) -> Tuple[str, str]:
         """Wait task
         :param task_id: task id
@@ -442,7 +464,13 @@ class CmpUtils:
         return False
 
 
-# @staticmethod
+def stoprotation():
+    """ """
+    stdout.write(ColoredText.cur_right(10) + "\n\n")
+    stdout.flush()
+
+
+
 def rotating_bar(start_time=None) -> Generator[str, None, None]:
     """
     rotating_bar
@@ -453,11 +481,18 @@ def rotating_bar(start_time=None) -> Generator[str, None, None]:
         st_time = time()
     rotobar = ("-", "\\", "|", "/")
     len_rotobar = len(rotobar)
-    len_message = 10  # two spaces + ljust 7 + rotobar item
+    len_message = 14  # two spaces + ljust 7 + unita misura + rotobar item
     i = 0
     while True:
-        pre = f"{(time()-st_time):.2f}"
-        pre = "  " + pre.ljust(7, " ")
+        sec = time() - st_time
+        if sec < 60:
+            pre = f"{sec:.2f} sec"
+        else:
+            sec = int(sec)
+            minutes = int(sec / 60)
+            sec = sec % 60
+            pre = f"{minutes}:{sec:02} min"
+        pre = "  " + pre.ljust(11, " ")
         yield pre + rotobar[i] + f"\33[{len_message}D"
         i += 1
         i %= len_rotobar

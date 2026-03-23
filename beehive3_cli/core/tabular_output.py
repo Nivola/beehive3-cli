@@ -1,20 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import Any, Dict, List, Optional, Union
+from beecell.simple import truncate
 from cement.core.output import OutputHandler
 from tabulate import tabulate
-from beecell.simple import truncate
 from beehive3_cli.core.util import ColoredText
 
 
 class TabularOutputHandler(OutputHandler):
     c = ColoredText()
 
-    class Meta:
+    # column names not to be truncated
+    DO_NOT_TRUNCATE = [
+        "id", "uuid"
+    ]
+
+    class Meta: # type: ignore
         label = "tabular_output_handler"
 
-    def _multi_get(self, data, key, separator="."):
+    def _multi_get(self, data: Union[List, Dict], key: str, separator=".") -> Any:
         keys = key.split(separator)
         res = data
         for k in keys:
@@ -28,23 +34,24 @@ class TabularOutputHandler(OutputHandler):
                     res = res.get(k, {})
         # if isinstance(res, list):
         #     res = res
-        if res is None or res == {}:
+        if res is None or res == {} or res == "":
             res = "-"
 
         return res
 
     def _tabularprint(
         self,
-        data,
+        data: Optional[Union[List, Dict, str]],
         table_style,
-        headers=None,
-        other_headers=None,
-        fields=None,
+        headers: Optional[List[str]]=None,
+        other_headers: Optional[List[str]]=None,
+        fields: Optional[List[str]]=None,
         maxsize=20,
         separator=".",
         transform=None,
         print_header=True,
         showindex="never",
+        suppress_formatting=False,
     ):
         if data is None:
             data = "-"
@@ -56,11 +63,15 @@ class TabularOutputHandler(OutputHandler):
         # get additional fields from external parameters
         new_fields = []
         if getattr(self.app.pargs, "afields", None) is not None:
-            new_fields = self.app.pargs.afields.split(",")
+            new_fields: List[str] = self.app.pargs.afields.split(",")
+            if not isinstance(new_fields,list):
+                raise Exception("invalid type for new_fields")
 
         # get alternative fields from external parameters
         elif getattr(self.app.pargs, "fields", None) is not None:
-            alt_fields = self.app.pargs.fields.split(",")
+            alt_fields: List[str] = self.app.pargs.fields.split(",")
+            if not isinstance(alt_fields,list):
+                raise Exception("invalid type for alt_fields")
             headers = alt_fields
             fields = alt_fields
 
@@ -78,7 +89,7 @@ class TabularOutputHandler(OutputHandler):
 
         for item in values:
             raw = []
-            if isinstance(item, dict):
+            if isinstance(item, dict) and (fields is not None):
                 for key in fields:
                     val = self._multi_get(item, key, separator=separator)
                     raw.append(val)
@@ -98,6 +109,7 @@ class TabularOutputHandler(OutputHandler):
 
             # apply transform
             for k, func in transform.items():
+                # TODO if suppress_formatting, strip formatting and color
                 try:
                     raw_item = fields.index(k)
                     raw[raw_item] = func(raw[raw_item])
@@ -105,12 +117,21 @@ class TabularOutputHandler(OutputHandler):
                     pass
 
             if getattr(self.app.pargs, "notruncate", False) is False:
-                raw = map(lambda x: truncate(x, maxsize, replace_new_line=False), raw)
+                for idx, item in enumerate(raw):
+                    if (headers is not None
+                        and isinstance(headers,list)
+                        and idx<len(headers)
+                        and headers[idx] in self.DO_NOT_TRUNCATE):
+                        continue
+                    if isinstance(item, str) and chr(27) in item:
+                        # contains ascii codes. leave as is
+                        continue
+                    raw[idx] = truncate(item, maxsize, replace_new_line=False)
 
             table.append(raw)
 
-        if print_header is True:
-            if table_style == "plain":
+        if print_header is True and (headers is not None):
+            if table_style == "plain" and not suppress_formatting:
                 headers = [self.c.gray(h) for h in headers]
             print(tabulate(table, headers=headers, tablefmt=table_style, showindex=showindex))
         else:
@@ -151,6 +172,8 @@ class TabularOutputHandler(OutputHandler):
 
                 return data, sections
         """
+        suppress_formatting = kwargs.get("suppress_formatting", False) # no color, no weird styles
+
         other_headers = kwargs.get("other_headers", [])
         headers = kwargs.get("headers", None)
         key = kwargs.get("key", None)
@@ -203,18 +226,21 @@ class TabularOutputHandler(OutputHandler):
                 if isinstance(v, list):
                     i = 0
                     for n in v:
-                        __format_table_data("%s.%s" % (k, i), n)
+                        __format_table_data(f"{k}.{i}", n)
                         i += 1
                 elif isinstance(v, dict):
                     for k1, v1 in v.items():
-                        __format_table_data("%s.%s" % (k, k1), v1)
+                        __format_table_data(f"{k}.{k1}", v1)
                 else:
                     # if isinstance(v, str):
                     #     v = v
 
                     value = truncate(v, size=maxsize, replace_new_line=False)
-                    key = k
-                    resp.append({"attrib": self.c.gray(key), "value": value})
+                    attrib_key = k
+                    if not suppress_formatting:
+                        attrib_key = self.c.gray(k)
+
+                    resp.append({"attrib": attrib_key, "value": value})
 
             if data is not None:
                 for k, v in data.items():
@@ -227,18 +253,14 @@ class TabularOutputHandler(OutputHandler):
             print_header = False
             table_style = "plain"
 
-        if isinstance(data, dict) or isinstance(data, list):
+        if isinstance(data, (dict, list)):
             if orig_data is not None and "page" in orig_data:
-                print("Page: %s" % orig_data["page"])
-                print("Count: %s" % orig_data["count"])
-                print("Total: %s" % orig_data["total"])
-                print(
-                    "Order: %s %s"
-                    % (
-                        orig_data.get("sort").get("field"),
-                        orig_data.get("sort").get("order"),
-                    )
-                )
+                print(f"Page: {orig_data['page']}")
+                print(f"Count: {orig_data['count']}")
+                print(f"Total: {orig_data['total']}")
+                sort_field = orig_data.get("sort",{}).get("field")
+                sort_order = orig_data.get("sort",{}).get("order")
+                print(f"Order: {sort_field} {sort_order}")
                 print("")
             self._tabularprint(
                 data,
@@ -251,15 +273,21 @@ class TabularOutputHandler(OutputHandler):
                 transform=transform,
                 print_header=print_header,
                 showindex=showindex,
+                suppress_formatting=suppress_formatting,
             )
 
             fn = getattr(ColoredText(), "underline")
             for section in sections:
-                print("\n" + fn(section.get("title")))
+                section_title = section.get("title")
+                if not suppress_formatting:
+                    print("\n" + fn(section_title))
+                else:
+                    print(f"\n {section_title}")
                 self._tabularprint(
                     section.get("value"),
                     table_style,
                     headers=section.get("headers"),
                     fields=section.get("fields"),
                     maxsize=maxsize,
+                    suppress_formatting=suppress_formatting,
                 )

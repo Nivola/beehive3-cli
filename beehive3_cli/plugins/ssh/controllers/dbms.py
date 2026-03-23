@@ -1,30 +1,31 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.controller import PARGS
 from beehive3_cli.plugins.ssh.controllers.ssh import SshControllerChild
+from beehive3_cli.translate import _
 
 
 class SshDbmsController(SshControllerChild):
     class Meta:
         label = "dbms"
-        description = "dbms management"
-        help = "dbms management"
+        description = _("dbms management")
+        help = _("dbms management")
 
         headers = ["id", "name", "desc", "ip_address", "date"]
         fields = ["uuid", "name", "desc", "ip_address", "date.creation"]
 
     @ex(
-        help="ping dbms",
-        description="ping dbms",
+        help=_("ping dbms"),
+        description=_("ping dbms"),
         arguments=PARGS(
             [
                 (
                     ["host"],
                     {
-                        "help": "node name or uuid",
+                        "help": _("node name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -33,7 +34,7 @@ class SshDbmsController(SshControllerChild):
                 (
                     ["-port"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": int,
                         "default": 3306,
@@ -42,7 +43,7 @@ class SshDbmsController(SshControllerChild):
                 (
                     ["-type"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": "mysql",
@@ -51,7 +52,7 @@ class SshDbmsController(SshControllerChild):
                 (
                     ["-user"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": "root",
@@ -60,7 +61,7 @@ class SshDbmsController(SshControllerChild):
                 (
                     ["pwd"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -69,7 +70,7 @@ class SshDbmsController(SshControllerChild):
                 (
                     ["-db"],
                     {
-                        "help": "node group name or uuid",
+                        "help": _("node group name or uuid"),
                         "action": "store",
                         "type": str,
                         "default": "mysql",
@@ -87,7 +88,7 @@ class SshDbmsController(SshControllerChild):
         pwd = self.app.pargs.pwd
         dbms_type = self.app.pargs.type
         db = self.app.pargs.db
-        db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % (user, pwd, host, port, db)
+        db_uri = f"mysql+pymysql://{user}:{pwd}@{host}:{port}/{db}"
         if dbms_type == "mysql":
             server = MysqlManager(1, db_uri)
             server.create_simple_engine()

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.translate import _
 from cement import ex
 
 
@@ -11,8 +12,8 @@ class RancherController(BaseController):
         stacked_on = "base"
         stacked_type = "nested"
         label = "res_rancher"
-        description = "rancher orchestrator"
-        help = "rancher orchestrator"
+        description = _("rancher orchestrator")
+        help = _("rancher orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/rancher", "subsystem": "resource"}
 
@@ -38,18 +39,18 @@ class RancherController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(RancherController, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     @ex(
-        help="get clusters",
-        description="get clusters",
+        help=_("get clusters"),
+        description=_("get clusters"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -61,7 +62,7 @@ class RancherController(BaseController):
     def cluster_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/clusters/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/clusters/{oid}"
             res = self.cmp_get(uri)
             if self.is_output_text():
                 res = res.get("cluster")
@@ -72,7 +73,7 @@ class RancherController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/clusters" % self.baseuri
+            uri = f"{self.baseuri}/clusters"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -90,14 +91,14 @@ class RancherController(BaseController):
         pass
 
     @ex(
-        help="get projects",
-        description="get projects",
+        help=_("get projects"),
+        description=_("get projects"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -109,7 +110,7 @@ class RancherController(BaseController):
     def project_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/projects/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/projects/{oid}"
             res = self.cmp_get(uri)
             if self.is_output_text():
                 res = res.get("project")
@@ -120,7 +121,7 @@ class RancherController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/projects" % self.baseuri
+            uri = f"{self.baseuri}/projects"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,

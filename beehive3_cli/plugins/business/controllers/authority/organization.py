@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement import ex
 from beehive3_cli.core.controller import PARGS, ARGS
 from beehive3_cli.plugins.business.controllers.authority import AuthorityControllerChild
+from beehive3_cli.translate import _
 
 
 class OrganizationController(AuthorityControllerChild):
     class Meta:
         label = "orgs"
-        description = "organization management"
-        help = "organization management"
+        description = _("organization management")
+        help = _("organization management")
 
         headers = ["uuid", "name", "type", "divisions", "anagrafica", "status", "date"]
         fields = [
@@ -25,15 +26,20 @@ class OrganizationController(AuthorityControllerChild):
         ]
 
     @ex(
-        help="get organizations",
-        description="This command is used to retrieve organizations from the platform. It does not require any arguments. The organizations returned can optionally be filtered and paginated using optional arguments like -name, -size and -page.",
-        example="beehive bu orgs get -name AOU-Novara;beehive bu orgs get -size 40 -page 2",
+        help=_("get organizations"),
+        description=_(
+            "This command is used to retrieve organizations from the platform. "
+            "It does not require any arguments. "
+            "The organizations returned can optionally be filtered and paginated "
+            "using optional arguments like -name, -size and -page."
+        ),
+        example="beehive bu orgs get -size 40 -page 2",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "organization uuid",
+                        "help": _("organization uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -42,7 +48,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-objid"],
                     {
-                        "help": "authorization id",
+                        "help": _("authorization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -51,7 +57,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-name"],
                     {
-                        "help": "organization name",
+                        "help": _("organization name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -60,7 +66,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-org-type"],
                     {
-                        "help": "organization type",
+                        "help": _("organization type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -69,7 +75,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-ext-anag-id"],
                     {
-                        "help": "organization ext_anag_id",
+                        "help": _("organization ext_anag_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -78,7 +84,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-attributes"],
                     {
-                        "help": "organization attributes",
+                        "help": _("organization attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -87,7 +93,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-hasvat"],
                     {
-                        "help": "organization hasvat",
+                        "help": _("organization hasvat"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -96,7 +102,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-partner"],
                     {
-                        "help": "organization partner",
+                        "help": _("organization partner"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -105,7 +111,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-referent"],
                     {
-                        "help": "organization referent",
+                        "help": _("organization referent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -114,7 +120,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "organization email",
+                        "help": _("organization email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -123,7 +129,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-legalemail"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -132,7 +138,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-postaladdress"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -144,12 +150,12 @@ class OrganizationController(AuthorityControllerChild):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/organizations/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/organizations/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
                 data = {"organization_id": oid, "size": -1}
-                uri = "%s/divisions" % self.baseuri
+                uri = f"{self.baseuri}/divisions"
                 divs = self.cmp_get(uri, data=data).get("divisions", [])
                 self.app.render(res, key="organization", details=True)
                 self.c("\ndivisions", "underline")
@@ -193,7 +199,7 @@ class OrganizationController(AuthorityControllerChild):
                 "postaladdress",
             ]
             data = self.format_paginated_query(params)
-            uri = "%s/organizations" % self.baseuri
+            uri = f"{self.baseuri}/organizations"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -203,18 +209,22 @@ class OrganizationController(AuthorityControllerChild):
             )
 
     @ex(
-        help="add organization",
-        description="This command allows you to add a new organization to the Nivola CMP platform. You need to provide the name of the organization being added as well as the type of organization (e.g business, non-profit etc).",
+        help=_("add organization"),
+        description=_(
+            "This command allows you to add a new organization to the Nivola CMP platform. "
+            "You need to provide the name of the organization being added as well as the "
+            "type of organization (e.g business, non-profit etc)."
+        ),
         arguments=ARGS(
             [
                 (
                     ["name"],
-                    {"help": "organization name", "action": "store", "type": str},
+                    {"help": _("organization name"), "action": "store", "type": str},
                 ),
                 (
                     ["-desc"],
                     {
-                        "help": "organization description",
+                        "help": _("organization description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -223,7 +233,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-attrib"],
                     {
-                        "help": "organization attributes",
+                        "help": _("organization attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -231,12 +241,12 @@ class OrganizationController(AuthorityControllerChild):
                 ),
                 (
                     ["orgtype"],
-                    {"help": "organization type", "action": "store", "type": str},
+                    {"help": _("organization type"), "action": "store", "type": str},
                 ),
                 (
                     ["-hasvat"],
                     {
-                        "help": "organization hasvat",
+                        "help": _("organization hasvat"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -245,7 +255,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-ext-anag-id"],
                     {
-                        "help": "organization ext_anag_id",
+                        "help": _("organization ext_anag_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -254,7 +264,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-partner"],
                     {
-                        "help": "organization partner",
+                        "help": _("organization partner"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -263,7 +273,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-referent"],
                     {
-                        "help": "organization referent",
+                        "help": _("organization referent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -272,7 +282,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "organization email",
+                        "help": _("organization email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -281,7 +291,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-legalemail"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -290,7 +300,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-postaladdress"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -315,23 +325,28 @@ class OrganizationController(AuthorityControllerChild):
                 "postaladdress": self.app.pargs.postaladdress,
             }
         }
-        uri = "%s/organizations" % self.baseuri
+        uri = f"{self.baseuri}/organizations"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "Add organization %s" % res})
+        self.app.render({"msg": f"Add organization {res}"})
 
     @ex(
-        help="update organization",
-        description="This command updates an existing organization in Nivola CMP. The required arguments are the name of the organization to update and the new organization type. The organization type can be one of 'customer', 'vendor' or 'partner'.",
+        help=_("update organization"),
+        description=_(
+            "This command updates an existing organization in Nivola CMP. "
+            "The required arguments are the name of the organization to update "
+            "and the new organization type. "
+            "The organization type can be one of 'customer', 'vendor' or 'partner'."
+        ),
         arguments=ARGS(
             [
                 (
                     ["name"],
-                    {"help": "organization name", "action": "store", "type": str},
+                    {"help": _("organization name"), "action": "store", "type": str},
                 ),
                 (
                     ["-desc"],
                     {
-                        "help": "organization description",
+                        "help": _("organization description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -340,7 +355,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-attrib"],
                     {
-                        "help": "organization attributes",
+                        "help": _("organization attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -348,12 +363,12 @@ class OrganizationController(AuthorityControllerChild):
                 ),
                 (
                     ["org-type"],
-                    {"help": "organization type", "action": "store", "type": str},
+                    {"help": _("organization type"), "action": "store", "type": str},
                 ),
                 (
                     ["-hasvat"],
                     {
-                        "help": "organization hasvat",
+                        "help": _("organization hasvat"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -362,7 +377,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-ext-anag-id"],
                     {
-                        "help": "organization ext_anag_id",
+                        "help": _("organization ext_anag_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -371,7 +386,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-partner"],
                     {
-                        "help": "organization partner",
+                        "help": _("organization partner"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -380,7 +395,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-referent"],
                     {
-                        "help": "organization referent",
+                        "help": _("organization referent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -389,7 +404,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-email"],
                     {
-                        "help": "organization email",
+                        "help": _("organization email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -398,7 +413,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-legalemail"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -407,7 +422,7 @@ class OrganizationController(AuthorityControllerChild):
                 (
                     ["-postaladdress"],
                     {
-                        "help": "organization legalemail",
+                        "help": _("organization legalemail"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -421,19 +436,25 @@ class OrganizationController(AuthorityControllerChild):
         oid = self.app.pargs.id
         params = self.app.kvargs
         data = {"organization": params}
-        uri = "%s/organizations/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "Update resource %s with data %s" % (oid, params)})
+        self.app.render({"msg": f"Update resource {oid} with data {params}"})
 
     @ex(
-        help="refresh organization",
-        description="This command refreshes an organization by its uuid or name. It retrieves the latest details of the organization from the server and updates the local cache. The 'id' argument is required to identify the organization to refresh by its uuid or name.",
+        help=_("refresh organization"),
+        description=_(
+            "This command refreshes an organization by its uuid or name. "
+            "It retrieves the latest details of the organization from the server "
+            "and updates the local cache. "
+            "The 'id' argument is required to identify the organization "
+            "to refresh by its uuid or name."
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "organization uuid or name",
+                        "help": _("organization uuid or name"),
                         "action": "store",
                         "type": str,
                     },
@@ -444,19 +465,23 @@ class OrganizationController(AuthorityControllerChild):
     def refresh(self):
         oid = self.app.pargs.id
         data = {"organization": {}}
-        uri = "%s/organizations/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}"
         self.self.cmp_patch(uri, data=data, timeout=600)
-        self.app.render({"msg": "Refresh organization %s" % oid})
+        self.app.render({"msg": f"Refresh organization {oid}"})
 
     @ex(
-        help="delete organization",
-        description="This command deletes an organization from Nivola CMP. The organization to delete must be specified using either the uuid or name of the organization in the 'id' argument.",
+        help=_("delete organization"),
+        description=_(
+            "This command deletes an organization from Nivola CMP. "
+            "The organization to delete must be specified using either "
+            "the uuid or name of the organization in the 'id' argument."
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "organization uuid or name",
+                        "help": _("organization uuid or name"),
                         "action": "store",
                         "type": str,
                     },
@@ -466,18 +491,24 @@ class OrganizationController(AuthorityControllerChild):
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/organizations/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="organization %s" % oid)
+        uri = f"{self.baseuri}/organizations/{oid}"
+        self.cmp_delete(uri, entity=f"organization {oid}")
 
     @ex(
-        help="get organization active services info",
-        description="This command retrieves active services information for a specific organization. It requires the organization ID or name as the only required argument to identify which organization's active services to retrieve. The information returned would include details on all services that are currently active/running for the given organization.",
+        help=_("get organization active services info"),
+        description=_(
+            "This command retrieves active services information for a specific organization. "
+            "It requires the organization ID or name as the only required argument to "
+            "identify which organization's active services to retrieve. "
+            "The information returned would include details on all services that are currently "
+            "active/running for the given organization."
+        ),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "organization uuid or name",
+                        "help": _("organization uuid or name"),
                         "action": "store",
                         "type": str,
                     },
@@ -487,7 +518,7 @@ class OrganizationController(AuthorityControllerChild):
     )
     def active_services(self):
         oid = self.app.pargs.id
-        uri = "%s/organizations/%s/activeservices" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/activeservices"
         res = self.cmp_get(uri)
         self.app.render(res, key="services", details=True)
 
@@ -498,38 +529,47 @@ class OrganizationAuthController(AuthorityControllerChild):
         # aliases = ['auth']
         # stacked_on = 'organizations'
         # stacked_type = 'nested'
-        description = "organization authorization"
-        help = "organization authorization"
+        description = _("organization authorization")
+        help = _("organization authorization")
 
     @ex(
-        help="get organization roles",
-        description="This command gets the roles for a specific organization. The organization is identified by its UUID which must be provided as the required 'id' argument.",
+        help=_("get organization roles"),
+        description=_(
+            "This command gets the roles for a specific organization. "
+            "The organization is identified by its UUID which must be "
+            "provided as the required 'id' argument."
+        ),
         example="beehive bu orgs-auth role-get 1",
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def role_get(self):
         oid = self.app.pargs.id
-        uri = "%s/organizations/%s/roles" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/roles"
         res = self.cmp_get(uri)
         self.app.render(res, key="roles", headers=["name", "desc", "role"], maxsize=200)
 
     @ex(
-        help="get organization users",
-        description="This command gets the users of an organization. It requires the organization uuid as the only required argument identified as 'id'. This will retrieve the users that belong to the specified organization.",
+        help=_("get organization users"),
+        description=_(
+            "This command gets the users of an organization. "
+            "It requires the organization uuid as the only required argument identified "
+            "as 'id'. "
+            "This will retrieve the users that belong to the specified organization."
+        ),
         example="beehive bu orgs-auth user-get 1",
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def user_get(self):
         oid = self.app.pargs.id
-        uri = "%s/organizations/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/users"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -540,18 +580,23 @@ class OrganizationAuthController(AuthorityControllerChild):
         )
 
     @ex(
-        help="add organization role to a user",
-        description="This command adds an organization role to a user. It requires the organization UUID, the role to assign (e.g. member, admin etc.), and the user ID to assign the role to as required arguments.",
+        help=_("add organization role to a user"),
+        description=_(
+            "This command adds an organization role to a user. "
+            "It requires the organization UUID, the role to assign "
+            "(e.g. member, admin etc.), and the user ID to assign "
+            "the role to as required arguments."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "organization role", "action": "store", "type": str},
+                    {"help": _("organization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -561,23 +606,27 @@ class OrganizationAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/organizations/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/users"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove organization role from a user",
-        description="This command removes an organization role from a specific user. It requires the organization UUID, the role within the organization (e.g. member, admin etc.), and the username of the user to remove the role from.",
+        help=_("remove organization role from a user"),
+        description=_(
+            "This command removes an organization role from a specific user. "
+            "It requires the organization UUID, the role within the organization "
+            "(e.g. member, admin etc.), and the username of the user to remove the role from."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "organization role", "action": "store", "type": str},
+                    {"help": _("organization role"), "action": "store", "type": str},
                 ),
                 (
                     ["user"],
-                    {"help": "authorization user", "action": "store", "type": str},
+                    {"help": _("authorization user"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -587,23 +636,27 @@ class OrganizationAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         user = self.app.pargs.user
         data = {"user": {"user_id": user, "role": role}}
-        uri = "%s/organizations/%s/users" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/users"
         res = self.cmp_delete(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="get organization groups",
-        description="This command retrieves the groups associated with an organization. The organization is identified by its UUID which must be provided as the 'id' argument. This allows administrators to view the existing groups and their permissions within an organization.",
+        help=_("get organization groups"),
+        description=_(
+            "This command retrieves the groups associated with an organization. "
+            "The organization is identified by its UUID which must be provided as the 'id' argument. "
+            "This allows administrators to view the existing groups and their permissions within an organization."
+        ),
         example="beehive bu orgs-auth group-get 1",
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def group_get(self):
         oid = self.app.pargs.id
-        uri = "%s/organizations/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/groups"
         res = self.cmp_get(uri)
         self.app.render(
             res,
@@ -614,18 +667,24 @@ class OrganizationAuthController(AuthorityControllerChild):
         )
 
     @ex(
-        help="add organization role to a group",
-        description="This command adds an organization role to an authorization group by specifying the organization UUID, role and group name. The organization UUID identifies the organization, the role specifies the level of access (e.g. admin, user) and the group name is the group to which the role is being assigned.",
+        help=_("add organization role to a group"),
+        description=_(
+            "This command adds an organization role to an authorization group by specifying "
+            "the organization UUID, role and group name. "
+            "The organization UUID identifies the organization, the role specifies "
+            "the level of access (e.g. admin, user) and the group name is the group "
+            "to which the role is being assigned."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "organization role", "action": "store", "type": str},
+                    {"help": _("organization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -635,23 +694,27 @@ class OrganizationAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/organizations/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/groups"
         res = self.cmp_post(uri, data)
         self.app.render({"msg": res})
 
     @ex(
-        help="remove organization role from a group",
-        description="This command removes an organization role from an authorization group. It requires the organization UUID, role and group name as arguments to identify which role assignment to remove.",
+        help=_("remove organization role from a group"),
+        description=_(
+            "This command removes an organization role from an authorization group. "
+            "It requires the organization UUID, role and group name as arguments to "
+            "identify which role assignment to remove."
+        ),
         arguments=ARGS(
             [
-                (["id"], {"help": "organization uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("organization uuid"), "action": "store", "type": str}),
                 (
                     ["role"],
-                    {"help": "organization role", "action": "store", "type": str},
+                    {"help": _("organization role"), "action": "store", "type": str},
                 ),
                 (
                     ["group"],
-                    {"help": "authorization group", "action": "store", "type": str},
+                    {"help": _("authorization group"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -661,6 +724,6 @@ class OrganizationAuthController(AuthorityControllerChild):
         role = self.app.pargs.role
         group = self.app.pargs.group
         data = {"group": {"group_id": group, "role": role}}
-        uri = "%s/organizations/%s/groups" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/organizations/{oid}/groups"
         res = self.cmp_delete(uri, data)
         self.app.render({"msg": res})

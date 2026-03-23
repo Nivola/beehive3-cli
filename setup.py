@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from setuptools import setup, find_packages
 from beehive3_cli.core.version import get_version
 
 VERSION = get_version()
 
-f = open("README.md", "r")
-LONG_DESCRIPTION = f.read()
-f.close()
+with open("README.md", "r", encoding="utf-8") as f:
+    LONG_DESCRIPTION = f.read()
 
 setup(
     name="beehive3_cli",

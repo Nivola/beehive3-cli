@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from .child import AdminChildController, AdminError
 from cement.ext.ext_argparse import ex
+from sqlalchemy import text
 from beehive3_cli.core.controller import ARGS
 from beehive3_cli.core.util import load_environment_config
-from urllib.parse import urlencode
+from beehive3_cli.translate import _
+from .child import AdminChildController, AdminError
 
 
 class MigrationP5p6AdminController(AdminChildController):
@@ -23,7 +24,7 @@ class MigrationP5p6AdminController(AdminChildController):
         for user in users:
             pwd = users[user]
 
-        db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % (user, pwd, host, port, db)
+        db_uri = f"mysql+pymysql://{user}:{pwd}@{host}:{port}/{db}"
         server = MysqlManager(1, db_uri)
         return server
 
@@ -37,17 +38,19 @@ class MigrationP5p6AdminController(AdminChildController):
 
     class Meta:
         label = "migration-p5p6"
-        description = "collection of commands to facilitate accounts migration to p5p6"
-        help = "collection of commands to facilitate accounts migration to p5p6"
+        description = _("collection of commands to facilitate accounts migration to p5p6")
+        help = _("collection of commands to facilitate accounts migration to p5p6")
 
     @ex(
-        help="update source account and create destination account",
-        description="""This command does the following: 1) changes source account name from <src-account-name> to
+        help=_("update source account and create destination account"),
+        description=_(
+            """This command does the following: 1) changes source account name from <src-account-name> to
         <src-account-name>-TODELETE; 2) creates a destination account with name, description and acronym equal to the
-        source one before renaming""",
+        source one before renaming"""
+        ),
         arguments=ARGS(
             [
-                (["src_account"], {"help": "source (p1p2p3) account id", "action": "store", "type": str}),
+                (["src_account"], {"help": _("source (p1p2p3) account id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -78,7 +81,7 @@ SET
     name = '{src_account_name}-TODELETE'
 WHERE uuid = '{src_account_uuid}'
 """
-        self.execute_query(sqlstmnt)
+        self.execute_query(text(sqlstmnt))
         print(f"src account {src_account_uuid} updated")
 
         # create destination account
@@ -122,11 +125,11 @@ WHERE sic.fk_service_instance_id = {key_id};
         return key_cfg
 
     @ex(
-        help="rename source ssh key",
-        description="rename source ssh key",
+        help=_("rename source ssh key"),
+        description=_("rename source ssh key"),
         arguments=ARGS(
             [
-                (["key_name"], {"help": "ssh key name", "action": "store", "type": str}),
+                (["key_name"], {"help": _("ssh key name"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -144,7 +147,7 @@ SET
     `desc` = '{key_name}-TODELETE'
 WHERE name = '{key_name}'
 """
-        self.execute_query(sqlstmnt)
+        self.execute_query(text(sqlstmnt))
 
         # update service
         sqlstmnt = f"""
@@ -154,7 +157,7 @@ SET
     `desc` = '{key_name}-TODELETE'
 WHERE name = '{key_name}'
 """
-        self.execute_query(sqlstmnt)
+        self.execute_query(text(sqlstmnt))
 
         # update service config
         sqlstmnt = f"""
@@ -163,15 +166,15 @@ SET
     json_cfg = '{new_key_cfg}'
 WHERE fk_service_instance_id = {key_id};
 """
-        self.execute_query(sqlstmnt)
-        print(f"ssh key renamed")
+        self.execute_query(text(sqlstmnt))
+        print("ssh key renamed")
 
     @ex(
-        help="copy source ssh key content to new one",
-        description="copy source ssh key content to new one",
+        help=_("copy source ssh key content to new one"),
+        description=_("copy source ssh key content to new one"),
         arguments=ARGS(
             [
-                (["key_name"], {"help": "ssh key name", "action": "store", "type": str}),
+                (["key_name"], {"help": _("ssh key name"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -191,16 +194,16 @@ SET
   )
 WHERE nk.name = '{key_name}'
 """
-        self.execute_query(sqlstmnt)
-        print(f"ssh key updated")
+        self.execute_query(text(sqlstmnt))
+        print("ssh key updated")
 
     @ex(
-        help="add ssh key to user",
-        description="add ssh key to user",
+        help=_("add ssh key to user"),
+        description=_("add ssh key to user"),
         arguments=ARGS(
             [
-                (["id"], {"help": "ssh user uuid", "action": "store", "type": str}),
-                (["key_name"], {"help": "ssh key name", "action": "store", "type": str}),
+                (["id"], {"help": _("ssh user uuid"), "action": "store", "type": str}),
+                (["key_name"], {"help": _("ssh key name"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -208,7 +211,7 @@ WHERE nk.name = '{key_name}'
         user_oid = self.app.pargs.id
         key_name = self.app.pargs.key_name
         # get user
-        uri = "/v1.0/gas/users/%s" % user_oid
+        uri = f"/v1.0/gas/users/{user_oid}"
         user = self.cmp_get(uri).get("user")
         user_id = user["id"]
         ssh_key = self.cmp_get(f"/v1.0/gas/keys/{key_name}")
@@ -216,7 +219,7 @@ WHERE nk.name = '{key_name}'
         sqlstmnt = f"""
 INSERT INTO ssh.keys_users (fk_key_id, fk_user_id) VALUES({ssh_key_id}, {user_id})
 """
-        self.execute_query(sqlstmnt)
+        self.execute_query(text(sqlstmnt))
         print("ssh key linked to user")
 
     def get_res_stack_uuid(self, service_id):
@@ -229,7 +232,7 @@ INSERT INTO ssh.keys_users (fk_key_id, fk_user_id) VALUES({ssh_key_id}, {user_id
 SELECT src_res.attribute FROM resource.resource src_res
 WHERE src_res.uuid = '{res_stack_id}'
 """
-        res = self.execute_query(sqlstmnt)
+        res = self.execute_query(text(sqlstmnt))
         return res.fetchone()[0]
 
     def extract_ip_from_sql_stack_attrib(self, sql_stack_attribute):
@@ -239,12 +242,12 @@ WHERE src_res.uuid = '{res_stack_id}'
         return sql_stack_attr_dict["outputs"]["ResourceIP"]["value"]
 
     @ex(
-        help="copy dbaas sql stack attributes to new one",
-        description="copy dbaas sql stack attributes to new one",
+        help=_("copy dbaas sql stack attributes to new one"),
+        description=_("copy dbaas sql stack attributes to new one"),
         arguments=ARGS(
             [
-                (["src_id"], {"help": "source database id", "action": "store", "type": str}),
-                (["dest_id"], {"help": "destination database id", "action": "store", "type": str}),
+                (["src_id"], {"help": _("source database id"), "action": "store", "type": str}),
+                (["dest_id"], {"help": _("destination database id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -264,4 +267,4 @@ SET
     dest_res.attribute = '{new_dest_sql_stack_attribute}'
 WHERE dest_res.uuid = '{dest_res_stack_id}'
 """
-        self.execute_query(sqlstmnt)
+        self.execute_query(text(sqlstmnt))

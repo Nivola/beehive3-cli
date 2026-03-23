@@ -1,20 +1,456 @@
-changeangelog:
+changelog:
+
+  - 
+    version: 2025.08.11
+    desc: 
+    date: 2025-08-11
+    added:
+    changed:
+    fixed:
+      - Fix staas visualization
+
+  - 
+    version: 2025.08.05
+    desc: 
+    date: 2025-08-05
+    added:
+      - set_lang
+      - translations
+      - Add optional param log in res-provider create sg rule command
+      - "redis: add connection port"
+      - "datastore_get: add filters"
+      - Introduced NotImplementedError for CmpApiClient.wait_job, indicating that direct waiting for job IDs is not supported by the current API client for task v1.
+      - Switched to yaml.safe_load for safer and forward-compatible YAML parsing
+      - "Fix(pylint): Rename snapshot_policies to avoid E0203"
+      - Use builtins.list to bypass shadowed 'list' name
+      - admin tool italian translation
+    changed:
+    fixed:
+      - Fix openstack revert volume
+      - Fix to support id in get volume
+
+  - 
+    version: 2025.06.12
+    desc: 
+    date: 2025-06-12
+    added:
+      - update translations
+      - The admin tool now uses the Resource Provider Compute API instead of Simple Resource, as the old one sometimes does not populate blockdevices
+    changed:
+    fixed:
+      - "fix dns: zone_fqdn_query, zone_alias_query return error"
+      - "fix awx job list: add job name"
+      - fix vsphere deleting folder, server
+      - fix test run filter fromtest
+
+  # - 
+  #   version: 2025.05.23
+  #   desc: 
+  #   date: 2025-05-22
+  #   added:
+  #     - 
+  #   changed:
+  #     - 
+  #   fixed:
+  #     - 
+
+  - 
+    version: 2025.05.22
+    desc: 
+    date: 2025-05-22
+    added:
+      - database admin mgmt tool add sqlstack check
+      - patchset for admin check tools
+      - update staas v2 enable compliance option, in order to accept rpo value
+      - staas v2 enable/disable compliance to ACN requirements
+      - commented staas v2 action commands merged into update command
+      - "Add staas v2 update check: only one param at a time can be updated"
+      - Multilingual translations
+      - filter accounts for status and expired
+    changed:
+    fixed:
+      - Fix cache invalidation in cpaas admin check tool
+
+  - 
+    version: 2025.04.29
+    desc: 
+    date: 2025-04-24
+    added:
+      - "dbaas admin tool: discriminate data starting from mount point"
+      - Various fix in dbaas admin tool
+      - Bulk tag update
+      - Openstack database volumes suggestion
+      - Add check to admin cmds
+      - fix description logaas, maas
+    changed:
+    fixed:
+
+  - 
+    version: 2025.04.17
+    desc: 
+    date: 2025-04-17
+    added:
+      - Handling of volume for command beehive mgmt database check
+      - Added handling for dbaas tags in management command
+      - cmp fernet key can be stored in envirinment configuration  as an encripted value named cmpkey
+      - get definition  now create a cutomization yaml file
+      - backup job add instance plugintype
+      - Add platform command to get Ontap snapshot policies
+      - Minor changes to staas v2 add grant superuser option
+      - mgmt tool provider volume name and better checks
+      - db mgmt when add a volume in cmp for dbaas has_quotas=False
+    changed:
+    fixed:
+      - "fix account service-del: delete also ComputeVolume"
+      - fix veeam job description
+      - bugfix provider volumes for database should be imported with quotas disabled
+      - Fix db mgmt when quota flag is None
+
+  - 
+    version: 2025.03.31
+    desc: 
+    date: 2025-03-31
+    added:
+      - "task list: show pod"
+      - staas v2 protocol in rule creation
+      - beehive auth perms list
+      - added optional (commented) bit to check ssh user perms
+      - command iamdev
+      - zabbix timeout at 60 sec
+      - capability check before updating (with diff)
+      - Correct type hint in staas-v2 grant-add co
+    changed:
+    fixed:
+      - fixed service filter output
+      - fix tag get filters
+      - fix account servce del for  private
+
+  - 
+    version: 2025.03.12
+    desc: 
+    date: 2025-03-07
+    added:
+    changed:
+    fixed:
+      - Correct type hint in staas-v2 grant-add command
+
+  - 
+    version: 2025.03.06
+    desc: 
+    date: 2025-03-06
+    added:
+      - Remove type (i.e. service-def) optional param from staas-v2 add and add-legacy commands
+      - Enabled encryption option in staas-v2 create volume
+      - no more six
+      - "envs: remove orchestrators info"
+    changed:
+    fixed:
+      - fix dfw delete rule
+      - Fix page number in cpaas vms list
+
+  - 
+    version: 2025.02.27
+    desc: 
+    date: 2025-02-27
+    added:
+      - Add page and size param for command beehive platform vsphere nsx-manager-event-get
+      - Commented staas v2 volume encryption option for the moment
+      - awx relaunch job return new job id
+      - Add encrypt option in create staas v2 command
+      - run test add -totest param
+      - sg rules new print and section_name filter
+      - provider rule get, service filter and warning
+      - Renamed some res-provider share methods
+      - add vsphere sg_rule_get command
+      - Removed some redundant headers in staas efs list command
+      - staas bu source view
+      - staas bu replica view
+      - staas fix resource list
+      - vsphere ipset platform filters and output
+      - staas mount fix + minor
+      - add plugintype parameter for serch definitions
+      - improve service delete
+      - vsphere platform dvpg-find (by name and/or vlan_id), minor corrections, list_servers for dvpg-get
+      - openstack platform filter servers by ip and power_state; fix parameters errors, removed duplicate function, renamed function with wrong name
+      - Correct staas replica mount command
+      - staas snapmirror delete
+      - staas svm-set refactor
+      - staas platform snaplock info
+      - test run add param fromtest
+      - Correct online/offline field name in staas list command
+      - timer improve
+      - pylint, share-add-v2, share-mount
+      - platform staas new snapmirror visualization
+      - staas bu replica-add
+      - staas visualization mount target and bugfix
+      - Add staas grant-list command
+      - Correct online/offline endpoint command - part2
+      - redis log host info
+      - staas rules v1 new visualization
+      - Correct online/offline endpoint command
+      - Add missing param path to expanduser method
+      - "test: run param failfast default True"
+      - Staas mount replica command implementation
+      - "update definition: confirm change"
+      - "delete account: delete_tags default true"
+      - vpc get
+      - Staas replica suspend and resume commands implementation
+      - Staas replica unlink cmd implementation
+      - Correct typo in 'choices' option
+      - Add set online/offline share status command at res provider level
+      - Arranged set online/offline share status commands
+      - Refactoring staas delete export policy rule
+      - Remove mandatory clients param from add staas command
+      - provider rule_add with reserved, orchestrators params
+      - attivato comando con starter pack oracle
+      - added  new arameters in dbaas add oracle
+      - "sg: add in add_rule param orchestrators"
+      - real delete account
+      - render task trace, link list
+      - new command set-env
+      - hide commands, check developer user
+      - Add filter -version to staas efs list command
+      -   dry run
+      - Updated efs list cmd output with params taken from efs target-list
+      - register entity and link commands
+      - "commands update: review kibana dashboard"
+      - kibana review dashboard commands
+      - logaas instance WARNING msgs
+    changed:
+    fixed:
+      - fix container update
+      - fixed  parameters  in generic service delete
+      - staas bu bugfix v1 mount target and maybe grants
+      - bugfix staas v1 mount targets
+      - Fixed staas get command
+      - fix capability data output
+      - Bug fixing staas add export policy rule
+      - fix msg volume delete
+      - fix compatibility cement 3.0.12
+      - fix render site_network_get
+
+  - 
+    version: 2024.12.04
+    desc: 
+    date: 2024-12-03
+    added:
+      - command auto complete
+      - res synchronize add comment Default params
+      - "platform cmp customize run: comment Update service definition config for prod"
+      - "platform cmp customize run: add dry param for test, now only for service definitions"
+      - Try to support ssh cp with gateway
+    changed:
+    fixed:
+      - fix: parametr "key" ambigous or conflicting
+      - Fix i ssh command
+      - Fix for beehive ssh commands
+
+  - 
+    version: 2024.11.06
+    desc: 
+    date: 2024-11-29
+    added:
+      - Commented encrypt and decrypt methods
+      - logaas instance list with detail (uncommented)
+      - Renamed LDAP "key" argument in order not to be in conflicy with global app.key used to encrypt/decrypt
+      - Correct the way rancher uri is acquired
+      - Changes to use encrypted passwords in env files
+      - Add type and bits in keypairs get
+      - fix user, role get commands
+      - remove some sensitive information 
+    changed:
+    fixed:
+
+  - 
+    version: 2024.11.05
+    desc: 
+    date: 2024-11-20
+    added:
+      - update color status (account)
+      - remove account close
+      - Deprecated efs add and efs target-add commands
+      - aggiunte funzione per comandi interattivi
+      - aggiunti commenti
+      - vsphere volumetype_get add filter, sort output
+      - task parent param for task log
+      - CLone help
+      - Clone; minor in help and examples
+      - expire role
+      - grafana team uid
+      - Add check for vm creation for boot and disk options
+      - "elastic: filters query with wildcard"
+      - fisx default hypervisor in help string
+      - pep8
+    changed:
+    fixed:
+      - Fix in clone
+
+  # - 
+  #   version: 2024.11.04
+  #   desc: 
+  #   date: 
+  #   added:
+  #     - 
+  #   changed:
+  #     - 
+  #   fixed:
+  #     - 
+
+  # - 
+  #   version: 2024.11.03
+  #   desc: 
+  #   date: 2024-11-05
+  #   added:
+  #     - 
+  #   changed:
+  #     - 
+  #   fixed:
+  #     - 
+
+  - 
+    version: 2024-11.02
+    desc: 
+    date: 2024-11-04
+    added:
+    changed:
+    fixed:
+      - Fix commit 03e66496
+
+  - 
+    version: 2024-11.01
+    desc: 
+    date: 2024-10-31
+    added:
+      - accounts triplet new command
+      - "grafana: rename and update copy dashboard"
+      - "monitoring: disable_dashboard"
+    changed:
+    fixed:
+      - alert: fix len user group name
+
+  - 
+    version: 2024-10.01
+    desc: 
+    date: 2024-10-24
+    added:
+      - Clone allowed without specify ssh key for windows
+      - Add -type options in get linked entities command
+      - Add options appliedTo and direction to dfw rule update cmd
+      - cmp image info and packages
+      - platform awx commands about execution environment
+      - Prevents sys.platform from being overwritten by by a platform.py. This occurs on alpine cli (hivetool/docker/cli/py-alpine.env)
+      - logaas instance list with detail (commented)
+      - Update requirements
+      - platform awx execution environments
+      - USe cypto utils
+      - Update to crypto utils
+      - Update dfw rule update method
+      - Set default rule logging value to True
+      - Add command to update an existing vsphere dfw rule
+      - Add log option into create rule command
+      - nuovo comando creazione dp postgresql
+      - popular resource list command with pages
+      - check MAX_RECORDS in list commands
+      - colortext columns exclusion
+      - list commands with render per page
+      - Rm netaddr
+      - Remove passlib dep
+      - Packages files
+      - Remove unused libraries
+      - Update manifest
+      - compute_zone_quota_check - bugfix wrong param name and wrong value type. added a better description
+      - add postgresql2 for testiting new parameters
+      - adde original command in order to have both
+      - added test command
+      - "pagination_list: if size less than -1, call API paging"
+      - update desc service definition
+      - log for bee_client
+      - Add OS mandatory param to vm load command
+      - Add acronym mgmt in vm load command
+
+    changed:
+    fixed:
+      - Fix vsphere dfw rule get command output
+      - Fix sg rule get platform command for Openstack
+      - pg fix typo in extnsion parameter
+      - "fix tag_add_account_insts: get account"
+      - fix return map not array when putput is not text
+      - "fix tag_add_account_insts: get account"
+
+  - 
+    version: 2024-08.04
+    desc: 
+    date: 2024-08-08
+    added:
+    changed:
+      - Add OS mandatory param to vm load command
+    fixed:
+
+  - 
+    version: 2024-08.03
+    desc: 
+    date: 2024-08-07
+    added:
+    changed:
+      - Add acronym mgmt in vm load command
+    fixed:
+
+  - 
+    version: 2024-08.02
+    desc: 
+    date: 2024-08-06
+    added:
+    changed:
+    fixed:
+      - Add some checks in migration-p5p6 commands
+
+  - 
+    version: 2024-08.01
+    desc: 
+    date: 2024-08-01
+    added:
+      - tag: tag_add_account_insts
+      - get product codes
+      - bu accounts-auth users-add-from-account
+      - grafana: authentication with token
+    changed:
+    fixed:
+
+  - 
+    version: 2024-07.02
+    desc: 
+    date: 2024-07-22
+    added:
+      - mgmt migration-p5p6 commands
+      - bu dbaas load, imports the dbaas vm into a specified container
+    changed:
+    fixed:
+
+  - 
+    version: 2024-07.01
+    desc: 
+    date: 2024-07-09
+    added:
+    changed:
+    fixed:
+      - Correct bug in create account
+
   -
     version: 2024.04
-    desc: cambio logica di versionamento di versiona
+    desc: cambio logica di versionamento
     date: 2024-04-13
     added:
       - mixed_output_handler
       - if stdout not a tty, default to old (mostly no color) output handler
-      - bugfix ip_address column for platform vsphere server list missing in output
       - dedicated command for account capabilities update
     changed:
       - make 'type' param mandatory in staas efs add command
     fixed:
+      - bugfix ip_address column for platform vsphere server list missing in output
       - correct command returning nsx edge load balancers configuration
 
   -
-    Version: 1.16.0
+    version: 1.16.0
     date:
     desc:
 
@@ -29,7 +465,7 @@ changeangelog:
       - fix wait creating internet gateway
 
   -
-    Version: 1.15.0
+    version: 1.15.0
     date:
     desc:
 
@@ -49,7 +485,7 @@ changeangelog:
       - options when creatings security group
 
   -
-    Version: 1.14.0
+    version: 1.14.0
     date:
     desc:
 
@@ -68,7 +504,7 @@ changeangelog:
       - minor fixes
 
   -
-    Version: 1.13.0
+    version: 1.13.0
     date:
     desc:
 
@@ -96,7 +532,7 @@ changeangelog:
       - ssh gateway api first commit
 
   -
-    Version: 1.12.0
+    version: 1.12.0
     date:
     desc:
 
@@ -124,7 +560,7 @@ changeangelog:
       - Update vsphere nsx edge load balancer platform cmds
 
   -
-    Version: 1.11.0
+    version: 1.11.0
     date: 2022-10-11
     desc:
     added:
@@ -134,7 +570,7 @@ changeangelog:
       - add bu.logaas commands
 
   -
-    Version: 1.9.0
+    version: 1.9.0
     date: 2022-02-11
     desc:
 
@@ -162,7 +598,7 @@ changeangelog:
       - update bu capabilities and account capabilities to support account definitions
 
   -
-    Version: 1.8.0
+    version: 1.8.0
     date: 2021-06-11
     desc:
 
@@ -177,7 +613,7 @@ changeangelog:
       - account delete command now permit defining if remove child services
 
   -
-    Version: 1.7.0
+    version: 1.7.0
     date: 2021-05-03
     desc:
 
@@ -198,7 +634,7 @@ changeangelog:
     changed:
 
   -
-    Version: 1.6.0
+    version: 1.6.0
     date: 2021-03-01
     desc:
 
@@ -224,7 +660,7 @@ changeangelog:
       - integrated beedrones cmp api client
 
   -
-    Version: 1.5.0
+    version: 1.5.0
     date: 2020-12-03
     desc:
 
@@ -241,7 +677,7 @@ changeangelog:
       - update section platform console to better manage remote console and users
 
   -
-    Version: 1.4.0
+    version: 1.4.0
     date: 2020-10-23
     desc:
 
@@ -259,7 +695,7 @@ changeangelog:
       - integrated staas efs api param PerformanceMode used to manage share based on netapp and new share base on local openstack server
 
   -
-    Version: 1.3.0
+    version: 1.3.0
     date: 2020-10-02
     desc:
 
@@ -282,7 +718,7 @@ changeangelog:
     changed:
 
   -
-    Version: 1.2.0
+    version: 1.2.0
     date: 2020-09-22
     desc:
 
@@ -300,7 +736,7 @@ changeangelog:
       - added list of ports in openstack subnet get
 
   -
-    Version: 1.2.0
+    version: 1.2.0
     date: 2020-08-17
     desc:
 
@@ -313,7 +749,7 @@ changeangelog:
     changed:
 
   -
-    Version: 1.1.0
+    version: 1.1.0
     date: 2020-08-17
     desc:
 
@@ -330,11 +766,11 @@ changeangelog:
     changed:
 
   -
-    Version: 1.0.0
+    version: 1.0.0
     date: (Jun 21, 2020)
     desc: First production release.
 
   -
-    Version: 0.1.0
+    version: 0.1.0
     date: 2019-09-27
     desc: First private preview release. Start porting from python 2.7 release.

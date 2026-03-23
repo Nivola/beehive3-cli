@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import stdout
 from datetime import datetime
 from time import sleep
+from typing import Literal, Union, Optional, Dict
 from cement.ext.ext_argparse import ex
 from beecell.types.type_string import truncate, str2bool
 from beecell.types.type_list import merge_list
 from beecell.types.type_date import format_date
 from beecell.types.type_dict import dict_get
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, StringAction
-from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar
+from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar, stoprotation
+from beehive3_cli.translate import _
 
 
 def VSPHERE_ARGS(*list_args):
@@ -21,7 +23,7 @@ def VSPHERE_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "vsphere platform reference label",
+                "help": _("vsphere platform reference label"),
             },
         ),
         (
@@ -29,7 +31,7 @@ def VSPHERE_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "vsphere current project name",
+                "help": _("vsphere current project name"),
             },
         ),
     ]
@@ -38,12 +40,12 @@ def VSPHERE_ARGS(*list_args):
 
 
 class VspherePlatformController(BaseController):
-    class Meta:
+    class Meta: # type: ignore
         label = "vsphere"
         stacked_on = "platform"
         stacked_type = "nested"
-        description = "vsphere platform"
-        help = "vsphere platform"
+        description = _("vsphere platform")
+        help = _("vsphere platform")
 
         server_headers = [
             "id",
@@ -106,6 +108,7 @@ class VspherePlatformController(BaseController):
             "ipRange      startAddress      endAddress",
             "totalAddressCount",
             "usedAddressCount",
+            "freeAddressCount",
         ]
         ippool_fields = [
             "objectId",
@@ -115,6 +118,7 @@ class VspherePlatformController(BaseController):
             "ipRanges",
             "totalAddressCount",
             "usedAddressCount",
+            "freeAddressCount",
         ]
         ipset_headers = ["objectId", "name", "value"]
         edge_headers = ["id", "name", "type", "status", "state", "datacenter"]
@@ -151,7 +155,7 @@ class VspherePlatformController(BaseController):
     def pre_command_run(self):
         from beedrones.vsphere.client import VsphereManager
 
-        super(VspherePlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -164,11 +168,11 @@ class VspherePlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No vsphere default platform is available for this environment. Select " "another environment"
+                    "No vsphere default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         conf = orchestrators.get(label)
 
         conf.get("vcenter")["pwd"] = str(conf.get("vcenter")["pwd"])
@@ -187,24 +191,130 @@ class VspherePlatformController(BaseController):
         self.client = VsphereManager(conf.get("vcenter"), conf.get("nsx"), key=self.key)
 
     def wait_task(self, task):
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
 
         def trace():
             # stdout.write(".")
-            stdout.write(next(bar))
+            stdout.write(next(rot_bar))
             stdout.flush()
 
-        self.client.wait_task(task, delta=1, trace=trace)
+        state = self.client.wait_task(task, delta=1, trace=trace, raise_on_error=True)
+        return state
 
-    @ex(help="ping vsphere", description="ping vsphere", arguments=VSPHERE_ARGS())
+    def __format_rule_source_dest(
+        self, obj: Optional[Union[str, Dict]], source_or_dest: Literal["source", "destination"]
+    ) -> Optional[str]:
+        if not obj:
+            return None
+        if isinstance(obj, str):
+            return obj
+        if source_or_dest == "source":
+            inner = obj.get("source")
+        elif source_or_dest == "destination":
+            inner = obj.get("destination")
+        else:
+            inner = None
+
+        if not inner:
+            # should not happen
+            self.app.error(f"Unhandled case. inner {source_or_dest} is {inner}")
+            return inner
+
+        if not isinstance(inner, list):
+            inner = [inner]
+
+        res = []
+        for rule in inner:
+            # i_type = rule.get("type")
+            i_name = rule.get("name")
+            i_value = rule.get("value")
+            if i_name:
+                # res.append(f"{i_type}:{i_name} ({i_value})")
+                res.append(f"{i_name} ({i_value})")
+            else:
+                # res.append(f"{i_type}:{i_value}")
+                res.append(f"{i_value}")
+        return "\n".join(res)
+
+    def __format_rule_services(self, obj: Optional[Union[str, Dict]]) -> Optional[str]:
+        if not obj:
+            return None
+        if isinstance(obj, str):
+            return obj
+        inner = obj.get("service")
+
+        if not inner:
+            # should not happen
+            self.app.error("Unhandled case. inner is None")
+            return inner
+
+        if not isinstance(inner, list):
+            inner = [inner]
+        res = []
+        for service in inner:
+            # s_isValid = service.get("isValid")
+            s_destination_port = service.get("destinationPort")
+            s_protocol_name = service.get("protocolName")
+            s_protocol = service.get("protocol")
+            s_subprotocol = service.get("subProtocol")
+            tmp = ""
+            if s_protocol_name:
+                tmp = f"{s_protocol_name}"
+            else:
+                tmp = f"{s_protocol}"
+                if s_subprotocol != s_protocol:
+                    tmp += f"-{s_subprotocol}"
+            if s_destination_port:
+                tmp += f" {s_destination_port}"
+            res.append(tmp)
+        return "\n".join(res)
+
+    def _render_rules(self, rules):
+        if self.is_output_text():
+            self.c("\nrules - general", "underline")
+            self.app.render(
+                rules,
+                headers=[
+                    "id",
+                    "name",
+                    "sectionId",
+                    "direction",
+                    "logged",
+                    "packetType",
+                    "disabled",
+                ],
+                maxsize=200,
+            )
+            self.c("\nrules - detail", "underline")
+
+            transform = {
+                "sources": lambda x: self.__format_rule_source_dest(x, "source"),
+                "destinations": lambda x: self.__format_rule_source_dest(x, "destination"),
+                "services": self.__format_rule_services,
+            }
+            self.app.render(
+                rules,
+                headers=[
+                    "id",
+                    "sources",
+                    "destinations",
+                    "services",
+                ],
+                transform=transform,
+                maxsize=200,
+            )
+        else:
+            self.app.render({"rules": rules}, details=True)
+
+    @ex(help=_("ping vsphere"), description=_("ping vsphere"), arguments=VSPHERE_ARGS())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get vsphere version",
-        description="get vsphere version",
-        example="beehive platform vsphere version;beehive platform vsphere version -e <env>",
+        help=_("get vsphere version"),
+        description=_("get vsphere version"),
+        example="beehive platform vsphere version",
         arguments=VSPHERE_ARGS(),
     )
     def version(self):
@@ -221,8 +331,18 @@ class VspherePlatformController(BaseController):
             self.app.render({"version": res}, headers=["version"])
 
     @ex(
-        help="get vsphere nsx manager info",
-        description="get vsphere nsx manager info",
+        help=_("get vsphere custom fields"),
+        description=_("get vsphere custom fields configured on vcenter"),
+        example="beehive platform vsphere custom fields",
+        arguments=VSPHERE_ARGS(),
+    )
+    def get_custom_fields(self):
+        custom_fields = self.client.get_custom_fields()
+        self.app.render(data=custom_fields, headers=["key", "name", "managedObjectType"])
+
+    @ex(
+        help=_("get vsphere nsx manager info"),
+        description=_("get vsphere nsx manager info"),
         arguments=VSPHERE_ARGS(),
     )
     def nsx_manager_info(self):
@@ -254,8 +374,8 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="reboot vsphere nsx manager",
-        description="reboot vsphere nsx manager",
+        help=_("reboot vsphere nsx manager"),
+        description=_("reboot vsphere nsx manager"),
         arguments=VSPHERE_ARGS(),
     )
     def nsx_manager_reboot(self):
@@ -263,12 +383,36 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get vsphere nsx manager events",
-        description="get vsphere nsx manager events",
-        arguments=VSPHERE_ARGS(),
+        help=_("get vsphere nsx manager events"),
+        description=_("get vsphere nsx manager events"),
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-page"],
+                    {
+                        "help": _("list page [default=0]"),
+                        "action": "store",
+                        "type": int,
+                        "default": 0,
+                    },
+                ),
+                (
+                    ["-size"],
+                    {
+                        "help": _("list page size [default=20]"),
+                        "action": "store",
+                        "type": int,
+                        "default": 20,
+                    },
+                ),
+            ]
+        ),
     )
     def nsx_manager_event_get(self):
-        res = self.client.system.nsx.get_system_events()
+        page = getattr(self.app.pargs, "page", None)
+        page_size = getattr(self.app.pargs, "size", None)
+        start_index = page * page_size
+        res = self.client.system.nsx.get_system_events(start_index=start_index, page_size=page_size)
         sort = dict_get(res, "pagingInfo.sortOrderAscending")
         if sort == "false":
             sort = "DESC"
@@ -296,8 +440,8 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="get vsphere nsx manager controllers",
-        description="get vsphere nsx manager controllers",
+        help=_("get vsphere nsx manager controllers"),
+        description=_("get vsphere nsx manager controllers"),
         arguments=VSPHERE_ARGS(),
     )
     def nsx_controller_get(self):
@@ -330,15 +474,15 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="get datacenters",
-        description="get datacenters",
+        help=_("get datacenters"),
+        description=_("get datacenters"),
         example="beehive platform vsphere datacenter-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -365,8 +509,8 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dc_headers)
 
     @ex(
-        help="get datacenter sessions",
-        description="get datacenter sessions",
+        help=_("get datacenter sessions"),
+        description=_("get datacenter sessions"),
         arguments=VSPHERE_ARGS(),
     )
     def datacenter_sessions(self):
@@ -383,14 +527,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, headers=headers)
 
     @ex(
-        help="get clusters",
-        description="get clusters",
+        help=_("get clusters"),
+        description=_("get clusters"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -441,14 +585,14 @@ class VspherePlatformController(BaseController):
                 self.app.render({"clusters": res}, details=True)
 
     @ex(
-        help="get hosts",
-        description="get hosts",
+        help=_("get hosts"),
+        description=_("get hosts"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -488,14 +632,14 @@ class VspherePlatformController(BaseController):
                 self.app.render({"hosts": res}, details=True)
 
     @ex(
-        help="get resource pools",
-        description="get resource pools",
+        help=_("get resource pools"),
+        description=_("get resource pools"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "resource pool id",
+                        "help": _("resource pool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -522,14 +666,14 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.respool_headers)
 
     @ex(
-        help="delete resource pool",
-        description="delete resource pool",
+        help=_("delete resource pool"),
+        description=_("delete resource pool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource pool id",
+                        "help": _("resource pool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -541,18 +685,18 @@ class VspherePlatformController(BaseController):
     def respool_del(self):
         oid = self.app.pargs.id
         respool = self.client.cluster.resource_pool.get(oid)
-        res = self.client.cluster.resource_pool.remove(respool)
-        self.app.render({"msg": "delete resource pool %s" % oid})
+        self.client.cluster.resource_pool.remove(respool)
+        self.app.render({"msg": f"delete resource pool {oid}"})
 
     @ex(
-        help="get datastores",
-        description="get datastores",
+        help=_("get datastores"),
+        description=_("get datastores"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -587,15 +731,15 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.datastore_headers)
 
     @ex(
-        help="get folders",
-        description="get folders",
+        help=_("get folders"),
+        description=_("get folders"),
         example="beehive platform vsphere folder-get -id group-v261 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "folder id",
+                        "help": _("folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -608,19 +752,23 @@ class VspherePlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.folder.get(oid)
-            data = self.client.folder.detail(res)
-
-            if self.is_output_text():
-                res1 = self.client.folder.get_servers(oid)
-                servers = []
-                for s in res1:
-                    servers.append(self.client.server.info(s))
-
-                self.app.render(data, details=True)
-                self.c("\nservers", "underline")
-                self.app.render(servers, headers=self._meta.server_headers)
+            # print(res)
+            if res is None:
+                print(f"Folder not found {oid}")
             else:
-                self.app.render(res, details=True)
+                data = self.client.folder.detail(res)
+
+                if self.is_output_text():
+                    res1 = self.client.folder.get_servers(oid)
+                    servers = []
+                    for s in res1:
+                        servers.append(self.client.server.info(s))
+
+                    self.app.render(data, details=True)
+                    self.c("\nservers", "underline")
+                    self.app.render(servers, headers=self._meta.server_headers)
+                else:
+                    self.app.render(res, details=True)
         else:
             params = {}
             objs = self.client.folder.list(**params)
@@ -630,16 +778,15 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.folder_headers)
 
     @ex(
-        help="add vsphere folder",
-        description="add vsphere folder",
+        help=_("add vsphere folder"),
+        description=_("add vsphere folder"),
         arguments=VSPHERE_ARGS(
             [
-                (["name"], {"help": "folder name", "action": "store", "type": str}),
+                (["name"], {"help": _("folder name"), "action": "store", "type": str}),
                 (
                     ["desc"],
                     {
-                        "help": "folder description",
-                        "action": "store",
+                        "help": _("folder description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -649,7 +796,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-datacenter"],
                     {
-                        "help": "parent datacenter morid",
+                        "help": _("parent datacenter morid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -658,7 +805,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-folder"],
                     {
-                        "help": "parent folder morid",
+                        "help": _("parent folder morid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -677,18 +824,18 @@ class VspherePlatformController(BaseController):
         if datacenter is not None:
             datacenter = self.client.datacenter.get(datacenter)
         msg = self.client.folder.create(name, desc=desc, folder=folder, datacenter=datacenter, vm=True)
-        self.app.render({"msg": "add folder %s" % name})
+        self.app.render({"msg": f"add folder {name}: {msg}"})
 
     @ex(
-        help="update vsphere folder",
-        description="update vsphere folder",
+        help=_("update vsphere folder"),
+        description=_("update vsphere folder"),
         example="beehive platform vsphere folder-update group-xxxx -desc <description>.notifysan-preprod -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "folder id",
+                        "help": _("folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -697,7 +844,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "folder name",
+                        "help": _("folder name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -706,8 +853,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "folder description",
-                        "action": "store",
+                        "help": _("folder description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -717,7 +863,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-datacenter"],
                     {
-                        "help": "parent datacenter morid",
+                        "help": _("parent datacenter morid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -726,7 +872,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-folder"],
                     {
-                        "help": "parent folder morid",
+                        "help": _("parent folder morid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -740,18 +886,18 @@ class VspherePlatformController(BaseController):
         name = self.app.pargs.name
         desc = self.app.pargs.desc
         folder = self.client.folder.get(oid)
-        res = self.client.folder.update(folder, name, desc)
-        self.app.render({"msg": "update folder %s" % oid})
+        self.client.folder.update(folder, name, desc)
+        self.app.render({"msg": f"update folder {oid}"})
 
     @ex(
-        help="delete vsphere folder",
-        description="delete vsphere folder",
+        help=_("delete vsphere folder"),
+        description=_("delete vsphere folder"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "folder id",
+                        "help": _("folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -764,19 +910,24 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         obj = self.client.folder.get(oid)
         task = self.client.folder.remove(obj)
-        self.wait_task(task)
-        self.app.render({"msg": "Delete folder %s" % oid})
+        # print("task: %s" % task)
+        state = self.wait_task(task)
+        # print("state: %s" % state)
+        if state == "error":
+            self.app.render({"msg": f"Error deleting folder {oid} ...see log"})
+        else:
+            self.app.render({"msg": f"Delete folder {oid}"})
 
     @ex(
-        help="get servers",
-        description="get servers",
-        example="beehive platform vsphere server-get -id vm-xxxx -e <env> ;beehive platform vsphere server-get -names xxxxx-1 -e <env>",
+        help=_("get servers"),
+        description=_("get servers"),
+        example="beehive platform vsphere server-get -names xxxxx-1 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -785,7 +936,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "server name",
+                        "help": _("server name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -794,7 +945,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-names"],
                     {
-                        "help": "filter by name like",
+                        "help": _("filter by name like"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -803,16 +954,15 @@ class VspherePlatformController(BaseController):
                 (
                     ["-template"],
                     {
-                        "help": "true list only template",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
+                        "help": _("true list only template"),
+                        "action": "store_true",
+                        "default": False,
                     },
                 ),
                 (
                     ["-ipaddress"],
                     {
-                        "help": "server ipaddress",
+                        "help": _("server ipaddress"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -821,7 +971,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dnsname"],
                     {
-                        "help": "server dnsname",
+                        "help": _("server dnsname"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -830,7 +980,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cluster"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -842,9 +992,12 @@ class VspherePlatformController(BaseController):
     def server_get(self):
         oid = getattr(self.app.pargs, "id", None)
         cluster = self.app.pargs.cluster
+        client = self.client
+        server = client.server
+        folder = client.folder
         if oid is not None:
-            res = self.client.server.get(oid)
-            data = self.client.server.detail(res)
+            res = server.get(oid)
+            data = server.detail(res)
 
             if self.is_output_text():
                 if res is None:
@@ -853,7 +1006,7 @@ class VspherePlatformController(BaseController):
                     self.app.pargs.notruncate = True
                     volumes = data.pop("volumes", [])
                     networks = data.pop("networks", [])
-                    config_data = self.client.server.hardware.get_config_data(res)
+                    config_data = server.hardware.get_config_data(res)
                     file_layout = config_data.pop("file_layout", {})
                     config_data.pop("network", {})
                     config_data.pop("storage", {})
@@ -863,7 +1016,7 @@ class VspherePlatformController(BaseController):
                     controllers = other.pop("controllers", {})
                     input_devices = other.pop("input_devices", {})
                     pci = other.pop("pci", {})
-                    sg = self.client.server.security_groups(res)
+                    sg = server.security_groups(res)
 
                     self.app.render(data, details=True)
                     self.c("\nconfiguration", "underline")
@@ -924,7 +1077,7 @@ class VspherePlatformController(BaseController):
                 self.app.render(data, details=True)
         else:
             if cluster is not None:
-                objs = self.client.cluster.get_servers(cluster)
+                objs = client.cluster.get_servers(cluster)
             else:
                 name = self.app.pargs.name
                 names = self.app.pargs.names
@@ -935,22 +1088,27 @@ class VspherePlatformController(BaseController):
                 project = self.app.pargs.project
                 if project:
                     # e.g. ComputeService-4567...
-                    folders = self.client.folder.get_folders_by_name(project)
+                    folders = folder.get_folders_by_name(project)
                     if len(folders) == 0:
-                        raise Exception("No projects found matching: %s" % project)
+                        raise Exception(f"No projects found matching: {project}")
 
                     objs = []
                     for f in folders:
-                        servers = self.client.folder.get_servers(f["obj"]._moId)
+                        servers = folder.get_servers(f["obj"]._moId)
                         if servers and len(servers) > 0:
                             objs.extend(servers)
                 else:
                     # get folders
-                    folders = self.client.folder.list()
+                    folders = folder.list()
 
                     # get servers
-                    objs = self.client.server.list(
-                        name=name, names=names, template=template, ipaddress=ipaddress, dnsname=dnsname
+                    objs = server.list(
+                        name=name,
+                        names=names,
+                        template=template,
+                        ipaddress=ipaddress,
+                        dnsname=dnsname,
+                        findAllByIp=True,
                     )
 
             folder_idx = {}
@@ -965,21 +1123,21 @@ class VspherePlatformController(BaseController):
             res = []
             for o in objs:
                 if o is not None:
-                    info = self.client.server.info(o)
+                    info = server.info(o)
                     info["parent"] = folder_idx.get(info["parent"], info["parent"])
                     res.append(info)
             self.app.render(res, headers=self._meta.server_headers, maxsize=30)
 
     @ex(
-        help="add vsphere server [todo:]",
-        description="add vsphere server",
+        help=_("add vsphere server [todo:]"),
+        description=_("add vsphere server"),
         arguments=VSPHERE_ARGS(
             [
-                (["name"], {"help": "server name", "action": "store", "type": str}),
+                (["name"], {"help": _("server name"), "action": "store", "type": str}),
                 (
                     ["startip"],
                     {
-                        "help": "start ip",
+                        "help": _("start ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -988,7 +1146,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["stopip"],
                     {
-                        "help": "stop ip",
+                        "help": _("stop ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -997,7 +1155,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["gw"],
                     {
-                        "help": "gateway",
+                        "help": _("gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1005,20 +1163,20 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["dns1"],
-                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                    {"help": _("dns1"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["dns2"],
-                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                    {"help": _("dns2"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-prefix"],
-                    {"help": "prefix", "action": "store", "type": int, "default": 24},
+                    {"help": _("prefix"), "action": "store", "type": int, "default": 24},
                 ),
                 (
                     ["-dnssuffix"],
                     {
-                        "help": "dns zone",
+                        "help": _("dns zone"),
                         "action": "store",
                         "type": str,
                         "default": "domain.local",
@@ -1028,36 +1186,17 @@ class VspherePlatformController(BaseController):
         ),
     )
     def server_add(self):
-        name = self.app.pargs.name
-        startip = self.app.pargs.startip
-        stopip = self.app.pargs.stopip
-        gw = self.app.pargs.gw
-        dns1 = self.app.pargs.dns1
-        dns2 = self.app.pargs.dns2
-        prefix = self.app.pargs.prefix
-        dnssuffix = self.app.pargs.dnssuffix
-        self.client.server.exists(pool_range=(startip, stopip))
-        msg = self.client.server.create(
-            name,
-            prefix=prefix,
-            gateway=gw,
-            dnssuffix=dnssuffix,
-            dns1=dns1,
-            dns2=dns2,
-            startip=startip,
-            stopip=stopip,
-        )
-        self.app.render({"msg": "add server %s" % name})
+        raise Exception("Unsupported")
 
     @ex(
-        help="delete vsphere server",
-        description="delete vsphere server",
+        help=_("delete vsphere server"),
+        description=_("delete vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1075,18 +1214,22 @@ class VspherePlatformController(BaseController):
         except:
             pass
         task = self.client.server.remove(server)
-        self.wait_task(task)
-        self.app.render({"msg": "Delete server %s" % oid})
+        state = self.wait_task(task)
+        # print("state: %s" % state)
+        if state == "error":
+            self.app.render({"msg": f"Error deleting server {oid} ...see log"})
+        else:
+            self.app.render({"msg": f"Delete server {oid}"})
 
     @ex(
-        help="get vsphere server console",
-        description="get vsphere server console",
+        help=_("get vsphere server console"),
+        description=_("get vsphere server console"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1102,14 +1245,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get vsphere server devices",
-        description="get vsphere server devices",
+        help=_("get vsphere server devices"),
+        description=_("get vsphere server devices"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1128,14 +1271,14 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="get vsphere server guest info",
-        description="get vsphere server guest info",
+        help=_("get vsphere server guest info"),
+        description=_("get vsphere server guest info"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1151,14 +1294,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="run vsphere server command using guest tool",
-        description="run vsphere server command using guest tool",
+        help=_("run vsphere server command using guest tool"),
+        description=_("run vsphere server command using guest tool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1167,7 +1310,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["cmd"],
                     {
-                        "help": "command",
+                        "help": _("command"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1175,12 +1318,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["user"],
-                    {"help": "user", "action": "store", "type": str, "default": None},
+                    {"help": _("user"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["pwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1189,7 +1332,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-params"],
                     {
-                        "help": "command params. Use + as space",
+                        "help": _("command params. Use + as space"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -1206,7 +1349,7 @@ class VspherePlatformController(BaseController):
         params = " ".join(self.app.pargs.params.split("+"))
 
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_utils.guest_execute_command(
+        self.client.server.guest_utils.guest_execute_command(
             server,
             user,
             pwd,
@@ -1216,14 +1359,14 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="disable vsphere server firewall",
-        description="disable vsphere server firewall",
+        help=_("disable vsphere server firewall"),
+        description=_("disable vsphere server firewall"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1232,7 +1375,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "server admin password",
+                        "help": _("server admin password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1245,18 +1388,18 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         pwd = self.app.pargs.pwd
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_disable_firewall(server, pwd)
-        self.app.render({"msg": "disable server %s firewall" % oid})
+        self.client.server.guest_disable_firewall(server, pwd)
+        self.app.render({"msg": f"disable server {oid} firewall"})
 
     @ex(
-        help="copy ssh key on server",
-        description="copy ssh key on server",
+        help=_("copy ssh key on server"),
+        description=_("copy ssh key on server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1264,12 +1407,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["user"],
-                    {"help": "user", "action": "store", "type": str, "default": None},
+                    {"help": _("user"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["pwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1278,7 +1421,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["pubkey"],
                     {
-                        "help": "ssh public key to set. Specify file name where key is stored",
+                        "help": _("ssh public key to set. Specify file name where key is stored"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -1298,14 +1441,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help="change vsphere server password",
-        description="change vsphere server password",
+        help=_("change vsphere server password"),
+        description=_("change vsphere server password"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1313,12 +1456,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["user"],
-                    {"help": "user", "action": "store", "type": str, "default": None},
+                    {"help": _("user"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["pwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1327,7 +1470,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["newpwd"],
                     {
-                        "help": "new password",
+                        "help": _("new password"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -1346,14 +1489,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help="setup vsphere server network",
-        description="setup vsphere server network",
+        help=_("setup vsphere server network"),
+        description=_("setup vsphere server network"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1361,12 +1504,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["user"],
-                    {"help": "user", "action": "store", "type": str, "default": None},
+                    {"help": _("user"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["pwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1375,7 +1518,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ipaddr"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1384,7 +1527,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-prefix"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": int,
                         "default": 24,
@@ -1393,7 +1536,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-macaddr"],
                     {
-                        "help": "mac address",
+                        "help": _("mac address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1402,7 +1545,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["gw"],
                     {
-                        "help": "network gateway",
+                        "help": _("network gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1411,7 +1554,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["hostname"],
                     {
-                        "help": "hostname",
+                        "help": _("hostname"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1420,7 +1563,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["dns"],
                     {
-                        "help": "comma separated list of dns",
+                        "help": _("comma separated list of dns"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1429,7 +1572,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["dns_search"],
                     {
-                        "help": "dns search",
+                        "help": _("dns search"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1439,6 +1582,7 @@ class VspherePlatformController(BaseController):
         ),
     )
     def server_network_setup(self):
+        #dns = " ".join(self.app.pargs.dns.split(","))
         oid = self.app.pargs.id
         user = self.app.pargs.user
         pwd = self.app.pargs.pwd
@@ -1447,22 +1591,8 @@ class VspherePlatformController(BaseController):
         macaddr = self.app.pargs.macaddr
         gw = self.app.pargs.gw
         hostname = self.app.pargs.hostname
-        dns = " ".join(self.app.pargs.dns.split(","))
         dns_search = self.app.pargs.dns_search
         server = self.client.server.get_by_morid(oid)
-        # res = self.client.server.guest_setup_network2(
-        #     server,
-        #     pwd,
-        #     ipaddr,
-        #     macaddr,
-        #     gw,
-        #     hostname,
-        #     dns,
-        #     dns_search,
-        #     conn_name="net01",
-        #     user=user,
-        #     prefix=prefix,
-        # )
         res = self.client.server.guest_setup_network(
             server,
             pwd,
@@ -1480,14 +1610,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res)
 
     @ex(
-        help="setup vsphere server network",
-        description="setup vsphere server network",
+        help=_("setup vsphere server network"),
+        description=_("setup vsphere server network"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1495,12 +1625,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["user"],
-                    {"help": "user", "action": "store", "type": str, "default": None},
+                    {"help": _("user"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["pwd"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1509,7 +1639,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ipaddr"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1519,23 +1649,23 @@ class VspherePlatformController(BaseController):
         ),
     )
     def server_network_destroy_config(self):
+        #user = self.app.pargs.user
         oid = self.app.pargs.id
-        user = self.app.pargs.user
         pwd = self.app.pargs.pwd
         ipaddr = self.app.pargs.ipaddr
         server = self.client.server.get_by_morid(oid)
-        res = self.client.server.guest_destroy_network_config(server, pwd, ipaddr)
-        self.app.render(res)
+        self.client.server.guest_destroy_network_config(server, pwd, ipaddr)
+        self.app.render({"msg": "Destroying network config done"})
 
     @ex(
-        help="get vsphere server security groups",
-        description="get vsphere security groups",
+        help=_("get vsphere server security groups"),
+        description=_("get vsphere security groups"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1551,14 +1681,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, headers=["objectId", "name"])
 
     @ex(
-        help="add security to server",
-        description="add security to server",
+        help=_("add security to server"),
+        description=_("add security to server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1567,7 +1697,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["sgid"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1579,18 +1709,18 @@ class VspherePlatformController(BaseController):
     def server_sg_add(self):
         oid = self.app.pargs.id
         sgid = self.app.pargs.sgid
-        res = self.client.server.security_group_add(oid, sgid)
-        self.app.render({"msg": "add security group %s to server %s" % (sgid, oid)})
+        self.client.server.security_group_add(oid, sgid)
+        self.app.render({"msg": f"add security group {sgid} to server {oid}"})
 
     @ex(
-        help="remove security from server",
-        description="remove security from server",
+        help=_("remove security from server"),
+        description=_("remove security from server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1599,7 +1729,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["sgid"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1611,18 +1741,18 @@ class VspherePlatformController(BaseController):
     def server_sg_del(self):
         oid = self.app.pargs.id
         sgid = self.app.pargs.sgid
-        res = self.client.server.security_group_del(oid, sgid)
-        self.app.render({"msg": "remove security group %s from server %s" % (sgid, oid)})
+        self.client.server.security_group_del(oid, sgid)
+        self.app.render({"msg": f"remove security group {sgid} from server {oid}"})
 
     @ex(
-        help="start vsphere server",
-        description="start vsphere server",
+        help=_("start vsphere server"),
+        description=_("start vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1638,14 +1768,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="stop vsphere server",
-        description="stop vsphere server",
+        help=_("stop vsphere server"),
+        description=_("stop vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1661,14 +1791,14 @@ class VspherePlatformController(BaseController):
         # self.wait_task(task)
 
     @ex(
-        help="get disk of vsphere server",
-        description="get disk of vsphere server",
+        help=_("get disk of vsphere server"),
+        description=_("get disk of vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1694,14 +1824,14 @@ class VspherePlatformController(BaseController):
         self.app.render(volumes, headers=headers)
 
     @ex(
-        help="add disk to vsphere server",
-        description="add disk to vsphere server",
+        help=_("add disk to vsphere server"),
+        description=_("add disk to vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["server_id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1710,7 +1840,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "disk size",
+                        "help": _("disk size"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1719,7 +1849,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["datastore_id"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1741,14 +1871,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="delete disk from vsphere server",
-        description="delete disk from vsphere server",
+        help=_("delete disk from vsphere server"),
+        description=_("delete disk from vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["server_id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1757,7 +1887,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["disk_object_id"],
                     {
-                        "help": "disk object id",
+                        "help": _("disk object id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1774,14 +1904,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="extend disk of vsphere server",
-        description="delete disk from vsphere server",
+        help=_("extend disk of vsphere server"),
+        description=_("delete disk from vsphere server"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1790,7 +1920,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["disk_object_id"],
                     {
-                        "help": "disk object id",
+                        "help": _("disk object id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1799,7 +1929,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "disk size in Gb",
+                        "help": _("disk size in Gb"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1817,14 +1947,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="get vsphere server snapshot",
-        description="get vsphere server snapshot",
+        help=_("get vsphere server snapshot"),
+        description=_("get vsphere server snapshot"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1833,7 +1963,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1865,14 +1995,14 @@ class VspherePlatformController(BaseController):
             )
 
     @ex(
-        help="create vsphere server snapshot",
-        description="create vsphere server snapshot",
+        help=_("create vsphere server snapshot"),
+        description=_("create vsphere server snapshot"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1881,7 +2011,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1898,14 +2028,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="delete vsphere server snapshot",
-        description="delete vsphere server snapshot",
+        help=_("delete vsphere server snapshot"),
+        description=_("delete vsphere server snapshot"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1914,7 +2044,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1931,14 +2061,14 @@ class VspherePlatformController(BaseController):
         self.wait_task(task)
 
     @ex(
-        help="revert vsphere server to snapshot",
-        description="revert vsphere server to snapshot",
+        help=_("revert vsphere server to snapshot"),
+        description=_("revert vsphere server to snapshot"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1947,7 +2077,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1967,14 +2097,14 @@ class VspherePlatformController(BaseController):
     # vapp
     #
     @ex(
-        help="get vapps",
-        description="get vapps",
+        help=_("get vapps"),
+        description=_("get vapps"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "vapp id",
+                        "help": _("vapp id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2002,13 +2132,13 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.vapp_headers)
 
     @ex(
-        help="get dvss",
-        description="get dvss",
+        help=_("get dvss"),
+        description=_("get dvss"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
-                    {"help": "dvs id", "action": "store", "type": str, "default": None},
+                    {"help": _("dvs id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -2032,18 +2162,22 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dvs_headers)
 
     @ex(
-        help="get dvpgs",
-        description="get dvpgs",
+        help=_("get dvpgs"),
+        description=_("get dvpgs"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "dvpg id",
+                        "help": _("dvpg id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
+                ),
+                (
+                    ["-list_servers"],
+                    {"help": _("list also servers if id provided"), "action": "store_true", "default": False},
                 ),
             ]
         ),
@@ -2055,14 +2189,15 @@ class VspherePlatformController(BaseController):
             data = self.client.network.detail_network(res)
 
             if self.is_output_text():
-                res1 = self.client.network.get_network_servers(oid)
-                servers = []
-                for s in res1:
-                    servers.append(self.client.server.info(s))
-
                 self.app.render(data, details=True)
-                self.c("\nservers", "underline")
-                self.app.render(servers, headers=self._meta.server_headers)
+
+                if self.app.pargs.list_servers:
+                    res1 = self.client.network.get_network_servers(oid)
+                    servers = []
+                    for s in res1:
+                        servers.append(self.client.server.info(s))
+                    self.c("\nservers", "underline")
+                    self.app.render(servers, headers=self._meta.server_headers)
             else:
                 self.app.render(res, details=True)
         else:
@@ -2074,14 +2209,93 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.dvpg_headers, maxsize=200)
 
     @ex(
-        help="add vsphere dvpg",
-        description="add vsphere dvpg",
+        help=_("find dvpgs"),
+        description=_("find dvpgs"),
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["-name"],
+                    {
+                        "help": _("name filter"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-vlan_id"],
+                    {
+                        "help": _("will iterate on list to find dvpg with specified vlan id"),
+                        "action": "store",
+                        "type": int,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-dvs_id"],
+                    {
+                        "help": _("filter by dvs id (dvpg 'parent')"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dvpg_find(self):
+        query_name = self.app.pargs.name
+        query_vlan = self.app.pargs.vlan_id
+        query_dvs = self.app.pargs.dvs_id
+        if not (query_vlan or query_name or query_dvs):
+            raise Exception("Specify at least one filter")
+        objs = self.client.network.list_networks()
+        if not objs:
+            return
+        self.app.render({"msg": f"{len(objs)} total dvpgs"})
+        res = []
+        matches = 0
+        for o in objs:
+            if "vim.dvs.DistributedVirtualPortgroup" not in str(o):
+                # consider only port groups, not networks
+                continue
+
+            o_name = o.get("name")
+            # partial name match
+            if query_name and query_name not in o_name:
+                continue
+
+            print(self.styler.clear_line() + f"[Found: {matches}] Querying {o_name}", end="", flush=True)
+
+            o_dvs = o.get("obj").config.distributedVirtualSwitch._moId
+            # exact match
+            if query_dvs and query_dvs != o_dvs:
+                continue
+
+            vlan_id = o.get("obj").config.defaultPortConfig.vlan.vlanId
+            # exact match
+            if query_vlan:
+                if not isinstance(vlan_id, int):
+                    self.app.warning(f"{o_name} has vlad id {vlan_id}. Unexpected type. Ignoring...")
+                    continue
+                if vlan_id != query_vlan:
+                    continue
+            res.append({"id": o.get("obj")._moId, "name": o_name, "dvs_id": o_dvs, "vlan_id": vlan_id})
+            matches = matches + 1
+
+        print(self.styler.clear_line(), end="")
+        self.app.print(f"Found {len(res)} dvpgs matching the search query")
+        self.app.render(res, headers=["id", "name", "dvs_id", "vlan_id"])
+
+    @ex(
+        help=_("add vsphere dvpg"),
+        description=_("add vsphere dvpg"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "dvpg name",
+                        "help": _("dvpg name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2090,7 +2304,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["vlan"],
                     {
-                        "help": "dvpg vlan",
+                        "help": _("dvpg vlan"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -2099,7 +2313,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["dvs"],
                     {
-                        "help": "dvpg dvs",
+                        "help": _("dvpg dvs"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2115,17 +2329,17 @@ class VspherePlatformController(BaseController):
         dvs = self.client.network.get_distributed_virtual_switch(dvs_id)
         task = self.client.network.create_distributed_port_group(name, name, vlan, dvs, numports=24)
         self.wait_task(task)
-        self.app.render({"msg": "create dvpg %s" % name})
+        self.app.render({"msg": f"create dvpg {name}"})
 
     @ex(
-        help="delete vsphere dvpg",
-        description="delete vsphere dvpg",
+        help=_("delete vsphere dvpg"),
+        description=_("delete vsphere dvpg"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "dvpg id",
+                        "help": _("dvpg id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2140,18 +2354,67 @@ class VspherePlatformController(BaseController):
         if obj is not None:
             task = self.client.network.remove_network(obj)
             self.wait_task(task)
-            self.app.render({"msg": "delete dvpg %s" % oid})
+            self.app.render({"msg": f"delete dvpg {oid}"})
 
     @ex(
-        help="get securitygroups",
-        description="get securitygroups",
-        example="beehive platform vsphere sg-get securitygroup-######;beehive platform vsphere sg-get securitygroup-##### -e <env>",
+        help=_("get securitygroup rules"),
+        description=_("get securitygroup rules"),
+        example="beehive platform vsphere sg-rule-get securitygroup-##### -e <env>",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("securitygroup id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-section_name"],
+                    {
+                        "help": _(
+                            "section name (partial of total). e.g. ComputeService-#######[-avz###-#-section]. "
+                            "Warning: first match will be used"
+                        ),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def sg_rule_get(self):
+        oid = getattr(self.app.pargs, "id", None)
+        rules = self.client.network.nsx.dfw.filter_rules(
+            security_groups=[oid], section_name=self.app.pargs.section_name
+        )
+        self._render_rules(rules)
+
+    @ex(
+        help=_("get securitygroups"),
+        description=_("get securitygroups"),
+        example="beehive platform vsphere sg-get -section_name -section_name ComputeService-###### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "securitygroup id",
+                        "help": _("securitygroup id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-section_name"],
+                    {
+                        "help": _(
+                            "section name (partial of total). e.g. ComputeService-########[-avz###-#-section]. "
+                            "Warning: first match will be used."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2162,31 +2425,29 @@ class VspherePlatformController(BaseController):
     )
     def sg_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        if oid is not None:
+        section_name = getattr(self.app.pargs, "section_name", None)
+        if oid:
+            # if oid given show security group general info
             res = self.client.network.nsx.sg.get(oid)
-            data = self.client.network.nsx.sg.detail(res)
+            #data = self.client.network.nsx.sg.detail(res)
 
             if self.is_output_text():
                 members = res.pop("member", [])
                 self.app.render(res, details=True)
                 self.c("\nmembers", "underline")
                 self.app.render(members, headers=["objectId", "name", "objectTypeName"])
-                rules = self.client.network.nsx.dfw.filter_rules(security_groups=[oid])
-                self.c("\nrules", "underline")
-                self.app.render(
-                    rules,
-                    headers=[
-                        "id",
-                        "name",
-                        "sectionId",
-                        "direction",
-                        "logged",
-                        "packetType",
-                    ],
-                )
             else:
                 self.app.render(res, details=True)
-        else:
+        if oid or section_name:
+            # if section name or oid, get rules
+            if not oid:
+                sgs = None
+            else:
+                # also filter by security group
+                sgs = [oid]
+            rules = self.client.network.nsx.dfw.filter_rules(security_groups=sgs, section_name=section_name)
+            self._render_rules(rules)
+        if not oid and not section_name:
             params = {}
             objs = self.client.network.nsx.sg.list(**params)
             res = []
@@ -2203,14 +2464,14 @@ class VspherePlatformController(BaseController):
             self.entity_class = self.client.network.nsx.sg
 
     @ex(
-        help="delete vsphere securitygroup",
-        description="delete vsphere securitygroup",
+        help=_("delete vsphere securitygroup"),
+        description=_("delete vsphere securitygroup"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "securitygroup id",
+                        "help": _("securitygroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2219,7 +2480,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force delete",
+                        "help": _("if true force delete"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -2232,17 +2493,17 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         force = self.app.pargs.force
         self.client.network.nsx.sg.delete(oid, force)
-        self.app.render({"msg": "Delete securitygroup %s" % oid})
+        self.app.render({"msg": f"Delete securitygroup {oid}"})
 
     @ex(
-        help="delete vsphere securitygroup member",
-        description="delete vsphere securitygroup member",
+        help=_("delete vsphere securitygroup member"),
+        description=_("delete vsphere securitygroup member"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "securitygroup id",
+                        "help": _("securitygroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2251,7 +2512,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["member"],
                     {
-                        "help": "member to remove",
+                        "help": _("member to remove"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2264,18 +2525,18 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         member = self.app.pargs.member
         self.client.network.nsx.sg.delete_member(oid, member)
-        self.app.render({"msg": "Delete security-group %s member %s" % (oid, member)})
+        self.app.render({"msg": f"Delete security-group {oid} member {member}"})
 
     @ex(
-        help="add vsphere securitygroup member",
-        description="add vsphere securitygroup member",
-        example="beehive platform vsphere sg-member-add securitygroup-#### vm-#### -e <env>;beehive platform vsphere sg-member-add securitygroup-##### vm-##### -e <env>",
+        help=_("add vsphere securitygroup member"),
+        description=_("add vsphere securitygroup member"),
+        example="beehive platform vsphere sg-member-add securitygroup-##### vm-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "securitygroup id",
+                        "help": _("securitygroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2284,7 +2545,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["member"],
                     {
-                        "help": "member to add",
+                        "help": _("member to add"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2297,17 +2558,17 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         member = self.app.pargs.member
         self.client.network.nsx.sg.add_member(oid, member)
-        self.app.render({"msg": "Add security-group %s member %s" % (oid, member)})
+        self.app.render({"msg": f"Add security-group {oid} member {member}"})
 
     # dfw
     def __print_sections(self, data, stype):
         sections = data[stype]["section"]
-        if type(sections) is not list:
+        if not isinstance(sections, list):
             sections = [sections]
         for s in sections:
             s["timestamp"] = format_date(datetime.fromtimestamp(float(s["timestamp"]) / 1000))
             rules = s.get("rule", [])
-            if type(rules) is not list:
+            if not isinstance(rules, list):
                 rules = [rules]
             s["rules"] = len(rules)
         self.app.render(
@@ -2317,7 +2578,7 @@ class VspherePlatformController(BaseController):
 
     def __convert_proto(self, service):
         proto = service.get("protocol")
-        subproto = service.get("subProtocol")
+        #subproto = service.get("subProtocol")
         protos = {"6": "tcp", "18": "udp"}
         return protos.get(proto, proto)
 
@@ -2332,22 +2593,22 @@ class VspherePlatformController(BaseController):
                 if len(objs) > 0:
                     data.append("services:")
                     for o in objs:
-                        data.append("  %s:%s" % (self.__convert_proto(o), o.get("destinationPort")))
+                        data.append(f"  {self.__convert_proto(o)}:{o.get('destinationPort')}")
             elif key == "appliedToList":
                 if len(objs) > 0:
                     data.append("appliedTo:")
                     for o in objs:
-                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
+                        data.append(f"  {o.get('type')}:{o.get('value')}")
             elif key == "sources":
                 if len(objs) > 0:
                     data.append("sources:")
                     for o in objs:
-                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
+                        data.append(f"  {o.get('type')}:{o.get('value')}")
             elif key == "destinations":
                 if len(objs) > 0:
                     data.append("destinations:")
                     for o in objs:
-                        data.append("  %s:%s" % (o.get("type"), o.get("value")))
+                        data.append(f"  {o.get('type')}:{o.get('value')}")
 
             rule[key] = "\n".join(data)
         else:
@@ -2355,19 +2616,19 @@ class VspherePlatformController(BaseController):
         return rule
 
     def __print_rule_datail(self, title, data):
-        if type(data) is not list:
+        if not isinstance(data, list):
             data = [data]
         self.app.render(data, headers=["type", "name", "value"])
 
     @ex(
-        help="get distributed firewall status",
-        description="get distributed firewall status",
+        help=_("get distributed firewall status"),
+        description=_("get distributed firewall status"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-section"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2412,15 +2673,15 @@ class VspherePlatformController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get distributed firewall sections",
-        description="get distributed firewall sections",
-        example="beehive platform vsphere dfw-section-get -e <env>;beehive platform vsphere dfw-section-get -id 1053 -e <env>",
+        help=_("get distributed firewall sections"),
+        description=_("get distributed firewall sections"),
+        example="beehive platform vsphere dfw-section-get -id 1053 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2433,55 +2694,57 @@ class VspherePlatformController(BaseController):
         section = self.app.pargs.id
         if section is not None:
             res = self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
+            if self.is_output_text():
+                rules = res.pop("rule", [])
+                if isinstance(rules, dict):
+                    rules = [rules]
+                self.app.render([res], headers=["id", "type", "timestamp", "generationNumber", "name"])
 
-            rules = res.pop("rule", [])
-            if isinstance(rules, dict):
-                rules = [rules]
-            self.app.render([res], headers=["id", "type", "timestamp", "generationNumber", "name"])
+                self.c("\nrules", "underline")
+                for r in rules:
+                    r = self.__set_rule_value("services", "service", r)
+                    r = self.__set_rule_value("sources", "source", r)
+                    r = self.__set_rule_value("destinations", "destination", r)
+                    r = self.__set_rule_value("appliedToList", "appliedTo", r)
+                headers = [
+                    "id",
+                    "disabled",
+                    "logged",
+                    "name",
+                    "dir",
+                    "action",
+                    "packet",
+                    "sources",
+                    "destinations",
+                    "services",
+                    "appliedToList",
+                ]
+                fields = [
+                    "id",
+                    "disabled",
+                    "logged",
+                    "name",
+                    "direction",
+                    "action",
+                    "packetType",
+                    "sources",
+                    "destinations",
+                    "services",
+                    "appliedToList",
+                ]
 
-            self.c("\nrules", "underline")
-            for r in rules:
-                r = self.__set_rule_value("services", "service", r)
-                r = self.__set_rule_value("sources", "source", r)
-                r = self.__set_rule_value("destinations", "destination", r)
-                r = self.__set_rule_value("appliedToList", "appliedTo", r)
-            headers = [
-                "id",
-                "disabled",
-                "logged",
-                "name",
-                "dir",
-                "action",
-                "packet",
-                "sources",
-                "destinations",
-                "services",
-                "appliedToList",
-            ]
-            fields = [
-                "id",
-                "disabled",
-                "logged",
-                "name",
-                "direction",
-                "action",
-                "packetType",
-                "sources",
-                "destinations",
-                "services",
-                "appliedToList",
-            ]
+                transform = {"name": lambda x: truncate(x, 30)}
 
-            transform = {"name": lambda x: truncate(x, 30)}
-
-            self.app.render(
-                rules,
-                table_style="grid",
-                headers=headers,
-                fields=fields,
-                maxsize=50,
-                transform=transform,
-            )
+                self.app.render(
+                    rules,
+                    table_style="grid",
+                    headers=headers,
+                    fields=fields,
+                    maxsize=50,
+                    transform=transform,
+                )
+            else:
+                self.app.render(res, details=True)
         else:
             res = self.client.network.nsx.dfw.get_config()
             data = [
@@ -2498,14 +2761,14 @@ class VspherePlatformController(BaseController):
             self.__print_sections(res, "layer3RedirectSections")
 
     @ex(
-        help="check distributed firewall sections",
-        description="check distributed firewall sections",
+        help=_("check distributed firewall sections"),
+        description=_("check distributed firewall sections"),
         arguments=VSPHERE_ARGS(),
     )
     def dfw_section_check(self):
         res = self.client.network.nsx.dfw.get_config()
         sections = res["layer3Sections"]["section"]
-        if type(sections) is not list:
+        if not isinstance(sections, list):
             sections = [sections]
         for s in sections:
             if s.get("name") == "None":
@@ -2513,14 +2776,48 @@ class VspherePlatformController(BaseController):
                 self.client.network.nsx.dfw.delete_section(s.get("id"))
 
     @ex(
-        help="get distributed firewall rules",
-        description="get distributed firewall rules",
+        help="update distributed firewall section",
+        description="update distributed firewall section",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["section"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["file"],
+                    {
+                        "help": _("updated section data file"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dfw_section_update(self):
+        section_id = self.app.pargs.section
+        data_file = self.app.pargs.file
+        data = load_config(data_file)
+
+        self.client.network.nsx.dfw.update_layer3_section(section_id, data)
+        self.app.render({"msg": f"Section {section_id} updated"})
+
+    @ex(
+        help=_("get distributed firewall rules"),
+        description=_("get distributed firewall rules"),
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2529,7 +2826,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["rule"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2543,45 +2840,38 @@ class VspherePlatformController(BaseController):
         rule = self.app.pargs.rule
 
         res = self.client.network.nsx.dfw.get_rule(section, rule)
-        # self.app.render(res, details=True)
-        services = res.pop("services", {}).pop("service", [])
-        sources = res.pop("sources", {}).pop("source", [])
-        destinations = res.pop("destinations", {}).pop("destination", [])
-        appliedToList = res.pop("appliedToList", {}).pop("appliedTo", [])
+        if self.is_output_text():
+            sources = res.pop("sources", {}).pop("source", [])
+            destinations = res.pop("destinations", {}).pop("destination", [])
+            applied_to_list = res.pop("appliedToList", {}).pop("appliedTo", [])
+            services = res.pop("services", {}).pop("service", [])
 
-        self.app.render(
-            res,
-            headers=[
-                "id",
-                "disabled",
-                "logged",
-                "name",
-                "direction",
-                "action",
-                "packetType",
-            ],
-        )
-
-        self.__print_rule_datail("sources", sources)
-        self.__print_rule_datail("destinations", destinations)
-        self.__print_rule_datail("appliedTo", appliedToList)
-        self.c("\nservices", "underline")
-        if type(services) is not list:
-            services = [services]
-        self.app.render(
-            services,
-            headers=["protocol", "subProtocol", "destinationPort", "protocolName"],
-        )
+            self.app.render(res, details=True)
+            self.c("\nsources", "underline")
+            self.__print_rule_datail("sources", sources)
+            self.c("\ndestinatios", "underline")
+            self.__print_rule_datail("destinations", destinations)
+            self.c("\nappliedTo", "underline")
+            self.__print_rule_datail("appliedTo", applied_to_list)
+            self.c("\nservices", "underline")
+            if not isinstance(services, list):
+                services = [services]
+            self.app.render(
+                services,
+                headers=["protocol", "subProtocol", "destinationPort", "protocolName"],
+            )
+        else:
+            self.app.render(res, details=True)
 
     @ex(
-        help="add distributed firewall sections",
-        description="add distributed firewall sections",
+        help=_("add distributed firewall sections"),
+        description=_("add distributed firewall sections"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "section name",
+                        "help": _("section name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2594,17 +2884,17 @@ class VspherePlatformController(BaseController):
         name = self.app.pargs.name
         self.client.network.nsx.dfw.query_status()
         self.client.network.nsx.dfw.create_section(name)
-        self.app.render({"msg": "add section %s" % name})
+        self.app.render({"msg": f"add section {name}"})
 
     @ex(
-        help="delete distributed firewall sections",
-        description="delete distributed firewall sections",
+        help=_("delete distributed firewall sections"),
+        description=_("delete distributed firewall sections"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["section"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2616,18 +2906,18 @@ class VspherePlatformController(BaseController):
     def dfw_section_del(self):
         section = self.app.pargs.section
         self.client.network.nsx.dfw.query_status()
-        res = self.client.network.nsx.dfw.delete_section(section)
-        self.app.render({"msg": "Delete section %s" % section})
+        self.client.network.nsx.dfw.delete_section(section)
+        self.app.render({"msg": f"Delete section {section}"})
 
     @ex(
-        help="add distributed firewall rule",
-        description="add distributed firewall rule",
+        help=_("add distributed firewall rule"),
+        description=_("add distributed firewall rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["section"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2636,7 +2926,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2645,7 +2935,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-action"],
                     {
-                        "help": "rule action: allow or deny",
+                        "help": _("rule action: allow or deny"),
                         "action": "store",
                         "type": str,
                         "default": "allow",
@@ -2654,16 +2944,16 @@ class VspherePlatformController(BaseController):
                 (
                     ["-direction"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
-                        "default": "inout",
+                        "default": "in",
                     },
                 ),
                 (
                     ["-sources"],
                     {
-                        "help": "rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24",
+                        "help": _("rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2672,7 +2962,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dests"],
                     {
-                        "help": "rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24",
+                        "help": _("rule sources. Ex. SecurityGroup:securitygroup-#####,Ipv4Address:###.###.###.###/24"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2681,7 +2971,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-services"],
                     {
-                        "help": "rule services",
+                        "help": _("rule services"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2690,7 +2980,16 @@ class VspherePlatformController(BaseController):
                 (
                     ["-appliedto"],
                     {
-                        "help": "rule sources. Ex. DISTRIBUTED_FIREWALL:DISTRIBUTED_FIREWALL",
+                        "help": _("rule context. Ex. DISTRIBUTED_FIREWALL:DISTRIBUTED_FIREWALL"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-log"],
+                    {
+                        "help": _("rule logging: 'true' to enable, 'false' to disable"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2708,6 +3007,7 @@ class VspherePlatformController(BaseController):
         dests = self.app.pargs.dests
         services = self.app.pargs.services
         appliedtos = self.app.pargs.appliedto
+        logged = self.app.pargs.log
 
         if sources is not None:
             source_list = []
@@ -2736,30 +3036,35 @@ class VspherePlatformController(BaseController):
                 )
             appliedtos = appliedto_list
 
+        if logged is not None and logged in ["true", "True", "false", "False"]:
+            logged = logged.lower()
+        else:
+            logged = "false"
+
         self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
         self.client.network.nsx.dfw.create_rule(
             section,
             name,
             action,
             direction=direction,
-            logged="false",
+            logged=logged,
             sources=sources,
             destinations=dests,
             services=services,
             appliedto=appliedtos,
             precedence="default",
         )
-        self.app.render({"msg": "add rule %s" % name})
+        self.app.render({"msg": f"add rule {name}"})
 
     @ex(
-        help="delete distributed firewall rules",
-        description="delete distributed firewall rules",
+        help=_("delete distributed firewall rules"),
+        description=_("delete distributed firewall rules"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["section"],
                     {
-                        "help": "section id",
+                        "help": _("section id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2768,7 +3073,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["rules"],
                     {
-                        "help": "comma separated list of rules id",
+                        "help": _("comma separated list of rules id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2780,10 +3085,164 @@ class VspherePlatformController(BaseController):
     def dfw_rules_del(self):
         section = self.app.pargs.section
         rules = self.app.pargs.rules.split(",")
-        self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
+        _, res_etag = self.client.network.nsx.dfw.get_layer3_section_and_etag(sectionid=section)
         for rule in rules:
-            self.client.network.nsx.dfw.delete_rule(section, rule)
-        self.app.render({"msg": "Delete section %s rules %s" % (section, rules)})
+            self.client.network.nsx.dfw.delete_rule(section, rule, res_etag)
+        self.app.render({"msg": f"Delete section {section} rules {rules}"})
+
+    @ex(
+        help="update distributed firewall rule",
+        description="update distributed firewall rule",
+        arguments=VSPHERE_ARGS(
+            [
+                (
+                    ["section"],
+                    {
+                        "help": _("section id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["rule"],
+                    {
+                        "help": _("rule id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-name"],
+                    {
+                        "help": _("rule name"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                # (
+                #     ["-action"],
+                #     {
+                #         "help": "rule action: allow or deny",
+                #         "action": "store",
+                #         "type": str,
+                #         "default": "allow",
+                #     },
+                # ),
+                (
+                    ["-disable"],
+                    {
+                        "help": _("rule on/off: True to disable rule, False to enable"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-log"],
+                    {
+                        "help": _("rule logging: True to enable logging, False to disable"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                # (
+                #     ["-sources"],
+                #     {
+                #         "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                #         "action": "store",
+                #         "type": str,
+                #         "default": None,
+                #     },
+                # ),
+                # (
+                #     ["-dests"],
+                #     {
+                #         "help": "rule sources. Ex. SecurityGroup:securitygroup-22,Ipv4Address:10.1.1.0/24",
+                #         "action": "store",
+                #         "type": str,
+                #         "default": None,
+                #     },
+                # ),
+                # (
+                #     ["-services"],
+                #     {
+                #         "help": "rule services",
+                #         "action": "store",
+                #         "type": str,
+                #         "default": None,
+                #     },
+                # ),
+                (
+                    ["-appliedto"],
+                    {
+                        "help": _("the firewall element which the rule is applied to.") + " " + _("E.g.:") + " " +
+                            "DISTRIBUTED_FIREWALL:DISTRIBUTED_FIREWALL, SecurityGroup:<sg_ext_id>",
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-direction"],
+                    {
+                        "help": _("rule direction. Can be: 'in' for ingress, 'out' for egress"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def dfw_rule_update(self):
+
+        def validate_bool(in_str):
+            if in_str is not None:
+                if in_str.lower() in ["true", "false"]:
+                    return in_str.lower()
+                raise Exception("Bad parameter value")
+            return None
+
+        def validate_direction(in_str):
+            if in_str is not None:
+                if in_str.lower() in ["in", "out"]:
+                    return in_str.lower()
+                raise Exception("Bad parameter value")
+            return None
+
+        section = self.app.pargs.section
+        rule = self.app.pargs.rule
+        name = self.app.pargs.name
+        disable = self.app.pargs.disable
+        logged = self.app.pargs.log
+        appliedto = self.app.pargs.appliedto
+        direction = self.app.pargs.direction
+
+        # TODO: add management of sources, destinations, action, etc.
+
+        disable = validate_bool(disable)
+        logged = validate_bool(logged)
+        direction = validate_direction(direction)
+
+        self.client.network.nsx.dfw.get_layer3_section(sectionid=section)
+        self.client.network.nsx.dfw.update_rule(
+            section,
+            rule,
+            new_disable=disable,
+            new_name=name,
+            new_sources=None,
+            new_destinations=None,
+            new_action=None,
+            new_logged=logged,
+            # new_services=None,
+            new_appliedto=appliedto,
+            new_direction=direction
+        )
+        self.app.render({"msg": f"update rule {rule}"})
 
     @ex(
         help="get distributed firewall exclusion list",
@@ -2804,14 +3263,14 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="add member to distributed firewall exclusion list",
-        description="add member to distributed firewall exclusion list",
+        help=_("add member to distributed firewall exclusion list"),
+        description=_("add member to distributed firewall exclusion list"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["member"],
                     {
-                        "help": "member id",
+                        "help": _("member id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2822,18 +3281,18 @@ class VspherePlatformController(BaseController):
     )
     def dfw_exclusion_add(self):
         member = self.app.pargs.member
-        res = self.client.network.nsx.dfw.add_item_to_exclusion_list(member)
-        self.app.render({"msg": "add member %s to exclusion list" % member})
+        self.client.network.nsx.dfw.add_item_to_exclusion_list(member)
+        self.app.render({"msg": f"add member {member} to exclusion list"})
 
     @ex(
-        help="delete member from distributed firewall exclusion list",
-        description="delete member from distributed firewall exclusion list",
+        help=_("delete member from distributed firewall exclusion list"),
+        description=_("delete member from distributed firewall exclusion list"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["member"],
                     {
-                        "help": "member id",
+                        "help": _("member id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2844,18 +3303,18 @@ class VspherePlatformController(BaseController):
     )
     def dfw_exclusion_del(self):
         member = self.app.pargs.member
-        res = self.client.network.nsx.dfw.remove_item_from_exclusion_list(member)
-        self.app.render({"msg": "delete member %s from exclusion list" % member})
+        self.client.network.nsx.dfw.remove_item_from_exclusion_list(member)
+        self.app.render({"msg": f"delete member {member} from exclusion list"})
 
     @ex(
-        help="get nsx transport zones",
-        description="get nsx transport zones",
+        help=_("get nsx transport zones"),
+        description=_("get nsx transport zones"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "transport zone id",
+                        "help": _("transport zone id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2879,14 +3338,14 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.lg_headers)
 
     @ex(
-        help="get logical switch",
-        description="get logical switch",
+        help=_("get logical switch"),
+        description=_("get logical switch"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "logical switch id",
+                        "help": _("logical switch id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2895,7 +3354,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dvpg"],
                     {
-                        "help": "dvpg id",
+                        "help": _("dvpg id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2917,7 +3376,7 @@ class VspherePlatformController(BaseController):
                 self.app.render(res, details=True)
                 for backing in backings:
                     context = backing.get("switch")
-                    self.c("\nbacking - %s" % context.pop("objectId"), "underline")
+                    self.c(f"\nbacking - {context.pop('objectId')}", "underline")
                     self.app.render(backing, details=True)
             else:
                 self.app.render(res, details=True)
@@ -2925,7 +3384,7 @@ class VspherePlatformController(BaseController):
         elif dvpg is not None:
             res = self.client.network.nsx.lg.get_by_dvpg(dvpg)
             if res is None:
-                raise Exception("no valid logical switch found for dvpg %s" % dvpg)
+                raise Exception(f"no valid logical switch found for dvpg {dvpg}")
 
             if self.is_output_text():
                 backings = res.pop("vdsContextWithBacking", [])
@@ -2933,7 +3392,7 @@ class VspherePlatformController(BaseController):
                 self.app.render(res, details=True)
                 for backing in backings:
                     context = backing.get("switch")
-                    self.c("\nbacking - %s" % context.pop("objectId"), "underline")
+                    self.c(f"\nbacking - {context.pop('objectId')}", "underline")
                     self.app.render(backing, details=True)
             else:
                 self.app.render(res, details=True)
@@ -2949,14 +3408,14 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.lg_headers, fields=self._meta.lg_fields)
 
     @ex(
-        help="delete logical switch",
-        description="delete logical switch",
+        help=_("delete logical switch"),
+        description=_("delete logical switch"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "logical switch id",
+                        "help": _("logical switch id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2968,18 +3427,18 @@ class VspherePlatformController(BaseController):
     def lg_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.lg.delete(oid)
-        self.app.render({"msg": "delete logical switch %s" % oid})
+        self.app.render({"msg": f"delete logical switch {oid}"})
 
     @ex(
-        help="get vsphere ippools",
-        description="get ippools",
-        example="beehive platform vsphere ippool-get -e <env>;beehive platform vsphere ippool-get -e <env>",
+        help=_("get vsphere ippools"),
+        description=_("get ippools"),
+        example="beehive platform vsphere ippool-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2988,7 +3447,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-range"],
                     {
-                        "help": "ippool range",
+                        "help": _("ippool range, start/stop ip comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3008,10 +3467,10 @@ class VspherePlatformController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            range = self.app.pargs.range
-            if range is not None:
-                range = range.split(",")
-            objs = self.client.network.nsx.ippool.list(pool_range=range)
+            pool_range = self.app.pargs.range
+            if pool_range is not None:
+                pool_range = pool_range.split(",")
+            objs = self.client.network.nsx.ippool.list(pool_range=pool_range)
             res = []
             transform = None
             for o in objs:
@@ -3019,7 +3478,7 @@ class VspherePlatformController(BaseController):
                 transform = {
                     "ipRanges": lambda x: "\n".join(
                         [
-                            "{:12} {:17} {}".format(item["id"], item["startAddress"], item["endAddress"])
+                            f"{item['id']:12} {item['startAddress']:17} {item['endAddress']}"
                             for item in x.get("ipRangeDto")
                         ]
                     )
@@ -3033,15 +3492,15 @@ class VspherePlatformController(BaseController):
             )
 
     @ex(
-        help="add vsphere ippool",
-        description="add vsphere ippool",
+        help=_("add vsphere ippool"),
+        description=_("add vsphere ippool"),
         arguments=VSPHERE_ARGS(
             [
-                (["name"], {"help": "ippool name", "action": "store", "type": str}),
+                (["name"], {"help": _("ippool name"), "action": "store", "type": str}),
                 (
                     ["startip"],
                     {
-                        "help": "start ip",
+                        "help": _("start ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3050,7 +3509,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["stopip"],
                     {
-                        "help": "stop ip",
+                        "help": _("stop ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3059,7 +3518,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["gw"],
                     {
-                        "help": "gateway",
+                        "help": _("gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3067,20 +3526,20 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["dns1"],
-                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                    {"help": _("dns1"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["dns2"],
-                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                    {"help": _("dns2"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-prefix"],
-                    {"help": "prefix", "action": "store", "type": int, "default": 24},
+                    {"help": _("prefix"), "action": "store", "type": int, "default": 24},
                 ),
                 (
                     ["-dnssuffix"],
                     {
-                        "help": "dns zone",
+                        "help": _("dns zone"),
                         "action": "store",
                         "type": str,
                         "default": "domain.local",
@@ -3109,17 +3568,17 @@ class VspherePlatformController(BaseController):
             startip=startip,
             stopip=stopip,
         )
-        self.app.render({"msg": "add ippool %s" % name})
+        self.app.render({"msg": f"add ippool {name}: {msg}"})
 
     @ex(
-        help="update vsphere ippool",
-        description="update vsphere ippool",
+        help=_("update vsphere ippool"),
+        description=_("update vsphere ippool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3128,7 +3587,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "ippool name",
+                        "help": _("ippool name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3137,7 +3596,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-startip"],
                     {
-                        "help": "start ip",
+                        "help": _("start ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3146,7 +3605,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-stopip"],
                     {
-                        "help": "stop ip",
+                        "help": _("stop ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3155,7 +3614,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-gw"],
                     {
-                        "help": "gateway",
+                        "help": _("gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3163,20 +3622,20 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["-dns1"],
-                    {"help": "dns1", "action": "store", "type": str, "default": None},
+                    {"help": _("dns1"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-dns2"],
-                    {"help": "dns2", "action": "store", "type": str, "default": None},
+                    {"help": _("dns2"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-prefix"],
-                    {"help": "prefix", "action": "store", "type": int, "default": None},
+                    {"help": _("prefix"), "action": "store", "type": int, "default": None},
                 ),
                 (
                     ["-dnssuffix"],
                     {
-                        "help": "dns zone",
+                        "help": _("dns zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3207,17 +3666,17 @@ class VspherePlatformController(BaseController):
             startAddress=startip,
             endAddress=stopip,
         )
-        self.app.render({"msg": "update ippool %s" % oid})
+        self.app.render({"msg": f"update ippool {oid}: {msg}"})
 
     @ex(
-        help="delete vsphere ippool",
-        description="delete vsphere ippool",
+        help=_("delete vsphere ippool"),
+        description=_("delete vsphere ippool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3228,20 +3687,20 @@ class VspherePlatformController(BaseController):
     )
     def ippool_del(self):
         oid = self.app.pargs.id
-        obj = self.client.network.nsx.ippool.exists(pool_id=oid)
+        #obj = self.client.network.nsx.ippool.exists(pool_id=oid)
         self.client.network.nsx.ippool.delete(oid)
-        self.app.render({"msg": "Delete ippool %s" % oid})
+        self.app.render({"msg": f"Delete ippool {oid}"})
 
     @ex(
-        help="get all allocated ippool ips",
-        description="get all allocated ippool ips",
-        example="beehive platform vsphere ippool-ip-usage ipaddresspool-##### -e <env>;beehive platform vsphere ippool-ip-usage ipaddresspool-##### -e <env>",
+        help=_("get all allocated ippool ips"),
+        description=_("get all allocated ippool ips"),
+        example="beehive platform vsphere ippool-ip-usage ipaddresspool-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3254,6 +3713,8 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         self.client.network.nsx.ippool.exists(pool_id=oid)
         res = self.client.network.nsx.ippool.allocations(oid)
+        import ipaddress
+        res.sort(key=lambda x: ipaddress.ip_address(x.get("ipAddress")))
         headers = [
             "id",
             "ipAddress",
@@ -3267,15 +3728,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, headers=headers)
 
     @ex(
-        help="assign ippool ip",
-        description="assign ippool ip",
-        example="beehive platform vsphere ippool-ip-use ipaddresspool-##### -e <env>;beehive platform vsphere ippool-ip-use ipaddresspool-##### -e <env>",
+        help=_("assign ippool ip"),
+        description=_("assign ippool ip"),
+        example="beehive platform vsphere ippool-ip-use ipaddresspool-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3284,7 +3745,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-ip"],
                     {
-                        "help": "ippool ip to use",
+                        "help": _("ippool ip to use"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3301,15 +3762,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="release ippool ip",
-        description="release ippool ip",
-        example="beehive platform vsphere ippool-ip-release ipaddresspool-##### ###.###.###.###;beehive platform vsphere ippool-ip-release ipaddresspool-##### ###.###.###.### -e <env>",
+        help=_("release ippool ip"),
+        description=_("release ippool ip"),
+        example="beehive platform vsphere ippool-ip-release ipaddresspool-##### ###.###.###.###",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3318,7 +3779,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ip"],
                     {
-                        "help": "ippool ip to use",
+                        "help": _("ippool ip to use"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3335,14 +3796,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get ipsets",
-        description="get ipsets",
+        help=_("get ipsets"),
+        description=_("get ipsets"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "ipset id",
+                        "help": _("ipset id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3351,17 +3812,22 @@ class VspherePlatformController(BaseController):
                 (
                     ["-range"],
                     {
-                        "help": "ipset range",
+                        "help": _("ipset range. use format 'start_ip,end_ip'"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
+                ),
+                (
+                    ["-name"],
+                    {"help": _("ipset partial or complete name"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
     )
     def ipset_get(self):
         oid = getattr(self.app.pargs, "id", None)
+        name = self.app.pargs.name
         if oid is not None:
             res = self.client.network.nsx.ipset.get(oid)
             data = self.client.network.nsx.ipset.detail(res)
@@ -3371,26 +3837,112 @@ class VspherePlatformController(BaseController):
             else:
                 self.app.render(res, details=True)
         else:
-            range = self.app.pargs.range
-            if range is not None:
-                range = range.split(",")
+            from ipaddress import IPv4Address, AddressValueError
+
+            def try_cast_to_ip(address_str: str, raise_exc=False):
+                """
+                string to Ipv4 address
+                """
+                res = None
+                try:
+                    res = IPv4Address(address_str)
+                except AddressValueError as exception:
+                    res = None
+                    self.app.error(f"Invalid ip address {address_str}: {exception}")
+                    if raise_exc:
+                        raise AddressValueError(f"Invalid ip address {address_str}") from exception
+                    self.app.error(f"Ignoring invalid ip address {address_str}...")
+                return res
+
+            def try_cast_to_ip_start_end(input_str: str, separator=",", raise_exc=False):
+                """
+                from a,b or a-b to (IPv4Address(a),IPv4Address(b))
+                """
+                first, *rest = input_str.split(separator)
+                start_ip = try_cast_to_ip(first, raise_exc=raise_exc)
+                end_ip = None
+                if rest:
+                    tmp_end = rest[0]
+                    if len(rest) > 1:
+                        self.app.warning(f"Too many values. Only one will be considered: {tmp_end}")
+                    end_ip = try_cast_to_ip(tmp_end)
+                    if end_ip and end_ip < start_ip:
+                        self.app.error(f"End ip {end_ip} is before start ip {start_ip}!. Ignoring ip address...")
+                        end_ip = None
+                return start_ip, end_ip
+
+            def check_range_overlap(
+                start1: IPv4Address, start2: IPv4Address, end1: IPv4Address = None, end2: IPv4Address = None
+            ):
+                """
+                True if ranges overlap even partially
+                """
+                if not end2:
+                    end2 = start2
+                if start1 > end2:
+                    return False
+                if end1 and end1 < start2:
+                    return False
+                return True
+
+            ip_range: str = self.app.pargs.range
+            if ip_range is not None:
+                start_ip, end_ip = try_cast_to_ip_start_end(ip_range, raise_exc=True)
+
             objs = self.client.network.nsx.ipset.list()
             res = []
             for o in objs:
-                res.append(self.client.network.nsx.ipset.info(o))
-            self.app.render(res, headers=self._meta.ipset_headers)
+                info = self.client.network.nsx.ipset.info(o)
+
+                # name filter
+                if name and name not in info.get("name", ""):
+                    continue
+
+                # ip filter
+                if ip_range:
+                    # transform "info.value" to a List[Union(IPv4Address,Tuple[IPv4Address,IPv4Address])]
+                    info = self.client.network.nsx.ipset.parse_dict(info)
+
+                    network_ranges = info.get("value")
+                    if not network_ranges:
+                        # go to next ipset object
+                        continue
+
+                    is_in_any_network = False
+                    for range_i in network_ranges:
+                        if isinstance(range_i, IPv4Address):
+                            start2 = range_i
+                            end2 = None
+                        else:
+                            start2, end2 = range_i
+
+                        # check if there's any overlap at all
+                        if not check_range_overlap(start_ip, start2, end_ip, end2):
+                            # go to next range
+                            continue
+
+                        # found
+                        is_in_any_network = True
+                        break
+
+                    if not is_in_any_network:
+                        # go to next ipset object
+                        continue
+
+                res.append(info)
+
+            self.app.render(res, headers=self._meta.ipset_headers, maxsize=400)
 
     @ex(
-        help="add vsphere ipset",
-        description="add vsphere ipset",
+        help=_("add vsphere ipset"),
+        description=_("add vsphere ipset"),
         arguments=VSPHERE_ARGS(
             [
-                (["name"], {"help": "ipset name", "action": "store", "type": str}),
+                (["name"], {"help": _("ipset name"), "action": "store", "type": str}),
                 (
                     ["desc"],
                     {
-                        "help": "ipset description",
-                        "action": "store",
+                        "help": _("ipset description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -3400,7 +3952,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "list of ip. Ex. ###.###.###.###-###.###.###.### or cidr",
+                        "help": _("list of ip. Ex. ###.###.###.###-###.###.###.### or cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3414,23 +3966,23 @@ class VspherePlatformController(BaseController):
         desc = self.app.pargs.desc
         cidr = self.app.pargs.cidr
         self.client.network.nsx.ipset.create(name, desc, cidr)
-        self.app.render({"msg": "add ipset %s" % name})
+        self.app.render({"msg": f"add ipset {name}"})
 
     @ex(
-        help="update vsphere ipset",
-        description="update vsphere ipset",
+        help=_("update vsphere ipset"),
+        description=_("update vsphere ipset"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ipset id",
+                        "help": _("ipset id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["-name"], {"help": "ipset name", "action": "store", "type": str}),
+                (["-name"], {"help": _("ipset name"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -3438,17 +3990,17 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         self.client.network.nsx.ipset.update(oid, name=name)
-        self.app.render({"msg": "Update ipset %s" % oid})
+        self.app.render({"msg": f"Update ipset {oid}"})
 
     @ex(
-        help="delete vsphere ipset",
-        description="delete vsphere ipset",
+        help=_("delete vsphere ipset"),
+        description=_("delete vsphere ipset"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "ipset id",
+                        "help": _("ipset id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3460,18 +4012,18 @@ class VspherePlatformController(BaseController):
     def ipset_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.ipset.delete(oid)
-        self.app.render({"msg": "Delete ipset %s" % oid})
+        self.app.render({"msg": f"Delete ipset {oid}"})
 
     @ex(
-        help="get vsphere edges",
-        description="get vsphere edges",
-        example="beehive platform vsphere edge-get -e <env>;beehive platform vsphere edge-get -e <env>",
+        help=_("get vsphere edges"),
+        description=_("get vsphere edges"),
+        example="beehive platform vsphere edge-get -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3525,6 +4077,7 @@ class VspherePlatformController(BaseController):
                     "isConnected",
                     "portgroupId",
                     "primaryAddress",
+                    "secondaryAddresses",
                     "enableProxyArp",
                     "enableSendRedirects",
                 ]
@@ -3537,10 +4090,17 @@ class VspherePlatformController(BaseController):
                     "isConnected",
                     "portgroupId",
                     "addressGroups.addressGroup.primaryAddress",
+                    "addressGroups.addressGroup.secondaryAddresses.ipAddress",
                     "enableProxyArp",
                     "enableSendRedirects",
                 ]
-                self.app.render(vnics, headers=headers, fields=fields)
+                def secondary_addresses(val):
+                    if isinstance(val, list):
+                        val = "\n".join(val)
+                    return val
+
+                transform = {"vnic.addressGroups.addressGroup.secondaryAddresses.ipAddress": secondary_addresses}
+                self.app.render(vnics, headers=headers, fields=fields, transform=transform)
             else:
                 self.app.render(res, details=True)
         else:
@@ -3551,13 +4111,13 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=self._meta.edge_headers, fields=self._meta.edge_fields)
 
     @ex(
-        help="get vsphere edge job",
-        description="get vsphere edge job",
+        help=_("get vsphere edge job"),
+        description=_("get vsphere edge job"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 )
             ]
         ),
@@ -3568,15 +4128,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     def __wait_from_edge_job(self, jobid, edge, operation):
-        self.app.log.debug("wait for edge job: %s" % jobid)
+        self.app.log.debug(f"wait for edge job: {jobid}")
         res = self.client.network.nsx.edge.get_job(jobid)
         status = res["status"]
         stdout.flush()
         elapsed = 0
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while status not in ["COMPLETED", "FAILED", "ROLLBACK", "TIMEOUT"]:
             # stdout.write(".")
-            stdout.write(next(bar))
+            stdout.write(next(rot_bar))
             stdout.flush()
             sleep(5)
             res = self.client.network.nsx.edge.get_job(jobid)
@@ -3584,38 +4144,39 @@ class VspherePlatformController(BaseController):
             elapsed += 5
             if elapsed > 600:
                 status = "TIMEOUT"
-        print("%s edge %s %s" % (operation, edge, status))
+        stoprotation()
+        print(f"{operation} edge {edge} {status}")
 
     @ex(
-        help="add vsphere edge",
-        description="add vsphere edge",
+        help=_("add vsphere edge"),
+        description=_("add vsphere edge"),
         arguments=VSPHERE_ARGS(
             [
-                (["name"], {"help": "edge name", "action": "store", "type": str}),
+                (["name"], {"help": _("edge name"), "action": "store", "type": str}),
                 (
                     ["datacenter"],
-                    {"help": "datacenter mor-id", "action": "store", "type": str},
+                    {"help": _("datacenter mor-id"), "action": "store", "type": str},
                 ),
                 (
                     ["cluster"],
-                    {"help": "cluster mor-id", "action": "store", "type": str},
+                    {"help": _("cluster mor-id"), "action": "store", "type": str},
                 ),
                 (
                     ["datastore"],
-                    {"help": "datastore mor-id", "action": "store", "type": str},
+                    {"help": _("datastore mor-id"), "action": "store", "type": str},
                 ),
                 (
                     ["uplink_dvpg"],
-                    {"help": "uplink dvpg mor-id", "action": "store", "type": str},
+                    {"help": _("uplink dvpg mor-id"), "action": "store", "type": str},
                 ),
                 (
                     ["uplink_ipaddress"],
-                    {"help": "uplink address", "action": "store", "type": str},
+                    {"help": _("uplink address"), "action": "store", "type": str},
                 ),
                 (
                     ["uplink_prefix"],
                     {
-                        "help": "uplink prefix",
+                        "help": _("uplink prefix"),
                         "action": "store",
                         "type": int,
                         "default": 24,
@@ -3623,13 +4184,13 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["pwd"],
-                    {"help": "admin user password", "action": "store", "type": str},
+                    {"help": _("admin user password"), "action": "store", "type": str},
                 ),
                 (
                     ["dns1"],
-                    {"help": "dns name server 1", "action": "store", "type": str},
+                    {"help": _("dns name server 1"), "action": "store", "type": str},
                 ),
-                (["domain"], {"help": "dns zone", "action": "store", "type": str}),
+                (["domain"], {"help": _("dns zone"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -3680,14 +4241,14 @@ class VspherePlatformController(BaseController):
         self.__wait_from_edge_job(res, edge, "create")
 
     @ex(
-        help="delete vsphere edge",
-        description="delete vsphere edge",
+        help=_("delete vsphere edge"),
+        description=_("delete vsphere edge"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3705,14 +4266,14 @@ class VspherePlatformController(BaseController):
         # self.app.render({'msg': 'delete edge %s' % oid}, details=True)
 
     @ex(
-        help="set vsphere edge admin password",
-        description="set vsphere edge admin password",
+        help=_("set vsphere edge admin password"),
+        description=_("set vsphere edge admin password"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3721,7 +4282,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["pwd"],
                     {
-                        "help": "edge admin password",
+                        "help": _("edge admin password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3734,17 +4295,17 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         pwd = self.app.pargs.pwd
         self.client.network.nsx.edge.reset_password(oid, pwd)
-        self.app.render({"msg": "set edge %s admin password" % oid}, details=True)
+        self.app.render({"msg": f"set edge {oid} admin password"}, details=True)
 
     @ex(
-        help="get edge appliances",
-        description="get edge appliances",
+        help=_("get edge appliances"),
+        description=_("get edge appliances"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3753,7 +4314,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-appliance"],
                     {
-                        "help": "appliance id",
+                        "help": _("appliance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3777,8 +4338,8 @@ class VspherePlatformController(BaseController):
 
                 self.app.render(res, details=True, maxsize=200)
                 self.app.render(sdata, details=True, maxsize=200)
-            except:
-                raise Exception("Wrong appliance index")
+            except Exception as exc:
+                raise Exception('Wrong appliance index') from exc
         else:
             edge = self.client.network.nsx.edge.get(oid)
             res = self.client.network.nsx.edge.appliances(edge)
@@ -3795,15 +4356,15 @@ class VspherePlatformController(BaseController):
             )
 
     @ex(
-        help="get edge vnics",
-        description="get edge vnics",
-        example="beehive platform vsphere edge-vnic-get -id edge-##### -e <env>;beehive platform vsphere edge-vnic-get -id edge-##### -vnic 0 -e <env>",
+        help=_("get edge vnics"),
+        description=_("get edge vnics"),
+        example="beehive platform vsphere edge-vnic-get -id edge-##### -vnic 0 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3812,7 +4373,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-vnic"],
                     {
-                        "help": "vnic id",
+                        "help": _("vnic id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3830,8 +4391,8 @@ class VspherePlatformController(BaseController):
                 try:
                     res = self.client.network.nsx.edge.vnics(edge)[int(vnic)]
                     self.app.render(res, details=True, maxsize=200)
-                except:
-                    raise Exception("Wrong vnic index")
+                except Exception as exc:
+                    raise Exception('Wrong vnic index') from exc
             else:
                 edge = self.client.network.nsx.edge.get(oid)
                 res = self.client.network.nsx.edge.vnics(edge)
@@ -3877,14 +4438,14 @@ class VspherePlatformController(BaseController):
             )
 
     @ex(
-        help="add edge vnic",
-        description="add edge vnic",
+        help=_("add edge vnic"),
+        description=_("add edge vnic"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3893,7 +4454,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["index"],
                     {
-                        "help": "vnic index",
+                        "help": _("vnic index"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3902,7 +4463,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "vnic type. Uplink or Internal",
+                        "help": _("vnic type. Uplink or Internal"),
                         "action": "store",
                         "type": str,
                         "default": "Internal",
@@ -3911,7 +4472,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["portgroup"],
                     {
-                        "help": "vnic portgroup id",
+                        "help": _("vnic portgroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3920,7 +4481,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ip"],
                     {
-                        "help": "vnic primary ip",
+                        "help": _("vnic primary ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3942,17 +4503,17 @@ class VspherePlatformController(BaseController):
             "addressGroups": [{"primaryAddress": ip}],
         }
         self.client.network.nsx.edge.vnic_add(oid, data)
-        self.app.render({"msg": "add edge %s vnic %s" % (oid, index)})
+        self.app.render({"msg": f"add edge {oid} vnic {index}"})
 
     @ex(
-        help="update edge vnic",
-        description="update edge vnic",
+        help=_("update edge vnic"),
+        description=_("update edge vnic"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3961,7 +4522,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["vnic"],
                     {
-                        "help": "vnic index",
+                        "help": _("vnic index"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3970,7 +4531,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-secondary_ip_add"],
                     {
-                        "help": "add sub-interface",
+                        "help": _("add sub-interface"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3979,7 +4540,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-secondary_ip_del"],
                     {
-                        "help": "remove sub-interface",
+                        "help": _("remove sub-interface"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4001,18 +4562,18 @@ class VspherePlatformController(BaseController):
             data = {"secondary_ip": secondary_ip_del, "action": "delete"}
         else:
             data = {}
-        res = self.client.network.nsx.edge.vnic_update(oid, vnic, **data)
-        self.app.render({"msg": "update edge %s vnic %s" % (oid, vnic)})
+        self.client.network.nsx.edge.vnic_update(oid, vnic, **data)
+        self.app.render({"msg": f"update edge {oid} vnic {vnic}"})
 
     @ex(
-        help="delete edge vnic",
-        description="delete edge vnic",
+        help=_("delete edge vnic"),
+        description=_("delete edge vnic"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4021,7 +4582,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["vnic"],
                     {
-                        "help": "vnic index",
+                        "help": _("vnic index"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4034,18 +4595,18 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         vnic = self.app.pargs.vnic
         self.client.network.nsx.edge.vnic_del(oid, vnic)
-        self.app.render({"msg": "delete edge %s vnic %s" % (oid, vnic)})
+        self.app.render({"msg": f"delete edge {oid} vnic {vnic}"})
 
     @ex(
-        help="get edge firewall config",
-        description="get edge firewall config",
-        example="beehive platform vsphere edge-fw-config edge-##### -e <env>;beehive platform vsphere edge-fw-config edge-##### --notruncate -e <env>",
+        help=_("get edge firewall config"),
+        description=_("get edge firewall config"),
+        example="beehive platform vsphere edge-fw-config edge-##### --notruncate -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4066,9 +4627,9 @@ class VspherePlatformController(BaseController):
             for k, v in source.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_source.append("%s:%s" % (k, v1))
+                        new_source.append(f"{k}:{v1}")
                 else:
-                    new_source.append("%s:%s" % (k, v))
+                    new_source.append(f"{k}:{v}")
             r["source"] = "\n".join(new_source)
 
             dest = r.get("destination", {})
@@ -4076,9 +4637,9 @@ class VspherePlatformController(BaseController):
             for k, v in dest.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_dest.append("%s:%s" % (k, v1))
+                        new_dest.append(f"{k}:{v1}")
                 else:
-                    new_dest.append("%s:%s" % (k, v))
+                    new_dest.append(f"{k}:{v}")
             r["destination"] = "\n".join(new_dest)
 
             application = r.get("application", {})
@@ -4086,13 +4647,13 @@ class VspherePlatformController(BaseController):
             for k, v in application.items():
                 if isinstance(v, list):
                     for v1 in v:
-                        new_application.append("%s:%s" % (k, v1))
+                        new_application.append(f"{k}:{v1}")
                 if isinstance(v, dict):
-                    new_application.append("%s:" % k)
+                    new_application.append(f"{k}:")
                     for k1, v1 in v.items():
-                        new_application.append("  %s:%s" % (k1, v1))
+                        new_application.append(f"  {k1}:{v1}")
                 else:
-                    new_application.append("%s:%s" % (k, v))
+                    new_application.append(f"{k}:{v}")
             r["application"] = "\n".join(new_application)
 
         self.app.render(res, details=True, maxsize=200)
@@ -4124,14 +4685,14 @@ class VspherePlatformController(BaseController):
         self.app.render(rules, table_style="grid", headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="get edge firewall rule",
-        description="get edge firewall rule",
+        help=_("get edge firewall rule"),
+        description=_("get edge firewall rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4140,7 +4701,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["rule"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4157,14 +4718,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="add edge firewall rule",
-        description="add edge firewall rule",
+        help=_("add edge firewall rule"),
+        description=_("add edge firewall rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4173,7 +4734,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4182,7 +4743,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-action"],
                     {
-                        "help": "rule action. Can be: accept, deny",
+                        "help": _("rule action. Can be: accept, deny"),
                         "action": "store",
                         "type": str,
                         "default": "accept",
@@ -4191,7 +4752,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-direction"],
                     {
-                        "help": "rule direction. Can be: in, out",
+                        "help": _("rule direction. Can be: 'in' for ingress, 'out' for egress"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4200,7 +4761,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "rule logged",
+                        "help": _("rule logged"),
                         "action": "store",
                         "type": str,
                         "default": False,
@@ -4209,7 +4770,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "rule description",
+                        "help": _("rule description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4218,7 +4779,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -4227,8 +4788,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-source"],
                     {
-                        "help": "rule source. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule source. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4237,8 +4800,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dest"],
                     {
-                        "help": "rule destination. list of comma separated item like: ip:<ipAddress>, "
-                        "grp:<groupingObjectId>, vnic:<vnicGroupId>",
+                        "help": _(
+                            "rule destination. list of comma separated item like: ip:<ipAddress>, "
+                            "grp:<groupingObjectId>, vnic:<vnicGroupId>"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4247,8 +4812,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-app"],
                     {
-                        "help": "rule application. list of comma separated item like: app:<applicationId>, "
-                        "ser:proto+port+source_port",
+                        "help": _(
+                            "rule application. list of comma separated item like: app:<applicationId>, "
+                            "ser:proto+port+source_port"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4290,17 +4857,17 @@ class VspherePlatformController(BaseController):
             logged=logged,
             enabled=enabled,
         )
-        self.app.render({"msg": "create firewall rule %s" % name})
+        self.app.render({"msg": f"create firewall rule {name}"})
 
     @ex(
-        help="update edge firewall rule",
-        description="update edge firewall rule",
+        help=_("update edge firewall rule"),
+        description=_("update edge firewall rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["edge"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4309,7 +4876,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["id"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4318,7 +4885,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4327,7 +4894,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "rule description",
+                        "help": _("rule description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4336,7 +4903,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-act"],
                     {
-                        "help": "rule action",
+                        "help": _("rule action"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4345,7 +4912,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dir"],
                     {
-                        "help": "rule direction",
+                        "help": _("rule direction. Can be: 'in' for ingress, 'out' for egress"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4354,7 +4921,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-src_add"],
                     {
-                        "help": "add rule source",
+                        "help": _("add rule source"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4363,7 +4930,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-src_del"],
                     {
-                        "help": "remove rule source",
+                        "help": _("remove rule source"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4372,7 +4939,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dst_add"],
                     {
-                        "help": "add rule destination",
+                        "help": _("add rule destination"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4381,7 +4948,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dst_del"],
                     {
-                        "help": "remove rule destination",
+                        "help": _("remove rule destination"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4390,7 +4957,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-appl"],
                     {
-                        "help": "rule application",
+                        "help": _("rule application"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4399,7 +4966,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "enable rule log",
+                        "help": _("enable rule log"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4408,7 +4975,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "enable rule",
+                        "help": _("enable rule"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4459,17 +5026,17 @@ class VspherePlatformController(BaseController):
             appl=appl,
             logged=logged,
         )
-        self.app.render({"msg": "update firewall rule %s" % rule_id})
+        self.app.render({"msg": f"update firewall rule {rule_id}"})
 
     @ex(
-        help="delete edge firewall rule",
-        description="delete edge firewall rule",
+        help=_("delete edge firewall rule"),
+        description=_("delete edge firewall rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4478,7 +5045,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["rule"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4492,17 +5059,17 @@ class VspherePlatformController(BaseController):
         rule = self.app.pargs.rule
         self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.firewall_rule_delete(oid, rule)
-        self.app.render({"msg": "delete firewall rule %s" % rule})
+        self.app.render({"msg": f"delete firewall rule {rule}"})
 
     @ex(
-        help="get edge nat config",
-        description="get edge nat config",
+        help=_("get edge nat config"),
+        description=_("get edge nat config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4552,14 +5119,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge nat rule",
-        description="add edge nat rule",
+        help=_("add edge nat rule"),
+        description=_("add edge nat rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4568,7 +5135,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["desc"],
                     {
-                        "help": "rule description",
+                        "help": _("rule description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4577,7 +5144,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["action"],
                     {
-                        "help": "can be dnat, snat",
+                        "help": _("can be dnat, snat"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -4586,7 +5153,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["original_address"],
                     {
-                        "help": "original address",
+                        "help": _("original address"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -4595,7 +5162,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["translated_address"],
                     {
-                        "help": "translated address",
+                        "help": _("translated address"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -4604,7 +5171,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-logged"],
                     {
-                        "help": "if True enable logging",
+                        "help": _("if True enable logging"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -4613,7 +5180,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "if True enable nat",
+                        "help": _("if True enable nat"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -4622,7 +5189,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-original_port"],
                     {
-                        "help": "original port",
+                        "help": _("original port"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4631,7 +5198,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-translated_port"],
                     {
-                        "help": "translated port",
+                        "help": _("translated port"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4640,7 +5207,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-protocol"],
                     {
-                        "help": "protocol",
+                        "help": _("protocol"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4648,7 +5215,7 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["-vnic"],
-                    {"help": "vnic", "action": "store", "type": str, "default": 0},
+                    {"help": _("vnic"), "action": "store", "type": str, "default": 0},
                 ),
             ]
         ),
@@ -4680,17 +5247,17 @@ class VspherePlatformController(BaseController):
             translated_port=translated_port,
             original_port=original_port,
         )
-        self.app.render({"msg": "create nat rule %s" % desc})
+        self.app.render({"msg": f"create nat rule {desc}"})
 
     @ex(
-        help="delete edge nat rule",
-        description="delete edge nat rule",
+        help=_("delete edge nat rule"),
+        description=_("delete edge nat rule"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4699,7 +5266,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["rule"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4713,18 +5280,18 @@ class VspherePlatformController(BaseController):
         rule = self.app.pargs.rule
         self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.nat_rule_delete(oid, rule)
-        self.app.render({"msg": "delete nat rule %s" % rule})
+        self.app.render({"msg": f"delete nat rule {rule}"})
 
     @ex(
-        help="get edge routing info",
-        description="get edge routing info",
-        example="beehive platform vsphere edge-route-get -e <env>  edge-#####;beehive platform vsphere edge-route-get -e <env> -id edge-#####",
+        help=_("get edge routing info"),
+        description=_("get edge routing info"),
+        example="beehive platform vsphere edge-route-get -e <env>  edge-#####",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4740,14 +5307,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge static routes",
-        description="get edge static routes",
+        help=_("get edge static routes"),
+        description=_("get edge static routes"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4773,14 +5340,14 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="add edge default route",
-        description="add edge default route",
+        help=_("add edge default route"),
+        description=_("add edge default route"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4789,7 +5356,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["gateway"],
                     {
-                        "help": "edge gateway",
+                        "help": _("edge gateway"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4797,11 +5364,11 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["-mtu"],
-                    {"help": "mtu", "action": "store", "type": str, "default": 1500},
+                    {"help": _("mtu"), "action": "store", "type": str, "default": 1500},
                 ),
                 (
                     ["-vnic"],
-                    {"help": "vnic", "action": "store", "type": str, "default": 0},
+                    {"help": _("vnic"), "action": "store", "type": str, "default": 0},
                 ),
             ]
         ),
@@ -4815,14 +5382,14 @@ class VspherePlatformController(BaseController):
         self.app.render({"msg": "create default route"})
 
     @ex(
-        help="add edge static route",
-        description="add edge static route",
+        help=_("add edge static route"),
+        description=_("add edge static route"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4831,7 +5398,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["desc"],
                     {
-                        "help": "rule description",
+                        "help": _("rule description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4839,12 +5406,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["network"],
-                    {"help": "network", "action": "store", "type": str, "default": ""},
+                    {"help": _("network"), "action": "store", "type": str, "default": ""},
                 ),
                 (
                     ["next_hop"],
                     {
-                        "help": "next_hop address",
+                        "help": _("next_hop address"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -4852,12 +5419,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["-mtu"],
-                    {"help": "mtu", "action": "store", "type": str, "default": 1500},
+                    {"help": _("mtu"), "action": "store", "type": str, "default": 1500},
                 ),
                 (
                     ["-vnic"],
                     {
-                        "help": "if True enable logging",
+                        "help": _("if True enable logging"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4874,17 +5441,17 @@ class VspherePlatformController(BaseController):
         mtu = self.app.pargs.mtu
         vnic = self.app.pargs.vnic
         self.client.network.nsx.edge.route_static_add(oid, desc, network, next_hop, mtu=mtu, vnic=vnic)
-        self.app.render({"msg": "create static route %s" % desc})
+        self.app.render({"msg": f"create static route {desc}"})
 
     @ex(
-        help="delete edge static route",
-        description="delete edge static route",
+        help=_("delete edge static route"),
+        description=_("delete edge static route"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4895,19 +5462,19 @@ class VspherePlatformController(BaseController):
     )
     def edge_route_del_all(self):
         oid = self.app.pargs.id
-        edge = self.client.network.nsx.edge.get(oid)
+        #edge = self.client.network.nsx.edge.get(oid)
         self.client.network.nsx.edge.route_static_del_all(oid)
-        self.app.render({"msg": "delete all edge %s routes" % oid})
+        self.app.render({"msg": f"delete all edge {oid} routes"})
 
     @ex(
-        help="get edge syslog config",
-        description="get edge syslog config",
+        help=_("get edge syslog config"),
+        description=_("get edge syslog config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4922,15 +5489,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="add edge syslog servers",
-        description="add edge syslog servers",
-        example="beehive platform vsphere edge-syslog-add edge-##### ###.###.###.###:514 -e <env>;beehive platform vsphere edge-syslog-add edge-##### ###.###.###.###:514 -e <env>",
+        help=_("add edge syslog servers"),
+        description=_("add edge syslog servers"),
+        example="beehive platform vsphere edge-syslog-add edge-##### ###.###.###.###:514 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4939,7 +5506,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["servers"],
                     {
-                        "help": "rsyslog server ip address comma separated",
+                        "help": _("rsyslog server ip address comma separated"),
                         "action": "store",
                         "type": str,
                     },
@@ -4951,17 +5518,17 @@ class VspherePlatformController(BaseController):
         oid = self.app.pargs.id
         servers = self.app.pargs.servers.split(",")
         self.client.network.nsx.edge.syslog_add(oid, servers)
-        self.app.render({"msg": "add syslog servers %s to edge %s" % (servers, oid)})
+        self.app.render({"msg": f"add syslog servers {servers} to edge {oid}"})
 
     @ex(
-        help="delete edge syslog servers",
-        description="delete edge syslog servers",
+        help=_("delete edge syslog servers"),
+        description=_("delete edge syslog servers"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4973,17 +5540,17 @@ class VspherePlatformController(BaseController):
     def edge_syslog_del(self):
         oid = self.app.pargs.id
         self.client.network.nsx.edge.syslog_del(oid)
-        self.app.render({"msg": "delete syslog servers from edge %s" % oid})
+        self.app.render({"msg": f"delete syslog servers from edge {oid}"})
 
     @ex(
-        help="get vsphere edge l2 vpn config",
-        description="get vsphere edge l2 vpn config",
+        help=_("get vsphere edge l2 vpn config"),
+        description=_("get vsphere edge l2 vpn config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4999,15 +5566,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge ssl vpn config",
-        description="get edge ssl vpn config",
-        example="beehive platform vsphere edge-sslvpn-get edge-##### -e <env>;beehive platform vsphere edge-sslvpn-get <uuid>",
+        help=_("get edge ssl vpn config"),
+        description=_("get edge ssl vpn config"),
+        example="beehive platform vsphere edge-sslvpn-get edge-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5119,14 +5686,14 @@ class VspherePlatformController(BaseController):
         self.app.render(users, headers=headers)
 
     @ex(
-        help="get vsphere edge sslvpn sessions",
-        description="get vsphere edge sslvpn sessions",
+        help=_("get vsphere edge sslvpn sessions"),
+        description=_("get vsphere edge sslvpn sessions"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5141,14 +5708,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="delete vsphere edge sslvpn session",
-        description="delete vsphere edge sslvpn session",
+        help=_("delete vsphere edge sslvpn session"),
+        description=_("delete vsphere edge sslvpn session"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5157,7 +5724,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["session"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5173,14 +5740,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="add edge ssl vpn server config",
-        description="add edge ssl vpn server config",
+        help=_("add edge ssl vpn server config"),
+        description=_("add edge ssl vpn server config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5189,7 +5756,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ip"],
                     {
-                        "help": "server ip address",
+                        "help": _("server ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5198,7 +5765,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["port"],
                     {
-                        "help": "server port",
+                        "help": _("server port"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5214,14 +5781,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_server_config_add(oid, ip, port)
 
     @ex(
-        help="add edge ssl vpn private network",
-        description="add edge ssl vpn private network",
+        help=_("add edge ssl vpn private network"),
+        description=_("add edge ssl vpn private network"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5230,7 +5797,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["network"],
                     {
-                        "help": "network cidr",
+                        "help": _("network cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5239,7 +5806,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-optimize"],
                     {
-                        "help": "send tunnel optimize",
+                        "help": _("send tunnel optimize"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -5255,14 +5822,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_private_network_add(oid, network, optimize=str2bool(optimize))
 
     @ex(
-        help="delete all the edge ssl vpn private network",
-        description="delete all the  edge ssl vpn private network",
+        help=_("delete all the edge ssl vpn private network"),
+        description=_("delete all the  edge ssl vpn private network"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5271,7 +5838,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["network"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5286,14 +5853,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_private_network_delete(oid, network)
 
     @ex(
-        help="delete all the edge ssl vpn private network",
-        description="delete all the  edge ssl vpn private network",
+        help=_("delete all the edge ssl vpn private network"),
+        description=_("delete all the  edge ssl vpn private network"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5307,14 +5874,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_private_network_delete_all(oid)
 
     @ex(
-        help="add edge ssl vpn ippool",
-        description="add edge ssl vpn ippool",
+        help=_("add edge ssl vpn ippool"),
+        description=_("add edge ssl vpn ippool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5323,7 +5890,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-ip_range"],
                     {
-                        "help": "ip range. Default 172.30.0.10-172.30.0.99",
+                        "help": _("ip range. Default 172.30.0.10-172.30.0.99"),
                         "action": "store",
                         "type": str,
                         "default": "172.30.0.10-172.30.0.99",
@@ -5332,7 +5899,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-netmask"],
                     {
-                        "help": "netmask. Default 255.255.255.0",
+                        "help": _("netmask. Default 255.255.255.0"),
                         "action": "store",
                         "type": str,
                         "default": "255.255.255.0",
@@ -5341,7 +5908,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-gateway"],
                     {
-                        "help": "gateway. Default 172.30.0.1",
+                        "help": _("gateway. Default 172.30.0.1"),
                         "action": "store",
                         "type": str,
                         "default": "172.30.0.1",
@@ -5350,7 +5917,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-primary_dns"],
                     {
-                        "help": "primary dns. Default 10.103.48.1",
+                        "help": _("primary dns. Default 10.103.48.1"),
                         "action": "store",
                         "type": str,
                         "default": "10.103.48.1",
@@ -5359,7 +5926,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-secondary_dns"],
                     {
-                        "help": "secondary dns. Default 10.103.48.2",
+                        "help": _("secondary dns. Default 10.103.48.2"),
                         "action": "store",
                         "type": str,
                         "default": "10.103.48.2",
@@ -5368,7 +5935,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dns_suffix"],
                     {
-                        "help": "dns suffix",
+                        "help": _("dns suffix"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5377,7 +5944,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-wins_server"],
                     {
-                        "help": "wins server",
+                        "help": _("wins server"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5407,14 +5974,14 @@ class VspherePlatformController(BaseController):
         )
 
     @ex(
-        help="delete all the edge ssl vpn ippool",
-        description="delete all the  edge ssl vpn ippool",
+        help=_("delete all the edge ssl vpn ippool"),
+        description=_("delete all the  edge ssl vpn ippool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5423,7 +5990,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["ippool"],
                     {
-                        "help": "ippool id",
+                        "help": _("ippool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5438,14 +6005,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_ip_pool_delete(oid, ippool)
 
     @ex(
-        help="delete all the edge ssl vpn ippool",
-        description="delete all the  edge ssl vpn ippool",
+        help=_("delete all the edge ssl vpn ippool"),
+        description=_("delete all the  edge ssl vpn ippool"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5459,14 +6026,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_ip_pool_delete_all(oid)
 
     @ex(
-        help="add edge ssl vpn install pkg",
-        description="add edge ssl vpn install pkg",
+        help=_("add edge ssl vpn install pkg"),
+        description=_("add edge ssl vpn install pkg"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5474,12 +6041,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["name"],
-                    {"help": "install package name", "action": "store", "type": str},
+                    {"help": _("install package name"), "action": "store", "type": str},
                 ),
                 (
                     ["gateways"],
                     {
-                        "help": "comma separated list of gateway. server:port",
+                        "help": _("comma separated list of gateway. server:port"),
                         "action": "store",
                         "type": str,
                     },
@@ -5494,14 +6061,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_install_pkg_add(oid, name, [g.split(":") for g in gateways])
 
     @ex(
-        help="delete all the edge ssl vpn install pkg",
-        description="delete all the  edge ssl vpn install pkg",
+        help=_("delete all the edge ssl vpn install pkg"),
+        description=_("delete all the  edge ssl vpn install pkg"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5510,7 +6077,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["install_pkg"],
                     {
-                        "help": "install_pkg id",
+                        "help": _("install_pkg id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5525,14 +6092,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_install_pkg_delete(oid, install_pkg)
 
     @ex(
-        help="delete all the edge ssl vpn install pkg",
-        description="delete all the  edge ssl vpn install pkg",
+        help=_("delete all the edge ssl vpn install pkg"),
+        description=_("delete all the  edge ssl vpn install pkg"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5546,35 +6113,34 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_install_pkg_delete_all(oid)
 
     @ex(
-        help="add edge ssl vpn user",
-        description="add edge ssl vpn user",
-        example="beehive platform vsphere edge-sslvpn-user-add edge-##### abc abc abc def abc.def@ghi.lmno -password_never_expires false -change_password_on_next_login true ;beehive platform vsphere edge-sslvpn-user-add edge-##### #### xxxxx abc def abc_def ",
+        help=_("add edge ssl vpn user"),
+        description=_("add edge ssl vpn user"),
+        example="beehive platform vsphere edge-sslvpn-user-add edge-##### #### xxxxx abc def abc_def ",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["user_id"], {"help": "user id", "action": "store", "type": str}),
+                (["user_id"], {"help": _("user id"), "action": "store", "type": str}),
                 (
                     ["password"],
-                    {"help": "user password", "action": "store", "type": str},
+                    {"help": _("user password"), "action": "store", "type": str},
                 ),
                 (
                     ["first_name"],
-                    {"help": "first name", "action": "store", "type": str},
+                    {"help": _("first name"), "action": "store", "type": str},
                 ),
-                (["last_name"], {"help": "last name", "action": "store", "type": str}),
+                (["last_name"], {"help": _("last name"), "action": "store", "type": str}),
                 (
                     ["desc"],
                     {
-                        "help": "user description",
-                        "action": "store",
+                        "help": _("user description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -5584,7 +6150,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-disable"],
                     {
-                        "help": "disable user account",
+                        "help": _("disable user account"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -5593,7 +6159,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-password_never_expires"],
                     {
-                        "help": "password never expires",
+                        "help": _("password never expires"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -5602,7 +6168,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-change_password_on_next_login"],
                     {
-                        "help": "change password on next login",
+                        "help": _("change password on next login"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -5638,23 +6204,23 @@ class VspherePlatformController(BaseController):
     # uncomment to use
 
     @ex(
-        help="change edge ssl vpn user password",
-        description="change edge ssl vpn user password",
+        help=_("change edge ssl vpn user password"),
+        description=_("change edge ssl vpn user password"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["user_id"], {"help": "user id", "action": "store", "type": str}),
+                (["user_id"], {"help": _("user id"), "action": "store", "type": str}),
                 (
                     ["password"],
-                    {"help": "user password", "action": "store", "type": str},
+                    {"help": _("user password"), "action": "store", "type": str},
                 ),
             ]
         )
@@ -5668,15 +6234,15 @@ class VspherePlatformController(BaseController):
     """
 
     @ex(
-        help="delete all the edge ssl vpn user",
-        description="delete all the  edge ssl vpn user",
-        example="beehive platform vsphere edge-sslvpn-user-del edge-##### 73346;beehive platform vsphere edge-sslvpn-user-del edge-##### user-412 -e <env>",
+        help=_("delete all the edge ssl vpn user"),
+        description=_("delete all the  edge ssl vpn user"),
+        example="beehive platform vsphere edge-sslvpn-user-del edge-##### user-412 -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5685,7 +6251,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["user"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5700,14 +6266,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_user_delete(oid, user)
 
     @ex(
-        help="enable edge ssl vpn service",
-        description="enable edge ssl vpn service",
+        help=_("enable edge ssl vpn service"),
+        description=_("enable edge ssl vpn service"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5721,14 +6287,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_enable(oid)
 
     @ex(
-        help="disable edge ssl vpn service",
-        description="disable edge ssl vpn service",
+        help=_("disable edge ssl vpn service"),
+        description=_("disable edge ssl vpn service"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5742,14 +6308,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_disable(oid)
 
     @ex(
-        help="delete edge ssl vpn service",
-        description="delete edge ssl vpn service",
+        help=_("delete edge ssl vpn service"),
+        description=_("delete edge ssl vpn service"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5763,14 +6329,14 @@ class VspherePlatformController(BaseController):
         self.client.network.nsx.edge.sslvpn_delete(oid)
 
     @ex(
-        help="delete vsphere edge",
-        description="delete vsphere edge",
+        help=_("delete vsphere edge"),
+        description=_("delete vsphere edge"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5790,14 +6356,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge dns config",
-        description="get edge dns config",
+        help=_("get edge dns config"),
+        description=_("get edge dns config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5817,14 +6383,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge dhcp config",
-        description="get edge dhcp config",
+        help=_("get edge dhcp config"),
+        description=_("get edge dhcp config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5844,14 +6410,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge ipsec config",
-        description="get edge ipsec config",
+        help=_("get edge ipsec config"),
+        description=_("get edge ipsec config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5871,14 +6437,14 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="get edge global load balancer config",
-        description="get edge global load balancer config",
+        help=_("get edge global load balancer config"),
+        description=_("get edge global load balancer config"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5894,42 +6460,42 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200)
 
     @ex(
-        help="enable edge load balancer",
-        description="enable edge load balancer configuration",
+        help=_("enable edge load balancer"),
+        description=_("enable edge load balancer configuration"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
             ]
         ),
     )
     def edge_lb_start(self):
         edge_id = self.app.pargs.edge
-        res = self.client.network.nsx.edge.lb.config_update(edge_id, enabled=True)
-        msg = {"msg": "Enable load balancer on edge %s" % edge_id}
+        self.client.network.nsx.edge.lb.config_update(edge_id, enabled=True)
+        msg = {"msg": f"Enable load balancer on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="disable edge load balancer",
-        description="disable edge load balancer configuration",
+        help=_("disable edge load balancer"),
+        description=_("disable edge load balancer configuration"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
             ]
         ),
     )
     def edge_lb_stop(self):
         edge_id = self.app.pargs.edge
-        res = self.client.network.nsx.edge.lb.config_update(edge_id, enabled=False)
-        msg = {"msg": "Disable load balancer on edge %s" % edge_id}
+        self.client.network.nsx.edge.lb.config_update(edge_id, enabled=False)
+        msg = {"msg": f"Disable load balancer on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer config",
-        description="get edge load balancer config",
-        example="beehive platform vsphere edge-lb-config-get edge-##### -e <env>;beehive platform vsphere edge-lb-config-get edge-##### -e <env>",
+        help=_("get edge load balancer config"),
+        description=_("get edge load balancer config"),
+        example="beehive platform vsphere edge-lb-config-get edge-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -6052,7 +6618,7 @@ class VspherePlatformController(BaseController):
                 if item.get("title") == "pool":
                     for pool in item["value"]:
                         members = []
-                        for m in pool.pop("member"):
+                        for m in pool.pop("member", []):
                             m["poolId"] = pool.get("poolId")
                             m["poolName"] = pool.get("name")
                             members.append(m)
@@ -6096,16 +6662,17 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True, maxsize=200, manage_data=manage_data)
 
     @ex(
-        help="set general edge load balancer parameters",
-        description="set general edge load balancer parameters",
+        help=_("set general edge load balancer parameters"),
+        description=_("set general edge load balancer parameters"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-acceleration"],
                     {
-                        "help": "force load balancer to use L4 engine which is faster and more efficient than "
-                        "L7 engine",
+                        "help": _(
+                            "force load balancer to use L4 engine which is faster and more efficient than L7 engine"
+                        ),
                         "action": "store",
                         "type": str,
                         "choices": [True, False],
@@ -6114,7 +6681,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-logging"],
                     {
-                        "help": "enable/disable load balancer logging",
+                        "help": _("enable/disable load balancer logging"),
                         "action": "store",
                         "type": str,
                         "choices": [True, False],
@@ -6123,7 +6690,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-log_level"],
                     {
-                        "help": "logging level",
+                        "help": _("logging level"),
                         "action": "store",
                         "type": str,
                         "choices": [
@@ -6157,20 +6724,20 @@ class VspherePlatformController(BaseController):
         if log_level is not None:
             data.update({"log_level": log_level})
 
-        res = self.client.network.nsx.edge.lb.config_update(edge_id, **data)
-        msg = {"msg": "Update load balancer configuration on edge %s" % edge_id}
+        self.client.network.nsx.edge.lb.config_update(edge_id, **data)
+        msg = {"msg": f"Update load balancer configuration on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer statistics",
-        description="get edge load balancer statistics",
+        help=_("get edge load balancer statistics"),
+        description=_("get edge load balancer statistics"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-pool"],
                     {
-                        "help": "pool id",
+                        "help": _("pool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6349,15 +6916,15 @@ class VspherePlatformController(BaseController):
         self.app.render(members, headers=headers, fields=fields)
 
     @ex(
-        help="get edge load balancer pools",
-        description="get edge load balancer pools",
+        help=_("get edge load balancer pools"),
+        description=_("get edge load balancer pools"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "pool id",
+                        "help": _("pool id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6366,7 +6933,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "pool name",
+                        "help": _("pool name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6397,7 +6964,7 @@ class VspherePlatformController(BaseController):
                     self.app.render(pool, details=True)
                     self.__render_members(members)
                 else:
-                    msg = {"msg": "Pool %s not found" % pool_name}
+                    msg = {"msg": f"Pool {pool_name} not found"}
                     self.app.render(msg, headers=["msg"])
             else:
                 headers = [
@@ -6419,17 +6986,17 @@ class VspherePlatformController(BaseController):
                 self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge load balancer pool",
-        description="add edge load balancer pool",
+        help=_("add edge load balancer pool"),
+        description=_("add edge load balancer pool"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["name"], {"help": "pool name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["name"], {"help": _("pool name"), "action": "store", "type": str}),
                 (
                     ["algorithm"],
                     {
                         "metavar": "algorithm",
-                        "help": "balancing algorithm {round-robin,ip-hash,leastconn,uri}",
+                        "help": _("balancing algorithm {round-robin,ip-hash,leastconn,uri}"),
                         "choices": ["round-robin", "ip-hash", "leastconn", "uri"],
                         "action": "store",
                         "type": str,
@@ -6438,7 +7005,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "pool description",
+                        "help": _("pool description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -6447,7 +7014,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-transparent"],
                     {
-                        "help": "whether client IP addresses are visible to the backend servers",
+                        "help": _("whether client IP addresses are visible to the backend servers"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -6456,12 +7023,12 @@ class VspherePlatformController(BaseController):
                 ),
                 (
                     ["-monitor"],
-                    {"help": "health check monitor id", "action": "store", "type": str},
+                    {"help": _("health check monitor id"), "action": "store", "type": str},
                 ),
                 (
                     ["-ip_ver"],
                     {
-                        "help": "ip address version",
+                        "help": _("ip address version"),
                         "action": "store",
                         "type": str,
                         "choices": ["ipv4", "ipv6"],
@@ -6482,21 +7049,21 @@ class VspherePlatformController(BaseController):
         }
 
         res = self.client.network.nsx.edge.lb.pool_add(edge_id, name, algorithm, **params)
-        msg = {"msg": "Add pool %s on edge %s" % (res.get("ext_id"), edge_id)}
+        msg = {"msg": f"Add pool {res.get('ext_id')} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="add member to edge load balancer pool",
-        description="add member to edge load balancer pool",
+        help=_("add member to edge load balancer pool"),
+        description=_("add member to edge load balancer pool"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "pool id", "action": "store", "type": str}),
-                (["name"], {"help": "member name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("pool id"), "action": "store", "type": str}),
+                (["name"], {"help": _("member name"), "action": "store", "type": str}),
                 (
                     ["-ip_addr"],
                     {
-                        "help": "member ip address",
+                        "help": _("member ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6505,7 +7072,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-grouping_obj_id"],
                     {
-                        "help": "member grouping object id",
+                        "help": _("member grouping object id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6514,7 +7081,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-port"],
                     {
-                        "help": "member port",
+                        "help": _("member port"),
                         "action": "store",
                         "type": int,
                         "default": 80,
@@ -6523,7 +7090,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-monit_port"],
                     {
-                        "help": "monitor port",
+                        "help": _("monitor port"),
                         "action": "store",
                         "type": int,
                         "default": 80,
@@ -6532,7 +7099,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-weight"],
                     {
-                        "help": "member weight",
+                        "help": _("member weight"),
                         "action": "store",
                         "type": int,
                         "default": 1,
@@ -6541,8 +7108,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-max_conn"],
                     {
-                        "help": "maximum number of concurrent connections a member can handle. Default is 0 which "
-                        "means unlimited",
+                        "help": _(
+                            "maximum number of concurrent connections a member can handle. Default is 0 which "
+                            "means unlimited"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -6551,8 +7120,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-min_conn"],
                     {
-                        "help": "minimum number of concurrent connections a member can handle. Default is 0 which "
-                        "means unlimited",
+                        "help": _(
+                            "minimum number of concurrent connections a member can handle. Default is 0 which "
+                            "means unlimited"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -6561,7 +7132,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cond"],
                     {
-                        "help": "Whether the member is enabled or disabled. Default is enabled",
+                        "help": _("Whether the member is enabled or disabled. Default is enabled"),
                         "action": "store",
                         "type": str,
                         "default": "enabled",
@@ -6587,20 +7158,20 @@ class VspherePlatformController(BaseController):
         }
 
         self.client.network.nsx.edge.lb.pool_members_add(edge_id, pool_id, [params])
-        msg = {"msg": "Add member %s in pool %s on edge %s" % (name, pool_id, edge_id)}
+        msg = {"msg": f"Add member {name} in pool {pool_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="remove member from edge load balancer pool",
-        description="remove member from edge load balancer pool",
+        help=_("remove member from edge load balancer pool"),
+        description=_("remove member from edge load balancer pool"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["pool"], {"help": "pool id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["pool"], {"help": _("pool id"), "action": "store", "type": str}),
                 (
                     ["ids"],
                     {
-                        "help": "comma separated list of member ids",
+                        "help": _("comma separated list of member ids"),
                         "action": "store",
                         "type": str,
                     },
@@ -6614,22 +7185,22 @@ class VspherePlatformController(BaseController):
         member_ids = self.app.pargs.ids
         member_ids = member_ids.split(",")
 
-        res = self.client.network.nsx.edge.lb.pool_member_del(edge_id, pool_id, member_ids)
-        msg = {"msg": "Remove members %s from pool %s on edge %s" % (member_ids, pool_id, edge_id)}
+        self.client.network.nsx.edge.lb.pool_members_del(edge_id, pool_id, member_ids)
+        msg = {"msg": f"Remove members {member_ids} from pool {pool_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="update edge load balancer pool",
-        description="update edge load balancer pool",
+        help=_("update edge load balancer pool"),
+        description=_("update edge load balancer pool"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "pool id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("pool id"), "action": "store", "type": str}),
                 (
                     ["-algorithm"],
                     {
                         "metavar": "algorithm",
-                        "help": "balancing algorithm {round-robin,ip-hash,leastconn,uri}",
+                        "help": _("balancing algorithm {round-robin,ip-hash,leastconn,uri}"),
                         "choices": ["round-robin", "ip-hash", "leastconn", "uri"],
                         "action": "store",
                         "type": str,
@@ -6638,7 +7209,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-transparent"],
                     {
-                        "help": "whether client IP addresses are visible to the backend servers",
+                        "help": _("whether client IP addresses are visible to the backend servers"),
                         "action": "store",
                         "type": bool,
                         "default": False,
@@ -6656,17 +7227,17 @@ class VspherePlatformController(BaseController):
             "transparent": self.app.pargs.transparent,
         }
 
-        res = self.client.network.nsx.edge.lb.pool_update(edge_id, pool_id, **params)
-        msg = {"msg": "Update pool %s on edge %s" % (pool_id, edge_id)}
+        self.client.network.nsx.edge.lb.pool_update(edge_id, pool_id, **params)
+        msg = {"msg": f"Update pool {pool_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="delete edge load balancer pool",
-        description="delete edge load balancer pool",
+        help=_("delete edge load balancer pool"),
+        description=_("delete edge load balancer pool"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "pool id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("pool id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -6675,19 +7246,19 @@ class VspherePlatformController(BaseController):
         pool_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.pool_del(edge_id, pool_id)
-        msg = {"msg": "Delete pool %s on edge %s" % (pool_id, edge_id)}
+        msg = {"msg": f"Delete pool {pool_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer application profiles",
-        description="get edge load balancer application profiles",
+        help=_("get edge load balancer application profiles"),
+        description=_("get edge load balancer application profiles"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "application profile id",
+                        "help": _("application profile id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6744,17 +7315,17 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge load balancer application profile",
-        description="add edge load balancer application profile",
+        help=_("add edge load balancer application profile"),
+        description=_("add edge load balancer application profile"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["name"], {"help": "profile name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["name"], {"help": _("profile name"), "action": "store", "type": str}),
                 (
                     ["template"],
                     {
                         "metavar": "template",
-                        "help": "network traffic template {TCP,UDP,HTTP,HTTPS}",
+                        "help": _("network traffic template {TCP,UDP,HTTP,HTTPS}"),
                         "choices": ["TCP", "UDP", "HTTP", "HTTPS"],
                         "action": "store",
                         "type": str,
@@ -6763,7 +7334,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-http_redirect_url"],
                     {
-                        "help": "HTTP redirect URL",
+                        "help": _("HTTP redirect URL"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6772,7 +7343,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-persistence"],
                     {
-                        "help": "persistence method",
+                        "help": _("persistence method"),
                         "choices": ["cookie", "ssl_sessionid", "sourceip", "msrdp"],
                         "action": "store",
                         "type": str,
@@ -6782,7 +7353,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-expire"],
                     {
-                        "help": "persistence time in seconds [Default=300]",
+                        "help": _("persistence time in seconds [Default=300]"),
                         "action": "store",
                         "type": str,
                         "default": 300,
@@ -6791,7 +7362,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cookie_name"],
                     {
-                        "help": "cookie name",
+                        "help": _("cookie name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6800,7 +7371,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cookie_mode"],
                     {
-                        "help": "cookie mode [Default=insert]",
+                        "help": _("cookie mode [Default=insert]"),
                         "choices": ["insert", "prefix", "app"],
                         "action": "store",
                         "type": str,
@@ -6810,7 +7381,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-insert_x_forwarded_for"],
                     {
-                        "help": "insert X-Forwarded-for HTTP header [Default=False]",
+                        "help": _("insert X-Forwarded-for HTTP header [Default=False]"),
                         "action": "store",
                         "type": bool,
                         "choices": [True, False],
@@ -6820,7 +7391,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-ssl_passthrough"],
                     {
-                        "help": "enable SSL passthrough [Default=False]",
+                        "help": _("enable SSL passthrough [Default=False]"),
                         "action": "store",
                         "type": bool,
                         "choices": [True, False],
@@ -6830,7 +7401,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-client_ssl_serv_cert"],
                     {
-                        "help": "client service certificate id. Required when client ssl=True",
+                        "help": _("client service certificate id. Required when client ssl=True"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6839,7 +7410,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-client_ssl_ca_cert"],
                     {
-                        "help": "client ca certificate id [Optional]",
+                        "help": _("client ca certificate id [Optional]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6848,7 +7419,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-client_ssl_cipher"],
                     {
-                        "help": "client cipher suite [Default=DEFAULT]",
+                        "help": _("client cipher suite [Default=DEFAULT]"),
                         "choices": [
                             "DEFAULT",
                             "ECDHE-RSA-AES128-GCM-SHA256",
@@ -6868,7 +7439,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-client_auth"],
                     {
-                        "help": "whether peer certificate should be verified [Default=Ignore]",
+                        "help": _("whether peer certificate should be verified [Default=Ignore]"),
                         "choices": ["Required", "Ignore"],
                         "action": "store",
                         "type": str,
@@ -6878,7 +7449,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-server_ssl_serv_cert"],
                     {
-                        "help": "server service certificate id",
+                        "help": _("server service certificate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6887,7 +7458,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-server_ssl_ca_cert"],
                     {
-                        "help": "server ca certificate id. Mandatory if -server_auth is set to Required",
+                        "help": _("server ca certificate id. Mandatory if -server_auth is set to Required"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6896,7 +7467,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-server_ssl_cipher"],
                     {
-                        "help": "server cipher suite [Default=DEFAULT]",
+                        "help": _("server cipher suite [Default=DEFAULT]"),
                         "choices": [
                             "DEFAULT",
                             "ECDHE-RSA-AES128-GCM-SHA256",
@@ -6916,7 +7487,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-server_auth"],
                     {
-                        "help": "whether peer certificate should be verified [Default=Ignore]",
+                        "help": _("whether peer certificate should be verified [Default=Ignore]"),
                         "choices": ["Required", "Ignore"],
                         "action": "store",
                         "type": str,
@@ -6926,7 +7497,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-server_ssl_enabled"],
                     {
-                        "help": "enable pool side SSL [Default=False]",
+                        "help": _("enable pool side SSL [Default=False]"),
                         "choices": [True, False],
                         "action": "store",
                         "type": bool,
@@ -6962,20 +7533,20 @@ class VspherePlatformController(BaseController):
         }
 
         res = self.client.network.nsx.edge.lb.app_profile_add(edge_id, name, template, **params)
-        msg = {"msg": "Add app profile %s on edge %s" % (res.get("ext_id"), edge_id)}
+        msg = {"msg": f"Add app profile {res.get('ext_id')} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="update edge load balancer application profile",
-        description="update edge load balancer application profile",
+        help=_("update edge load balancer application profile"),
+        description=_("update edge load balancer application profile"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "profile id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("profile id"), "action": "store", "type": str}),
                 (
                     ["-http_redirect_url"],
                     {
-                        "help": "HTTP redirect URL",
+                        "help": _("HTTP redirect URL"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6984,7 +7555,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-persistence"],
                     {
-                        "help": "persistence method",
+                        "help": _("persistence method"),
                         "choices": ["cookie", "ssl_sessionid", "sourceip", "msrdp"],
                         "action": "store",
                         "type": str,
@@ -6994,7 +7565,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-expire"],
                     {
-                        "help": "persistence time in seconds [Default=300]",
+                        "help": _("persistence time in seconds [Default=300]"),
                         "action": "store",
                         "type": str,
                         "default": 300,
@@ -7003,7 +7574,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cookie_name"],
                     {
-                        "help": "cookie name",
+                        "help": _("cookie name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7012,7 +7583,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cookie_mode"],
                     {
-                        "help": "cookie mode [Default=insert]",
+                        "help": _("cookie mode [Default=insert]"),
                         "choices": ["insert", "prefix", "app"],
                         "action": "store",
                         "type": str,
@@ -7022,7 +7593,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-insert_x_forwarded_for"],
                     {
-                        "help": "insert X-Forwarded-for HTTP header [Default=False]",
+                        "help": _("insert X-Forwarded-for HTTP header [Default=False]"),
                         "action": "store",
                         "type": bool,
                         "choices": [True, False],
@@ -7046,17 +7617,17 @@ class VspherePlatformController(BaseController):
             "http_redirect_url": self.app.pargs.http_redirect_url,
         }
 
-        res = self.client.network.nsx.edge.lb.app_profile_update(edge_id, profile_id, **params)
-        msg = {"msg": "Update app profile %s on edge %s" % (profile_id, edge_id)}
+        self.client.network.nsx.edge.lb.app_profile_update(edge_id, profile_id, **params)
+        msg = {"msg": f"Update app profile {profile_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="delete edge load balancer application profile",
-        description="delete edge load balancer application profile",
+        help=_("delete edge load balancer application profile"),
+        description=_("delete edge load balancer application profile"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "profile id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("profile id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7064,21 +7635,21 @@ class VspherePlatformController(BaseController):
         edge_id = self.app.pargs.edge
         profile_id = self.app.pargs.id
 
-        res = self.client.network.nsx.edge.lb.app_profile_del(edge_id, profile_id)
-        msg = {"msg": "Delete profile %s on edge %s" % (profile_id, edge_id)}
+        self.client.network.nsx.edge.lb.app_profile_del(edge_id, profile_id)
+        msg = {"msg": f"Delete profile {profile_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer application rules",
-        description="get edge load balancer application rules",
+        help=_("get edge load balancer application rules"),
+        description=_("get edge load balancer application rules"),
         example="beehive platform vsphere edge-lb-rule-get -e <env> -id edge-#####",
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "rule id",
+                        "help": _("rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7101,18 +7672,20 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge load balancer application rule",
-        description="add edge load balancer application rule",
+        help=_("add edge load balancer application rule"),
+        description=_("add edge load balancer application rule"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["name"], {"help": "rule name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["name"], {"help": _("rule name"), "action": "store", "type": str}),
                 (
                     ["script"],
                     {
-                        "help": 'rule script. If it starts with "@", read content from a file. '
-                        "E.g. acl is_site01 hdr_dom(host) -i test-lb.site01.nivolapiemonte.it | use_backend "
-                        "test-pool-1 if is_site01",
+                        "help": _(
+                            "rule script. If it starts with '@', read content from a file. "
+                            "E.g.: acl is_site01 hdr_dom(host) -i test-lb.site01.nivolapiemonte.it | use_backend "
+                            "test-pool-1 if is_site01"
+                        ),
                         "action": "store",
                         "type": str,
                     },
@@ -7126,21 +7699,21 @@ class VspherePlatformController(BaseController):
         script = self.app.pargs.script
         if script is not None and script.find("@") == 0:
             script = BaseController.load_file(script.lstrip("@"))
-        res = self.client.network.nsx.edge.lb.app_rule_add(edge_id, name, script)
-        msg = {"msg": "Add application rule %s to edge %s" % (name, edge_id)}
+        self.client.network.nsx.edge.lb.app_rule_add(edge_id, name, script)
+        msg = {"msg": f"Add application rule {name} to edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="update edge load balancer application rules",
-        description="update edge load balancer application rules",
+        help=_("update edge load balancer application rules"),
+        description=_("update edge load balancer application rules"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "rule id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("rule id"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "rule name",
+                        "help": _("rule name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7149,7 +7722,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-script"],
                     {
-                        "help": "rule script",
+                        "help": _("rule script"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7165,35 +7738,35 @@ class VspherePlatformController(BaseController):
         script = self.app.pargs.script
         if script is not None and script.find("@") == 0:
             script = BaseController.load_file(script.lstrip("@"))
-        res = self.client.network.nsx.edge.lb.app_rule_update(edge_id, rule_id, name=name, script=script)
-        msg = {"msg": "Update application rule %s to edge %s" % (rule_id, edge_id)}
+        self.client.network.nsx.edge.lb.app_rule_update(edge_id, rule_id, name=name, script=script)
+        msg = {"msg": f"Update application rule {rule_id} to edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="delete edge load balancer application rules",
-        description="delete edge load balancer application rules",
+        help=_("delete edge load balancer application rules"),
+        description=_("delete edge load balancer application rules"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "rule id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("rule id"), "action": "store", "type": str}),
             ]
         ),
     )
     def edge_lb_rule_del(self):
         edge_id = self.app.pargs.edge
         rule_id = self.app.pargs.id
-        res = self.client.network.nsx.edge.lb.app_rule_del(edge_id, rule_id)
-        msg = {"msg": "Delete application rule %s on edge %s" % (rule_id, edge_id)}
+        self.client.network.nsx.edge.lb.app_rule_del(edge_id, rule_id)
+        msg = {"msg": f"Delete application rule {rule_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer monitors",
-        description="get edge load balancer monitors",
+        help=_("get edge load balancer monitors"),
+        description=_("get edge load balancer monitors"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["-id"], {"help": "monitor id", "action": "store", "type": str}),
-                (["-name"], {"help": "monitor name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["-id"], {"help": _("monitor id"), "action": "store", "type": str}),
+                (["-name"], {"help": _("monitor name"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7212,7 +7785,7 @@ class VspherePlatformController(BaseController):
                 if monitor is not None:
                     self.app.render(monitor, details=True, maxsize=400)
                 else:
-                    msg = {"msg": "Health monitor %s not found" % monitor_name}
+                    msg = {"msg": f"Health monitor {monitor_name} not found"}
                     self.app.render(msg, headers=["msg"])
             else:
                 headers = [
@@ -7238,17 +7811,17 @@ class VspherePlatformController(BaseController):
                 self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge load balancer monitor",
-        description="add edge load balancer monitor",
+        help=_("add edge load balancer monitor"),
+        description=_("add edge load balancer monitor"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["name"], {"help": "monitor name", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["name"], {"help": _("monitor name"), "action": "store", "type": str}),
                 (
                     ["type"],
                     {
                         "metavar": "type",
-                        "help": "monitor type {HTTP,HTTPS,TCP,ICMP,UDP}",
+                        "help": _("monitor type {HTTP,HTTPS,TCP,ICMP,UDP}"),
                         "choices": ["HTTP", "HTTPS", "TCP", "ICMP", "UDP"],
                         "action": "store",
                         "type": str,
@@ -7257,7 +7830,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-interval"],
                     {
-                        "help": "interval in seconds in which a server is to be tested [Default=5]",
+                        "help": _("interval in seconds in which a server is to be tested [Default=5]"),
                         "action": "store",
                         "type": int,
                         "default": 5,
@@ -7266,8 +7839,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-timeout"],
                     {
-                        "help": "maximum time in seconds in which a response from the server must be received "
-                        "[Default=15]",
+                        "help": _(
+                            "maximum time in seconds in which a response from the server must be received "
+                            "[Default=15]"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 15,
@@ -7276,8 +7851,9 @@ class VspherePlatformController(BaseController):
                 (
                     ["-max_retries"],
                     {
-                        "help": "maximum number of times the server is tested before it is declared down "
-                        "[Default=3]",
+                        "help": _(
+                            "maximum number of times the server is tested before it is declared down [Default=3]"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 3,
@@ -7286,8 +7862,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-method"],
                     {
-                        "help": "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
-                        "monitor type]",
+                        "help": _(
+                            "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
+                            "monitor type]"
+                        ),
                         "choices": ["GET", "POST", "OPTIONS"],
                         "action": "store",
                         "type": str,
@@ -7296,7 +7874,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-url"],
                     {
-                        "help": 'URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]',
+                        "help": _('URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]'),
                         "action": "store",
                         "type": str,
                     },
@@ -7304,7 +7882,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-expected"],
                     {
-                        "help": 'expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]',
+                        "help": _('expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]'),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7313,8 +7891,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-send"],
                     {
-                        "help": "string to be sent to the backend server after a connection is established. This "
-                        "option is mandatory when monitor type is UDP.",
+                        "help": _(
+                            "string to be sent to the backend server after a connection is established. This "
+                            "option is mandatory when monitor type is UDP."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7323,8 +7903,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-receive"],
                     {
-                        "help": "string to be received from the backend server for HTTP/HTTPS protocol. This "
-                        "option is mandatory when monitor type is UDP.",
+                        "help": _(
+                            "string to be received from the backend server for HTTP/HTTPS protocol. This "
+                            "option is mandatory when monitor type is UDP."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7333,7 +7915,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-extension"],
                     {
-                        "help": "advanced monitor configuration.",
+                        "help": _("advanced monitor configuration."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7372,20 +7954,20 @@ class VspherePlatformController(BaseController):
         }
 
         res = self.client.network.nsx.edge.lb.monitor_add(edge_id, name, monitor_type, **params)
-        msg = {"msg": "Add monitor %s on edge %s" % (res.get("ext_id"), edge_id)}
+        msg = {"msg": f"Add monitor {res.get('ext_id')} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="update edge load balancer service monitor",
-        description="update edge load balancer service monitor",
+        help=_("update edge load balancer service monitor"),
+        description=_("update edge load balancer service monitor"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "monitor id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("monitor id"), "action": "store", "type": str}),
                 (
                     ["-interval"],
                     {
-                        "help": "interval in seconds in which a server is to be tested [Default=5]",
+                        "help": _("interval in seconds in which a server is to be tested [Default=5]"),
                         "action": "store",
                         "type": int,
                         "default": 5,
@@ -7394,8 +7976,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-timeout"],
                     {
-                        "help": "maximum time in seconds in which a response from the server must be received "
-                        "[Default=15]",
+                        "help": _(
+                            "maximum time in seconds in which a response from the server must be received "
+                            "[Default=15]"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 15,
@@ -7404,8 +7988,9 @@ class VspherePlatformController(BaseController):
                 (
                     ["-max_retries"],
                     {
-                        "help": "maximum number of times the server is tested before it is declared down "
-                        "[Default=3]",
+                        "help": _(
+                            "maximum number of times the server is tested before it is declared down [Default=3]"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 3,
@@ -7414,8 +7999,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-method"],
                     {
-                        "help": "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
-                        "monitor type]",
+                        "help": _(
+                            "method to send the health check request to the server [Default=GET for HTTP/HTTPS "
+                            "monitor type]"
+                        ),
                         "choices": ["GET", "POST", "OPTIONS"],
                         "action": "store",
                         "type": str,
@@ -7424,7 +8011,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-url"],
                     {
-                        "help": 'URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]',
+                        "help": _('URL to GET or POST [Default="/" for HTTP/HTTPS monitor type]'),
                         "action": "store",
                         "type": str,
                     },
@@ -7432,7 +8019,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-expected"],
                     {
-                        "help": 'expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]',
+                        "help": _('expected string [Default="HTTP/1" for HTTP/HTTPS monitor type]'),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7441,8 +8028,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-send"],
                     {
-                        "help": "string to be sent to the backend server after a connection is established. This "
-                        "option is mandatory when monitor type is UDP.",
+                        "help": _(
+                            "string to be sent to the backend server after a connection is established. This "
+                            "option is mandatory when monitor type is UDP."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7451,8 +8040,10 @@ class VspherePlatformController(BaseController):
                 (
                     ["-receive"],
                     {
-                        "help": "string to be received from the backend server for HTTP/HTTPS protocol. This "
-                        "option is mandatory when monitor type is UDP.",
+                        "help": _(
+                            "string to be received from the backend server for HTTP/HTTPS protocol. This "
+                            "option is mandatory when monitor type is UDP."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7475,17 +8066,17 @@ class VspherePlatformController(BaseController):
             "receive": self.app.pargs.receive,
         }
 
-        res = self.client.network.nsx.edge.lb.monitor_update(edge_id, monitor_id, **params)
-        msg = {"msg": "Update monitor %s on edge %s" % (monitor_id, edge_id)}
+        self.client.network.nsx.edge.lb.monitor_update(edge_id, monitor_id, **params)
+        msg = {"msg": f"Update monitor {monitor_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="delete edge load balancer monitor",
-        description="delete edge load balancer monitor",
+        help=_("delete edge load balancer monitor"),
+        description=_("delete edge load balancer monitor"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "monitor id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("monitor id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7494,19 +8085,19 @@ class VspherePlatformController(BaseController):
         monitor_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.monitor_del(edge_id, monitor_id)
-        msg = {"msg": "Delete monitor %s on edge %s" % (monitor_id, edge_id)}
+        msg = {"msg": f"Delete monitor {monitor_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="get edge load balancer virtual servers",
-        description="get edge load balancer virtual servers",
+        help=_("get edge load balancer virtual servers"),
+        description=_("get edge load balancer virtual servers"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "virtual server id",
+                        "help": _("virtual server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7548,19 +8139,19 @@ class VspherePlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add edge load balancer virtual server",
-        description="add edge load balancer virtual server",
+        help=_("add edge load balancer virtual server"),
+        description=_("add edge load balancer virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["name"],
-                    {"help": "virtual server name", "action": "store", "type": str},
+                    {"help": _("virtual server name"), "action": "store", "type": str},
                 ),
                 (
                     ["ip_address"],
                     {
-                        "help": "ip address that the load balancer is listening on",
+                        "help": _("ip address that the load balancer is listening on"),
                         "action": "store",
                         "type": str,
                     },
@@ -7569,22 +8160,22 @@ class VspherePlatformController(BaseController):
                     ["protocol"],
                     {
                         "metavar": "protocol",
-                        "help": "virtual server protocol {HTTP,HTTPS}",
+                        "help": _("virtual server protocol {HTTP,HTTPS}"),
                         "choices": ["HTTP", "HTTPS"],
                         "action": "store",
                         "type": str,
                     },
                 ),
-                (["port"], {"help": "port number", "action": "store", "type": int}),
+                (["port"], {"help": _("port number"), "action": "store", "type": int}),
                 (
                     ["app_profile"],
-                    {"help": "application profile id", "action": "store", "type": str},
+                    {"help": _("application profile id"), "action": "store", "type": str},
                 ),
-                (["pool"], {"help": "pool id", "action": "store", "type": str}),
+                (["pool"], {"help": _("pool id"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "virtual server description",
+                        "help": _("virtual server description"),
                         "action": "store",
                         "type": str,
                         "default": "",
@@ -7593,7 +8184,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-max_conn"],
                     {
-                        "help": "maximum concurrent connections",
+                        "help": _("maximum concurrent connections"),
                         "action": "store",
                         "type": int,
                     },
@@ -7601,7 +8192,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-max_conn_rate"],
                     {
-                        "help": "maximum incoming new connection requests per second",
+                        "help": _("maximum incoming new connection requests per second"),
                         "action": "store",
                         "type": int,
                     },
@@ -7609,7 +8200,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-acceleration_enabled"],
                     {
-                        "help": "use faster L4 load balancer engine rather than L7 load balancer " "engine",
+                        "help": _("use faster L4 load balancer engine rather than L7 load balancer engine"),
                         "choices": [True, False],
                         "action": "store",
                         "type": bool,
@@ -7636,20 +8227,20 @@ class VspherePlatformController(BaseController):
         res = self.client.network.nsx.edge.lb.virt_server_add(
             edge_id, name, ip_address, protocol, port, app_profile, pool, **params
         )
-        msg = {"msg": "Add virtual server %s on edge %s" % (res.get("ext_id"), edge_id)}
+        msg = {"msg": f"Add virtual server {res.get('ext_id')} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="update edge load balancer virtual server",
-        description="update edge load balancer virtual server",
+        help=_("update edge load balancer virtual server"),
+        description=_("update edge load balancer virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("virtual server id"), "action": "store", "type": str}),
                 (
                     ["-enabled"],
                     {
-                        "help": "whether the virtual server is enabled",
+                        "help": _("whether the virtual server is enabled"),
                         "choices": [True, False],
                         "action": "store",
                         "type": bool,
@@ -7658,7 +8249,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-ip_address"],
                     {
-                        "help": "ip address that the load balancer is listening on",
+                        "help": _("ip address that the load balancer is listening on"),
                         "action": "store",
                         "type": str,
                     },
@@ -7666,18 +8257,18 @@ class VspherePlatformController(BaseController):
                 (
                     ["-protocol"],
                     {
-                        "help": "virtual server protocol",
+                        "help": _("virtual server protocol"),
                         "choices": [True, False],
                         "action": "store",
                         "type": str,
                     },
                 ),
-                (["-port"], {"help": "port number", "action": "store", "type": int}),
+                (["-port"], {"help": _("port number"), "action": "store", "type": int}),
                 (
                     ["-app_profile"],
-                    {"help": "application profile id", "action": "store", "type": str},
+                    {"help": _("application profile id"), "action": "store", "type": str},
                 ),
-                (["-pool"], {"help": "pool id", "action": "store", "type": str}),
+                (["-pool"], {"help": _("pool id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7693,17 +8284,17 @@ class VspherePlatformController(BaseController):
             "pool": self.app.pargs.pool,
         }
 
-        res = self.client.network.nsx.edge.lb.virt_server_update(edge_id, virt_srv_id, **params)
-        msg = {"msg": "Update virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        self.client.network.nsx.edge.lb.virt_server_update(edge_id, virt_srv_id, **params)
+        msg = {"msg": f"Update virtual server {virt_srv_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="delete edge load balancer virtual server",
-        description="delete edge load balancer virtual server",
+        help=_("delete edge load balancer virtual server"),
+        description=_("delete edge load balancer virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("virtual server id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7712,16 +8303,16 @@ class VspherePlatformController(BaseController):
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_del(edge_id, virt_srv_id)
-        msg = {"msg": "Delete virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        msg = {"msg": f"Delete virtual server {virt_srv_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="enable edge load balancer virtual server",
-        description="enable edge load balancer virtual server",
+        help=_("enable edge load balancer virtual server"),
+        description=_("enable edge load balancer virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("virtual server id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7730,16 +8321,16 @@ class VspherePlatformController(BaseController):
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_enable(edge_id, virt_srv_id)
-        msg = {"msg": "Enable virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        msg = {"msg": f"Enable virtual server {virt_srv_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="disable edge load balancer virtual server",
-        description="disable edge load balancer virtual server",
+        help=_("disable edge load balancer virtual server"),
+        description=_("disable edge load balancer virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
-                (["id"], {"help": "virtual server id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
+                (["id"], {"help": _("virtual server id"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7748,19 +8339,19 @@ class VspherePlatformController(BaseController):
         virt_srv_id = self.app.pargs.id
 
         self.client.network.nsx.edge.lb.virt_server_disable(edge_id, virt_srv_id)
-        msg = {"msg": "Disable virtual server %s on edge %s" % (virt_srv_id, edge_id)}
+        msg = {"msg": f"Disable virtual server {virt_srv_id} on edge {edge_id}"}
         self.app.render(msg, headers=["msg"])
 
     @ex(
-        help="Add account in description of nsx virtual server",
-        description="add account in description of nsx virtual server",
+        help=_("Add account in description of nsx virtual server"),
+        description=_("add account in description of nsx virtual server"),
         arguments=VSPHERE_ARGS(
             [
-                (["edge"], {"help": "edge id", "action": "store", "type": str}),
+                (["edge"], {"help": _("edge id"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "virtual server id",
+                        "help": _("virtual server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7771,7 +8362,7 @@ class VspherePlatformController(BaseController):
     )
     def edge_lb_virt_server_add_account_desc(self):
         def get_account_desc_by_params(controller, params):
-            nodes_uri = "%s/nodes" % controller.api.baseuri
+            nodes_uri = f"{controller.api.baseuri}/nodes"
             for item in params:
                 nodes = controller.cmp_get(nodes_uri, data=item).get("nodes", [])
                 if len(nodes) < 1:
@@ -7800,7 +8391,7 @@ class VspherePlatformController(BaseController):
                     if a.get("condition") == "enabled"
                 ]
                 if len(params) < 1:
-                    self.app.log.debug("Skip %s %s it has no enabled ip in pool %s" % (edge_id, vs_id, pool_id))
+                    self.app.log.debug(f"Skip {edge_id} {vs_id} it has no enabled ip in pool {pool_id}")
                 account_desc = get_account_desc_by_params(controller, params)
                 vs["account"] = account_desc
 
@@ -7811,7 +8402,7 @@ class VspherePlatformController(BaseController):
                     vs_id = vs["virtualServerId"]
                     vs_description = vs.get("virtualServerDescription")
                     if vs_description is not None and '"account":' in vs_description:
-                        self.app.log.debug("Skip %s %s it has description %s" % (edge_id, vs_id, vs_description))
+                        self.app.log.debug(f"Skip {edge_id} {vs_id} it has description {vs_description}")
                         continue
                     account = vs["account"]
                     if account is None:
@@ -7819,8 +8410,8 @@ class VspherePlatformController(BaseController):
                     params = {
                         "description": {"account": account},
                     }
-                    self.app.log.debug("Update %s %s with account %s" % (edge_id, vs_id, account))
-                    pool = net_nsx_lb.virt_server_update(edge_id, vs_id, **params)
+                    self.app.log.debug(f"Update {edge_id} {vs_id} with account {account}")
+                    net_nsx_lb.virt_server_update(edge_id, vs_id, **params)
 
         from beehive3_cli.core.cmp_api_client import CmpApiClient
 
@@ -7850,7 +8441,7 @@ class VspherePlatformController(BaseController):
                 vs_id = vs["virtualServerId"]
                 vs_description = vs.get("description")
                 if vs.get("enabled") != "true":
-                    self.app.log.debug("Skip %s %s it is disabled" % (edge_id, vs_id))
+                    self.app.log.debug(f"Skip {edge_id} {vs_id} it is disabled")
                     continue
                 edge_pool_vs[edge_id][vs["defaultPoolId"]] = {
                     "virtualServerId": vs_id,
@@ -7868,14 +8459,14 @@ class VspherePlatformController(BaseController):
         update_vs_descriptions(edge_pool_vs)
 
     @ex(
-        help="list vsphere dlr",
-        description="list vsphere dlr",
+        help=_("list vsphere dlr"),
+        description=_("list vsphere dlr"),
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "edge id",
+                        "help": _("edge id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7898,15 +8489,15 @@ class VspherePlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="Clone Vsphere server",
-        description="Clone an Existing VSphere Virtual Machine",
-        example="beehive platform vsphere server-clone-v1 vm-##### -e <env>;beehive platform vsphere server-clone-v1 -id vm-##### -e <env>",
+        help=_("Clone Vsphere server"),
+        description=_("Clone an Existing VSphere Virtual Machine"),
+        example="beehive platform vsphere server-clone-v1 -id vm-##### -e <env>",
         arguments=VSPHERE_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "Existing server id",
+                        "help": _("Existing server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7915,7 +8506,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "server clone name",
+                        "help": _("server clone name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7924,7 +8515,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["hostname"],
                     {
-                        "help": "server hostname",
+                        "help": _("server hostname"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7933,7 +8524,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-domain"],
                     {
-                        "help": "domain name of the site where to put the cloned vm",
+                        "help": _("domain name of the site where to put the cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7942,7 +8533,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-destenv"],
                     {
-                        "help": "destination environment where migrate the cloned vm",
+                        "help": _("destination environment where migrate the cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7951,7 +8542,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-folder"],
                     {
-                        "help": "vsphere parent folder id",
+                        "help": _("vsphere parent folder id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7960,7 +8551,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-datastore"],
                     {
-                        "help": "datastore id",
+                        "help": _("datastore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7969,7 +8560,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-cluster"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7978,7 +8569,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dvpg"],
                     {
-                        "help": "dvportgroup",
+                        "help": _("dvportgroup"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7987,7 +8578,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-password"],
                     {
-                        "help": "admin password for the new cloned vm",
+                        "help": _("admin password for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7996,7 +8587,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-ipaddr"],
                     {
-                        "help": "ip address for the new cloned vm",
+                        "help": _("ip address for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8005,7 +8596,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "subnet mask for the new cloned vm",
+                        "help": _("subnet mask for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8014,7 +8605,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-defaultgw"],
                     {
-                        "help": "default gateway for the new cloned vm",
+                        "help": _("default gateway for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8023,7 +8614,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-httpproxy"],
                     {
-                        "help": "http proxy ip_addr:port for the new cloned vm",
+                        "help": _("http proxy ip_addr:port for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8032,7 +8623,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-httpsproxy"],
                     {
-                        "help": "https proxy ip_addr:port for the new cloned vm",
+                        "help": _("https proxy ip_addr:port for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8041,7 +8632,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dns1"],
                     {
-                        "help": "primary dns server for the new cloned vm",
+                        "help": _("primary dns server for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8050,7 +8641,7 @@ class VspherePlatformController(BaseController):
                 (
                     ["-dns2"],
                     {
-                        "help": "secondary dns server for the new cloned vm",
+                        "help": _("secondary dns server for the new cloned vm"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8092,35 +8683,35 @@ class VspherePlatformController(BaseController):
 
         server = self.client.server.get(oid)
         if server is None:
-            raise Exception("Vsphere Server %s does not exist" % oid)
+            raise Exception(f"Vsphere Server {oid} does not exist")
 
         network = None
         if dest_dvportgroup_id is not None:
             network = client_dest.network.get_network(dest_dvportgroup_id)
             if network is None:
-                raise Exception("Vsphere dvportgroup %s does not exist" % dest_dvportgroup_id)
+                raise Exception(f"Vsphere dvportgroup {dest_dvportgroup_id} does not exist")
 
         dest_folder = None
         if dest_folder_id is not None:
             dest_folder = client_dest.folder.get(dest_folder_id)
             if dest_folder is None:
-                raise Exception("Vsphere Folder %s does not exist" % dest_folder_id)
+                raise Exception(f"Vsphere Folder {dest_folder_id} does not exist")
 
         dest_datastore = None
         if dest_datastore_id is not None:
             dest_datastore = client_dest.datastore.get(dest_datastore_id)
             if dest_datastore is None:
-                raise Exception("Vsphere Datastore %s does not exist" % dest_datastore_id)
+                raise Exception(f"Vsphere Datastore {dest_datastore_id} does not exist")
 
         dest_cluster = None
         if dest_cluster_id is not None:
             dest_cluster = client_dest.cluster.get(dest_cluster_id)
             if dest_cluster is None:
-                raise Exception("Vsphere Cluster %s does not exist" % dest_cluster_id)
+                raise Exception(f"Vsphere Cluster {dest_cluster_id} does not exist")
 
         self.app.log.debug(
-            "Cloning Vsphere server %s into %s (cluster %s, datastore %s, folder %s, dvpg %s)"
-            % (oid, dest_server_name, dest_cluster_id, dest_datastore_id, dest_folder_id, dest_dvportgroup_id)
+            "Cloning Vsphere server %s into %s (cluster %s, datastore %s, folder %s, dvpg %s)",
+            oid, dest_server_name, dest_cluster_id, dest_datastore_id, dest_folder_id, dest_dvportgroup_id
         )
 
         clone_task = self.client.server.create_clone(
@@ -8146,10 +8737,10 @@ class VspherePlatformController(BaseController):
         if clone_result == vim.TaskInfo.State.success:
             cloned_vm_id = clone_task.info.result._moId
             self.app.render(
-                {"msg": "Cloned vm %s into vm %s located on vcenter %s" % (oid, cloned_vm_id, dest_vsphere_id)}
+                {"msg": f"Cloned vm {oid} into vm {cloned_vm_id} located on vcenter {dest_vsphere_id}"}
             )
         else:
-            self.app.render({"msg": "Fail to clone to clone vm %s" % oid})
+            self.app.render({"msg": f"Fail to clone to clone vm {oid}"})
             if (
                 clone_task.info is not None
                 and clone_task.info.error is not None

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement.core.output import OutputHandler
 from beehive3_cli.core.util import ColoredText
@@ -57,11 +57,11 @@ class DynamicOutputHandler(OutputHandler):
         """
         self.template = kwargs.get("template", self._meta.default_template)
         headers = kwargs.get("headers", None)
-        format = kwargs.get("format", lambda x: x)
+        l_format = kwargs.get("format", lambda x: x)
 
         if headers is not None:
             self.__print_headers(headers)
 
         if data is not None:
-            data = format(data)
+            data = l_format(data)
             self.__print_raw(data)

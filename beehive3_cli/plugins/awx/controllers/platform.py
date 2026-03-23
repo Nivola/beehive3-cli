@@ -1,26 +1,30 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import stdout
 from time import sleep
 from cement import ex
+
 from beecell.types.type_list import merge_list
 from beecell.file import read_file
 from beecell.types.type_dict import dict_get
+
 from beedrones.awx.client import AwxManager
+
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, PAGINATION_ARGS
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
-def AWX_ARGS(*list_args):
+def awx_args(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "awx platform reference label",
+                "help": _("awx platform reference label"),
             },
         )
     ]
@@ -36,11 +40,11 @@ class AwxPlatformController(BaseController):
         stacked_on = "platform"
         stacked_type = "nested"
         label = "awx"
-        description = "awx platform management"
-        help = "awx platform  management"
+        description = _("awx platform management")
+        help = _("awx platform  management")
 
     def pre_command_run(self):
-        super(AwxPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -53,27 +57,26 @@ class AwxPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No awx default platform is available for this environment. Select " "another environment"
+                    "No awx default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         self.conf = orchestrators.get(label)
 
-        uri = "%s://%s:%s%s" % (
-            self.conf.get("proto"),
-            self.conf.get("hosts")[0],
-            self.conf.get("port"),
-            self.conf.get("path"),
-        )
+        proto = self.conf.get("proto")
+        host = self.conf.get("hosts")[0]
+        port = self.conf.get("port")
+        path = self.conf.get("path")
+        uri = f"{proto}://{host}:{port}{path}"
 
         if self.app.config.get("log.clilog", "verbose_log"):
             transform = {"msg": lambda x: self.color_string(x, "YELLOW")}
             self.app.render(
-                {"msg": "Using awx orchestrator: %s (uri: %s)" % (label, uri)},
+                {"msg": f"Using awx orchestrator: {label} (uri: {uri})"},
                 transform=transform,
             )
-            self.app.log.debug("Using awx orchestrator: %s (uri: %s)" % (label, uri))
+            self.app.log.debug("Using awx orchestrator: %s (uri: %s)", label, uri)
 
         self.client = AwxManager(uri)
         self.client.authorize(self.conf.get("user"), self.conf.get("pwd"), key=self.key)
@@ -90,35 +93,34 @@ class AwxPlatformController(BaseController):
             sleep(delta)
             elapsed += delta
             if elapsed >= maxtime:
-                raise TimeoutError("job %s query timeout" % job_id)
+                raise TimeoutError(f"job {job_id} query timeout")
         if status in ["failed", "error"]:
             self.app.log.error(job["result_traceback"])
-            raise Exception("job %s error" % job_id)
-        elif status == "cancelled":
-            self.app.log.error(job["job %s cancelled" % job_id])
-            raise Exception("job %s cancelled" % job_id)
-        else:
-            self.app.log.info("job %s successful" % job_id)
+            raise Exception(f"job {job_id} error")
+        if status == "cancelled":
+            self.app.log.error("job %s cancelled", job_id)
+            raise Exception(f"job {job_id} cancelled")
+        self.app.log.info("job %s successful", job_id)
 
-    @ex(help="ping awx", description="ping awx", arguments=AWX_ARGS())
+    @ex(help=_("ping awx"), description=_("ping awx"), arguments=awx_args())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
-    @ex(help="get awx version", description="get awx version", arguments=AWX_ARGS())
+    @ex(help=_("get awx version"), description=_("get awx version"), arguments=awx_args())
     def version(self):
         res = self.client.version()
         self.app.render(res, headers=["version", "ansible_version"])
 
     @ex(
-        help="get organizations",
-        description="get organizations",
-        arguments=AWX_ARGS(
+        help=_("get organizations"),
+        description=_("get organizations"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -127,7 +129,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "organization name",
+                        "help": _("organization name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -143,15 +145,15 @@ class AwxPlatformController(BaseController):
         self.app.render(res, headers=["id", "name", "created", "modified"])
 
     @ex(
-        help="get inventories",
-        description="get inventories",
-        example="beehive platform awx inventory-get;beehive platform awx inventory-get ",
-        arguments=AWX_ARGS(
+        help=_("get inventories"),
+        description=_("get inventories"),
+        example="beehive platform awx inventory-get",
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -160,7 +162,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "inventory name",
+                        "help": _("inventory name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -212,14 +214,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add inventory",
-        description="add inventory",
-        arguments=AWX_ARGS(
+        help=_("add inventory"),
+        description=_("add inventory"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "inventory name",
+                        "help": _("inventory name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -228,7 +230,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["organization"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -244,14 +246,14 @@ class AwxPlatformController(BaseController):
         self.app.render(res, headers=["id", "name", "created", "modified"])
 
     @ex(
-        help="delete inventory",
-        description="delete inventory",
-        arguments=AWX_ARGS(
+        help=_("delete inventory"),
+        description=_("delete inventory"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -263,17 +265,17 @@ class AwxPlatformController(BaseController):
     def inventory_del(self):
         oid = self.app.pargs.id
         self.client.inventory.delete(oid)
-        self.app.render({"msg": "delete inventory %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete inventory {oid}"}, headers=["msg"])
 
     @ex(
-        help="sync inventory source",
-        description="get inventory source",
-        arguments=AWX_ARGS(
+        help=_("sync inventory source"),
+        description=_("get inventory source"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "inventory source id",
+                        "help": _("inventory source id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -287,14 +289,14 @@ class AwxPlatformController(BaseController):
         self.client.inventory.source_sync(oid)
 
     @ex(
-        help="get inventory scripts",
-        description="get inventory scripts",
-        arguments=AWX_ARGS(
+        help=_("get inventory scripts"),
+        description=_("get inventory scripts"),
+        arguments=awx_args(
             [
                 (
                     ["-inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -303,7 +305,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-id"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -319,14 +321,14 @@ class AwxPlatformController(BaseController):
         self.app.render(res, headers=["id", "name", "created", "modified"])
 
     @ex(
-        help="add script inventory",
-        description="add script inventory",
-        arguments=AWX_ARGS(
+        help=_("add script inventory"),
+        description=_("add script inventory"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "script inventory name",
+                        "help": _("script inventory name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -335,7 +337,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["organization"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -344,7 +346,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["script"],
                     {
-                        "help": "script. Ex. #!/bin/bash\nsource /opt/beehive/bin/activate\n",
+                        "help": _("script. Ex. #!/bin/bash\nsource /opt/beehive/bin/activate\n"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -361,14 +363,14 @@ class AwxPlatformController(BaseController):
         self.app.render(res, headers=["id", "name", "created", "modified"])
 
     @ex(
-        help="delete script inventory",
-        description="delete script inventory",
-        arguments=AWX_ARGS(
+        help=_("delete script inventory"),
+        description=_("delete script inventory"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -380,17 +382,17 @@ class AwxPlatformController(BaseController):
     def inventory_script_del(self):
         oid = self.app.pargs.id
         self.client.inventory_script.delete(oid)
-        self.app.render({"msg": "delete script inventory %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete script inventory {oid}"}, headers=["msg"])
 
     @ex(
-        help="get inventory groups",
-        description="get inventory groups",
-        arguments=AWX_ARGS(
+        help=_("get inventory groups"),
+        description=_("get inventory groups"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "inventory group id",
+                        "help": _("inventory group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -399,7 +401,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "inventory name",
+                        "help": _("inventory name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -408,7 +410,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -446,14 +448,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add inventory group",
-        description="add inventory group",
-        arguments=AWX_ARGS(
+        help=_("add inventory group"),
+        description=_("add inventory group"),
+        arguments=awx_args(
             [
                 (
                     ["inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -462,7 +464,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "inventory group name",
+                        "help": _("inventory group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -471,7 +473,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "host description",
+                        "help": _("host description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -480,7 +482,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-vars"],
                     {
-                        "help": "host variables. ex: k1:v1,k2:v2",
+                        "help": _("host variables. ex: k1:v1,k2:v2"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -493,26 +495,26 @@ class AwxPlatformController(BaseController):
         inventory = self.app.pargs.inventory
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        vars = self.app.pargs.vars
+        lvars = self.app.pargs.vars
         variables = None
-        if vars is not None:
+        if lvars is not None:
             variables = {}
-            if vars is not None:
-                for var in vars.split(","):
+            if lvars is not None:
+                for var in lvars.split(","):
                     k, v = var.split(":", 1)
                     variables[k] = v
         res = self.client.inventory.group_add(inventory, name, desc=desc, vars=variables)
-        self.app.render({"msg": "add group %s" % res["id"]})
+        self.app.render({"msg": f"add group {res['id']}"})
 
     @ex(
-        help="delete inventory group",
-        description="delete inventory group",
-        arguments=AWX_ARGS(
+        help=_("delete inventory group"),
+        description=_("delete inventory group"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "inventory group id",
+                        "help": _("inventory group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -524,17 +526,17 @@ class AwxPlatformController(BaseController):
     def inventory_group_del(self):
         oid = self.app.pargs.id
         self.client.inventory.group_del(oid)
-        self.app.render({"msg": "delete group %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete group {oid}"}, headers=["msg"])
 
     @ex(
-        help="get inventory hosts",
-        description="get inventory hosts",
-        arguments=AWX_ARGS(
+        help=_("get inventory hosts"),
+        description=_("get inventory hosts"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "inventory group id",
+                        "help": _("inventory group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -543,7 +545,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "inventory name",
+                        "help": _("inventory name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -552,7 +554,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -584,14 +586,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="get add hoc commands",
-        description="get add hoc commands",
-        arguments=AWX_ARGS(
+        help=_("get add hoc commands"),
+        description=_("get add hoc commands"),
+        arguments=awx_args(
             [
                 (
                     ["-inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -599,7 +601,7 @@ class AwxPlatformController(BaseController):
                 ),
                 (
                     ["-id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -640,14 +642,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add add hoc commands",
-        description="add add hoc commands",
-        arguments=AWX_ARGS(
+        help=_("add add hoc commands"),
+        description=_("add add hoc commands"),
+        arguments=awx_args(
             [
                 (
                     ["inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -656,7 +658,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["credential"],
                     {
-                        "help": "credential id",
+                        "help": _("credential id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -664,7 +666,7 @@ class AwxPlatformController(BaseController):
                 ),
                 (
                     ["-verbosity"],
-                    {"help": "verbosity", "action": "store", "type": int, "default": 0},
+                    {"help": _("verbosity"), "action": "store", "type": int, "default": 0},
                 ),
             ]
         ),
@@ -688,13 +690,13 @@ class AwxPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="relaunch add hoc command",
-        description="relaunch add hoc command",
-        arguments=AWX_ARGS(
+        help=_("relaunch add hoc command"),
+        description=_("relaunch add hoc command"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -705,13 +707,13 @@ class AwxPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get add hoc command stdout",
-        description="get add hoc command stdout",
-        arguments=AWX_ARGS(
+        help=_("get add hoc command stdout"),
+        description=_("get add hoc command stdout"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -737,14 +739,14 @@ class AwxPlatformController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get jobs",
-        description="get jobs",
-        example="beehive platform awx job-get -id #### -e <env>;beehive platform awx job-get",
-        arguments=AWX_ARGS(
+        help=_("get jobs"),
+        description=_("get jobs"),
+        example="beehive platform awx job-get -id #### -e <env>; beehive platform awx job-get",
+        arguments=awx_args(
             [
                 (
                     ["-id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -773,9 +775,10 @@ class AwxPlatformController(BaseController):
                 res,
                 headers=[
                     "id",
+                    "name",
                     "type",
                     "playbook",
-                    "launch_type",
+                    # "launch_type",
                     "status",
                     "started",
                     "finished",
@@ -785,13 +788,13 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="relaunch job",
-        description="relaunch job",
-        arguments=AWX_ARGS(
+        help=_("relaunch job"),
+        description=_("relaunch job"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -799,16 +802,17 @@ class AwxPlatformController(BaseController):
     def job_relaunch(self):
         oid = self.app.pargs.id
         res = self.client.job.relaunch(oid)
+        print(f"new job id {res}")
 
     @ex(
-        help="get job stdout",
-        description="get job stdout",
-        example="beehive platform awx job-stdout #### ;beehive platform awx job-stdout #### ",
-        arguments=AWX_ARGS(
+        help=_("get job stdout"),
+        description=_("get job stdout"),
+        example="beehive platform awx job-stdout ####; beehive platform awx job-stdout ####",
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -834,18 +838,18 @@ class AwxPlatformController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get job events",
-        description="get job events",
-        arguments=AWX_ARGS(
+        help=_("get job events"),
+        description=_("get job events"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-query"],
                     {
-                        "help": "job event query. Comma separated k:v",
+                        "help": _("job event query. Comma separated k:v"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -857,12 +861,12 @@ class AwxPlatformController(BaseController):
     def job_event_get(self):
         oid = self.app.pargs.id
         query = self.app.pargs.query
-        filter = {}
+        lfilter = {}
         if query is not None:
             for item in query.split(","):
                 k, v = item.split(":")
-                filter[k] = v
-        res = self.client.job.events(oid, query=filter)
+                lfilter[k] = v
+        res = self.client.job.events(oid, query=lfilter)
         self.app.render(
             res,
             headers=[
@@ -878,13 +882,13 @@ class AwxPlatformController(BaseController):
         )
 
     @ex(
-        help="get job error",
-        description="get job error",
-        arguments=AWX_ARGS(
+        help=_("get job error"),
+        description=_("get job error"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -896,14 +900,14 @@ class AwxPlatformController(BaseController):
         self.app.error(resp)
 
     @ex(
-        help="get hosts",
-        description="get hosts",
-        arguments=AWX_ARGS(
+        help=_("get hosts"),
+        description=_("get hosts"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -912,7 +916,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -945,14 +949,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add host",
-        description="add host",
-        arguments=AWX_ARGS(
+        help=_("add host"),
+        description=_("add host"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -961,7 +965,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -970,7 +974,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "host description",
+                        "help": _("host description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -979,7 +983,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-vars"],
                     {
-                        "help": "host variables. ex: k1:v1,k2:v2",
+                        "help": _("host variables. ex: k1:v1,k2:v2"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -992,26 +996,26 @@ class AwxPlatformController(BaseController):
         inventory = self.app.pargs.inventory
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        vars = self.app.pargs.vars
+        lvars = self.app.pargs.vars
         variables = None
-        if vars is not None:
+        if lvars is not None:
             variables = {}
-            if vars is not None:
-                for var in vars.split(","):
+            if lvars is not None:
+                for var in lvars.split(","):
                     k, v = var.split(":", 1)
                     variables[k] = v
         res = self.client.host.add(name, inventory, desc=desc, vars=variables)
-        self.app.render({"msg": "add host %s" % res["id"]})
+        self.app.render({"msg": f"add host {res['id']}"})
 
     @ex(
-        help="delete host",
-        description="delete host",
-        arguments=AWX_ARGS(
+        help=_("delete host"),
+        description=_("delete host"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1023,17 +1027,17 @@ class AwxPlatformController(BaseController):
     def host_del(self):
         oid = self.app.pargs.id
         self.client.host.delete(oid)
-        self.app.render({"msg": "delete host %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete host {oid}"}, headers=["msg"])
 
     @ex(
-        help="add group to host",
-        description="add group to host",
-        arguments=AWX_ARGS(
+        help=_("add group to host"),
+        description=_("add group to host"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1042,7 +1046,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["group"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1055,17 +1059,17 @@ class AwxPlatformController(BaseController):
         oid = self.app.pargs.id
         group = self.app.pargs.group
         self.client.host.group_add(oid, int(group))
-        self.app.render({"msg": "add group %s to host %s" % (group, oid)}, headers=["msg"])
+        self.app.render({"msg": f"add group {group} to host {oid}"}, headers=["msg"])
 
     @ex(
-        help="remove group from host",
-        description="remove group from host",
-        arguments=AWX_ARGS(
+        help=_("remove group from host"),
+        description=_("remove group from host"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1074,7 +1078,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["group"],
                     {
-                        "help": "group id",
+                        "help": _("group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1087,17 +1091,17 @@ class AwxPlatformController(BaseController):
         oid = self.app.pargs.id
         group = self.app.pargs.group
         self.client.host.group_del(oid, int(group))
-        self.app.render({"msg": "remove group %s from host %s" % (group, oid)}, headers=["msg"])
+        self.app.render({"msg": f"remove group {group} from host {oid}"}, headers=["msg"])
 
     @ex(
-        help="get credentials",
-        description="get credentials",
-        arguments=AWX_ARGS(
+        help=_("get credentials"),
+        description=_("get credentials"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "credential id",
+                        "help": _("credential id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1106,7 +1110,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "credential name",
+                        "help": _("credential name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1139,14 +1143,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="get credential types",
-        description="get credential types",
-        arguments=AWX_ARGS(
+        help=_("get credential types"),
+        description=_("get credential types"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "credential type id",
+                        "help": _("credential type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1198,14 +1202,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add ssh credential",
-        description="add ssh credential",
-        arguments=AWX_ARGS(
+        help=_("add ssh credential"),
+        description=_("add ssh credential"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "credential name",
+                        "help": _("credential name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1214,7 +1218,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["organization"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1223,7 +1227,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["username"],
                     {
-                        "help": "username",
+                        "help": _("username"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1232,7 +1236,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-password"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1241,7 +1245,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-key_data"],
                     {
-                        "help": "ssh key data file",
+                        "help": _("ssh key data file"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1250,7 +1254,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-key_unlock"],
                     {
-                        "help": "ssh key unlock",
+                        "help": _("ssh key unlock"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1259,7 +1263,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-become"],
                     {
-                        "help": "become method",
+                        "help": _("become method"),
                         "action": "store",
                         "type": str,
                         "default": "no_become",
@@ -1287,17 +1291,17 @@ class AwxPlatformController(BaseController):
             ssh_key_unlock=ssh_key_unlock,
             become=become,
         )
-        self.app.render({"msg": "add ssh credential %s" % res["id"]})
+        self.app.render({"msg": f"add ssh credential {res['id']}"})
 
     @ex(
-        help="add git credential",
-        description="add git credential",
-        arguments=AWX_ARGS(
+        help=_("add git credential"),
+        description=_("add git credential"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "credential name",
+                        "help": _("credential name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1306,7 +1310,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["organization"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1315,7 +1319,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["username"],
                     {
-                        "help": "username",
+                        "help": _("username"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1324,7 +1328,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["password"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1339,17 +1343,17 @@ class AwxPlatformController(BaseController):
         username = self.app.pargs.username
         password = self.app.pargs.password
         res = self.client.credential.add_git(name, organization, username, password)
-        self.app.render({"msg": "add ssh credential %s" % res["id"]})
+        self.app.render({"msg": f"add ssh credential {res['id']}"})
 
     @ex(
-        help="delete credential",
-        description="delete credential",
-        arguments=AWX_ARGS(
+        help=_("delete credential"),
+        description=_("delete credential"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "credential id",
+                        "help": _("credential id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1361,18 +1365,18 @@ class AwxPlatformController(BaseController):
     def credential_del(self):
         oid = self.app.pargs.id
         self.client.credential.delete(oid)
-        self.app.render({"msg": "delete credential %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete credential {oid}"}, headers=["msg"])
 
     @ex(
-        help="get projects",
-        description="get projects",
-        example="beehive platform awx project-get ;beehive platform awx project-get ",
-        arguments=AWX_ARGS(
+        help=_("get projects"),
+        description=_("get projects"),
+        example="beehive platform awx project-get",
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1381,7 +1385,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "project name",
+                        "help": _("project name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1390,7 +1394,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-search"],
                     {
-                        "help": "search",
+                        "help": _("search"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1454,14 +1458,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="add project",
-        description="add project",
-        arguments=AWX_ARGS(
+        help=_("add project"),
+        description=_("add project"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "project name",
+                        "help": _("project name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1470,7 +1474,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["organization"],
                     {
-                        "help": "organization id",
+                        "help": _("organization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1479,7 +1483,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["credential"],
                     {
-                        "help": "credential id",
+                        "help": _("credential id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1488,7 +1492,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["scm_url"],
                     {
-                        "help": "scm url",
+                        "help": _("scm url"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1497,7 +1501,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-scm_type"],
                     {
-                        "help": "scm type",
+                        "help": _("scm type"),
                         "action": "store",
                         "type": str,
                         "default": "git",
@@ -1506,7 +1510,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-scm_branch"],
                     {
-                        "help": "scm branch",
+                        "help": _("scm branch"),
                         "action": "store",
                         "type": str,
                         "default": "master",
@@ -1515,7 +1519,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-scm_update_on_launch"],
                     {
-                        "help": "scm update on launch",
+                        "help": _("scm update on launch"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -1524,7 +1528,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-default_environment"],
                     {
-                        "help": "default environment",
+                        "help": _("default environment"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1557,17 +1561,17 @@ class AwxPlatformController(BaseController):
 
         res = self.client.project.add(name, **params)
         project = res["id"]
-        self.app.render({"msg": "add project %s" % project})
+        self.app.render({"msg": f"add project {project}"})
 
     @ex(
-        help="delete project",
-        description="delete project",
-        arguments=AWX_ARGS(
+        help=_("delete project"),
+        description=_("delete project"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1579,18 +1583,18 @@ class AwxPlatformController(BaseController):
     def project_del(self):
         oid = self.app.pargs.id
         self.client.project.delete(oid)
-        self.app.render({"msg": "delete project %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete project {oid}"}, headers=["msg"])
 
     @ex(
-        help="sync project",
-        description="sync project",
-        example="beehive platform awx project-sync ### -e <env>;beehive platform awx project-sync ###",
-        arguments=AWX_ARGS(
+        help=_("sync project"),
+        description=_("sync project"),
+        example="beehive platform awx project-sync ### -e <env>; beehive platform awx project-sync ###",
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1603,17 +1607,17 @@ class AwxPlatformController(BaseController):
         oid = self.app.pargs.id
         job = self.client.project.sync(oid)
         self.__wait_for_job(self.client.project.job.get, job["id"], delta=2)
-        self.app.render({"msg": "sync project %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"sync project {oid}"}, headers=["msg"])
 
     @ex(
-        help="get project job",
-        description="get project job",
-        arguments=AWX_ARGS(
+        help=_("get project job"),
+        description=_("get project job"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project job id",
+                        "help": _("project job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1648,14 +1652,14 @@ class AwxPlatformController(BaseController):
             )
 
     @ex(
-        help="get project job events",
-        description="get project job events",
-        arguments=AWX_ARGS(
+        help=_("get project job events"),
+        description=_("get project job events"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "project job id",
+                        "help": _("project job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1674,14 +1678,14 @@ class AwxPlatformController(BaseController):
         )
 
     @ex(
-        help="get project job stdout",
-        description="get project job stdout",
-        arguments=AWX_ARGS(
+        help=_("get project job stdout"),
+        description=_("get project job stdout"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "project job id",
+                        "help": _("project job id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1692,18 +1696,18 @@ class AwxPlatformController(BaseController):
     )
     def project_job_stdout(self):
         oid = self.app.pargs.id
-        stdout = self.client.project.job.stdout(oid)
-        print(stdout.get("content", ""))
+        lstdout = self.client.project.job.stdout(oid)
+        print(lstdout.get("content", ""))
 
     @ex(
-        help="get templates",
-        description="get templates",
-        arguments=AWX_ARGS(
+        help=_("get templates"),
+        description=_("get templates"),
+        arguments=awx_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "template id",
+                        "help": _("template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1712,7 +1716,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "template name",
+                        "help": _("template name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1778,14 +1782,14 @@ class AwxPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add template",
-        description="add template",
-        arguments=AWX_ARGS(
+        help=_("add template"),
+        description=_("add template"),
+        arguments=awx_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "template name",
+                        "help": _("template name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1794,7 +1798,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["inventory"],
                     {
-                        "help": "inventory id",
+                        "help": _("inventory id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1803,7 +1807,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["project"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1812,7 +1816,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["playbook"],
                     {
-                        "help": "playbook",
+                        "help": _("playbook"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1821,8 +1825,10 @@ class AwxPlatformController(BaseController):
                 (
                     ["-verbosity"],
                     {
-                        "help": "verbosity: 0 (Normal) (default), 1 (Verbose), 2 (More Verbose), 3 (Debug), "
-                        "4 (Connection Debug), 5 (WinRM Debug)",
+                        "help": _(
+                            "verbosity: 0 (Normal) (default), 1 (Verbose), 2 (More Verbose), 3 (Debug), "
+                            "4 (Connection Debug), 5 (WinRM Debug)"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -1849,17 +1855,17 @@ class AwxPlatformController(BaseController):
             verbosity=verbosity,
         )
         job_template = res["id"]
-        self.app.render({"msg": "add template %s" % job_template})
+        self.app.render({"msg": f"add template {job_template}"})
 
     @ex(
-        help="launch template",
-        description="launch template",
-        arguments=AWX_ARGS(
+        help=_("launch template"),
+        description=_("launch template"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "template id",
+                        "help": _("template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1868,7 +1874,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["credentials"],
                     {
-                        "help": "comma separated credentials id",
+                        "help": _("comma separated credentials id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1877,7 +1883,7 @@ class AwxPlatformController(BaseController):
                 (
                     ["-extras"],
                     {
-                        "help": "variables used when launching job template, k1:v1;k2:v2",
+                        "help": _("variables used when launching job template, k1:v1;k2:v2"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1890,17 +1896,6 @@ class AwxPlatformController(BaseController):
         oid = self.app.pargs.id
         credentials = self.app.pargs.credentials
         extras = self.app.pargs.extras
-        # limit = 'provola-dctest.site03.nivolapiemonte.it'
-
-        # extra_vars = {
-        #     'p_mysql_repo_version': '5.7.23',
-        #     'p_mysql_basedir': '/data',
-        #     'p_mysql_db_type': 'default',
-        #     'p_mysql_root_username': 'root',
-        #     'p_mysql_root_password': 'nnn',
-        #     'p_ip_repository': '###.###.###.###',
-        #     'p_proxy_server': 'http://###.###.###.###:3128'
-        # }
 
         extra_vars = {}
         if extras is not None:
@@ -1908,7 +1903,7 @@ class AwxPlatformController(BaseController):
                 k, v = item.split(":", 1)
                 # remove quotes at the beginning and the end of the string if present
                 v = v.strip("'")
-                if k == "host_groups" or k == "host_templates":
+                if k in ('host_groups', 'host_templates'):
                     # convert string to list
                     v = v.strip("][").split(", ")
                 extra_vars[k] = v
@@ -1920,17 +1915,17 @@ class AwxPlatformController(BaseController):
         }
         job = self.client.job_template.launch(oid, **params)
         self.__wait_for_job(self.client.job.get, job["id"], delta=2)
-        self.app.render({"msg": "launch template %s" % oid})
+        self.app.render({"msg": f"launch template {oid}"})
 
     @ex(
-        help="delete template",
-        description="delete template",
-        arguments=AWX_ARGS(
+        help=_("delete template"),
+        description=_("delete template"),
+        arguments=awx_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "template id",
+                        "help": _("template id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1942,18 +1937,18 @@ class AwxPlatformController(BaseController):
     def template_del(self):
         oid = self.app.pargs.id
         self.client.job_template.delete(oid)
-        self.app.render({"msg": "delete template %s" % oid}, headers=["msg"])
+        self.app.render({"msg": f"delete template {oid}"}, headers=["msg"])
 
     # Execution Environments
     @ex(
-        help="get execution environments",
-        description="get execution environments",
+        help=_("get execution environments"),
+        description=_("get execution environments"),
         example="",
-        arguments=AWX_ARGS(
+        arguments=awx_args(
             [
                 (
                     ["-id"],
-                    {"help": "job id", "action": "store", "type": str, "default": None},
+                    {"help": _("job id"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),

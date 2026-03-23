@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beehive3_cli.core.controller import BaseController, PARGS
 from cement import ex
+from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.translate import _
 
 
 class ZabbixResourceController(BaseController):
@@ -12,8 +13,8 @@ class ZabbixResourceController(BaseController):
         label = "res_zabbix"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "zabbix orchestrator"
-        help = "zabbix orchestrator"
+        description = _("zabbix orchestrator")
+        help = _("zabbix orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/zabbix", "subsystem": "resource"}
 
@@ -39,21 +40,21 @@ class ZabbixResourceController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(ZabbixResourceController, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     # -----------------
     # --- HOST GROUP --
     # -----------------
     @ex(
-        help="get hostgroups",
-        description="get hostgroups",
+        help=_("get hostgroups"),
+        description=_("get hostgroups"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -65,7 +66,7 @@ class ZabbixResourceController(BaseController):
     def hostgroup_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/hostgroups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/hostgroups/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -77,8 +78,8 @@ class ZabbixResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/hostgroups" % self.baseuri
-            self.app.log.debug("+++++ hostgroup_get '%s' " % uri)
+            uri = f"{self.baseuri}/hostgroups"
+            self.app.log.debug(f"+++++ hostgroup_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
 
             headers = self._meta.headers
@@ -86,14 +87,14 @@ class ZabbixResourceController(BaseController):
             self.app.render(res, key="hostgroups", headers=headers, fields=fields)
 
     @ex(
-        help="add hostgroups",
-        description="add hostgroups",
+        help=_("add hostgroups"),
+        description=_("add hostgroups"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -102,7 +103,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "hostgroup name",
+                        "help": _("hostgroup name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -115,8 +116,8 @@ class ZabbixResourceController(BaseController):
         container = self.app.pargs.container
         name = self.app.pargs.name
 
-        uri = "%s/hostgroups" % (self.baseuri)
-        self.app.log.debug("+++++ hostgroup_add '%s' " % uri)
+        uri = f"{self.baseuri}/hostgroups"
+        self.app.log.debug(f"+++++ hostgroup_add '{uri}' ")
 
         data_hostgroup = {
             "container": container,
@@ -129,14 +130,14 @@ class ZabbixResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete hostgroups",
-        description="delete hostgroups",
+        help=_("delete hostgroups"),
+        description=_("delete hostgroups"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource hostgroup id",
+                        "help": _("resource hostgroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -148,8 +149,8 @@ class ZabbixResourceController(BaseController):
     def hostgroup_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/hostgroups/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ hostgroup_delete '%s' " % uri)
+        uri = f"{self.baseuri}/hostgroups/{oid}"
+        self.app.log.debug(f"+++++ hostgroup_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -159,14 +160,14 @@ class ZabbixResourceController(BaseController):
     # ----- HOST ------
     # -----------------
     @ex(
-        help="get hosts",
-        description="get hosts",
+        help=_("get hosts"),
+        description=_("get hosts"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -178,7 +179,7 @@ class ZabbixResourceController(BaseController):
     def host_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/hosts/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/hosts/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -190,8 +191,8 @@ class ZabbixResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/hosts" % self.baseuri
-            self.app.log.debug("+++++ host_get '%s' " % uri)
+            uri = f"{self.baseuri}/hosts"
+            self.app.log.debug(f"+++++ host_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
 
             headers = self._meta.headers
@@ -199,14 +200,14 @@ class ZabbixResourceController(BaseController):
             self.app.render(res, key="hosts", headers=headers, fields=fields)
 
     @ex(
-        help="add hosts",
-        description="add hosts",
+        help=_("add hosts"),
+        description=_("add hosts"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -215,7 +216,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "host name",
+                        "help": _("host name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -224,7 +225,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -233,7 +234,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["ip_addr"],
                     {
-                        "help": "ip addr",
+                        "help": _("ip addr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -242,7 +243,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["port"],
                     {
-                        "help": "port",
+                        "help": _("port"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -258,8 +259,8 @@ class ZabbixResourceController(BaseController):
         ip_addr = self.app.pargs.ip_addr
         port = self.app.pargs.port
 
-        uri = "%s/hosts" % (self.baseuri)
-        self.app.log.debug("+++++ host_add '%s' " % uri)
+        uri = f"{self.baseuri}/hosts"
+        self.app.log.debug(f"+++++ host_add '{uri}' ")
 
         data_host = {
             "container": container,
@@ -275,14 +276,14 @@ class ZabbixResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete hosts",
-        description="delete hosts",
+        help=_("delete hosts"),
+        description=_("delete hosts"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource host id",
+                        "help": _("resource host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -294,8 +295,8 @@ class ZabbixResourceController(BaseController):
     def host_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/hosts/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ host_delete '%s' " % uri)
+        uri = f"{self.baseuri}/hosts/{oid}"
+        self.app.log.debug(f"+++++ host_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -305,14 +306,14 @@ class ZabbixResourceController(BaseController):
     # --- USER GROUP --
     # -----------------
     @ex(
-        help="get usergroups",
-        description="get usergroups",
+        help=_("get usergroups"),
+        description=_("get usergroups"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "usergroup id",
+                        "help": _("usergroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -324,7 +325,7 @@ class ZabbixResourceController(BaseController):
     def usergroup_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/usergroups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/usergroups/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -336,8 +337,8 @@ class ZabbixResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/usergroups" % self.baseuri
-            self.app.log.debug("+++++ usergroup_get '%s' " % uri)
+            uri = f"{self.baseuri}/usergroups"
+            self.app.log.debug(f"+++++ usergroup_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
 
             headers = self._meta.headers + ["users_email", "user_severities"]
@@ -345,14 +346,14 @@ class ZabbixResourceController(BaseController):
             self.app.render(res, key="usergroups", headers=headers, fields=fields)
 
     @ex(
-        help="add usergroups",
-        description="add usergroups",
+        help=_("add usergroups"),
+        description=_("add usergroups"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -361,7 +362,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "usergroup name",
+                        "help": _("usergroup name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -370,7 +371,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -384,8 +385,8 @@ class ZabbixResourceController(BaseController):
         name = self.app.pargs.name
         hostgroup_id = self.app.pargs.hostgroup_id
 
-        uri = "%s/usergroups" % (self.baseuri)
-        self.app.log.debug("+++++ usergroup_add '%s' " % uri)
+        uri = f"{self.baseuri}/usergroups"
+        self.app.log.debug(f"+++++ usergroup_add '{uri}' ")
 
         data_usergroup = {
             "container": container,
@@ -399,14 +400,14 @@ class ZabbixResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete usergroups",
-        description="delete usergroups",
+        help=_("delete usergroups"),
+        description=_("delete usergroups"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource usergroup id",
+                        "help": _("resource usergroup id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -418,8 +419,8 @@ class ZabbixResourceController(BaseController):
     def usergroup_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/usergroups/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ usergroup_delete '%s' " % uri)
+        uri = f"{self.baseuri}/usergroups/{oid}"
+        self.app.log.debug(f"+++++ usergroup_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:
@@ -429,14 +430,14 @@ class ZabbixResourceController(BaseController):
     # ----- ACTION ----
     # -----------------
     @ex(
-        help="get actions",
-        description="get actions",
+        help=_("get actions"),
+        description=_("get actions"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -448,7 +449,7 @@ class ZabbixResourceController(BaseController):
     def action_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/actions/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/actions/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -460,38 +461,38 @@ class ZabbixResourceController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/actions" % self.baseuri
-            self.app.log.debug("+++++ action_get '%s' " % uri)
+            uri = f"{self.baseuri}/actions"
+            self.app.log.debug(f"+++++ action_get '{uri}' ")
             res = self.cmp_get(uri, data=data)
 
             headers = self._meta.headers + ["severity"] + ["eventsource"]
             fields = self._meta.fields + ["severity"] + ["attributes.eventsource"]
-            transform = {"attributes.eventsource": lambda x: self.desc_event_source(x)}
+            transform = {"attributes.eventsource": self.desc_event_source}
             self.app.render(res, key="actions", headers=headers, fields=fields, transform=transform)
 
     def desc_event_source(self, val):
         # self.app.log.debug("+++++ desc_event_source '%s' " % val)
         if val == "0":
             return "trigger"
-        elif val == "1":
+        if val == "1":
             return "discovery rule"
-        elif val == "2":
+        if val == "2":
             return "autoregistration"
-        elif val == "3":
+        if val == "3":
             return "internal event"
-        elif val == "4":
+        if val == "4":
             return "status update"
         return val
 
     @ex(
-        help="add actions",
-        description="add actions",
+        help=_("add actions"),
+        description=_("add actions"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container",
+                        "help": _("container"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -500,7 +501,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "action name",
+                        "help": _("action name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -509,7 +510,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["usrgrp_id"],
                     {
-                        "help": "usrgrp id",
+                        "help": _("usrgrp id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -518,7 +519,7 @@ class ZabbixResourceController(BaseController):
                 (
                     ["hostgroup_id"],
                     {
-                        "help": "hostgroup id",
+                        "help": _("hostgroup id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -533,8 +534,8 @@ class ZabbixResourceController(BaseController):
         usrgrp_id = self.app.pargs.usrgrp_id
         hostgroup_id = self.app.pargs.hostgroup_id
 
-        uri = "%s/actions" % (self.baseuri)
-        self.app.log.debug("+++++ action_add '%s' " % uri)
+        uri = f"{self.baseuri}/actions"
+        self.app.log.debug(f"+++++ action_add '{uri}' ")
 
         data_action = {
             "container": container,
@@ -549,14 +550,14 @@ class ZabbixResourceController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete actions",
-        description="delete actions",
+        help=_("delete actions"),
+        description=_("delete actions"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "resource action id",
+                        "help": _("resource action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -568,8 +569,8 @@ class ZabbixResourceController(BaseController):
     def action_delete(self):
         oid = self.app.pargs.id
 
-        uri = "%s/actions/%s" % (self.baseuri, oid)
-        self.app.log.debug("+++++ action_delete '%s' " % uri)
+        uri = f"{self.baseuri}/actions/{oid}"
+        self.app.log.debug(f"+++++ action_delete '{uri}' ")
 
         res = self.cmp_delete(uri)
         if res is not None:

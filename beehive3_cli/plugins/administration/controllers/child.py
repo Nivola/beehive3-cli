@@ -1,15 +1,23 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
 
 from json import dumps as jdumps
 from textwrap import dedent
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Optional, Union, Dict
+from urllib.parse import urlencode
 from beecell.types.type_id import is_name
 from beecell.types.type_dict import dict_get
+from beehive3_cli.translate import _
 from beehive3_cli.core.controller import BaseController
 from beehive3_cli.core.util import CmpUtils
 
+VOL_SUCCESS = _("Updated cmp metadata volume {meta_vol_num} with hypervisor volume {hyp_vol_num}. ")
+
+OPENSTACK_ALIGN_VOL_NOT_SUPPORTED = _("""\
+Openstack update is not implemented, if some ext_id are wrong please open an issue this should never happen!\
+""")
 
 class AdminError(Exception):
     """
@@ -44,6 +52,9 @@ class AdminChildController(BaseController):
         self.cmp_fernet: str = ""
 
     def ask(self, prompt: str, style: int = None, yn: bool = True, allowed: Iterable = None) -> str:
+        """
+        Ask which option desire the user.
+        """
         if style is None:
             style = self.styler.YELLOW
         test = ""
@@ -64,7 +75,7 @@ class AdminChildController(BaseController):
         super().pre_command_run()
         self.configure_cmp_api_client()
 
-    def init_container(self, container: dict):
+    def init_container(self, container: Dict):
         """
         Initialize  the container info.
 
@@ -133,7 +144,7 @@ class AdminChildController(BaseController):
             osclient: OpenstackManager = self.hypervisor_client
 
             res = osclient.server.get(server_id)
-            server_volumes: List[dict] = res["os-extended-volumes:volumes_attached"]
+            server_volumes: List[Dict] = res["os-extended-volumes:volumes_attached"]
             flavor_id = dict_get(res, "flavor.id")
             res["flavor"]["name"] = osclient.flavor.get(flavor_id).get("name")
 
@@ -143,7 +154,7 @@ class AdminChildController(BaseController):
             return res
         raise AdminError(f"container {self.container_type} not implemented")
 
-    def get_cmp_container(self, identifier: str) -> dict:
+    def get_cmp_container(self, identifier: str) -> Dict:
         """
         Get container by identifier id or uuid.
         """
@@ -151,10 +162,23 @@ class AdminChildController(BaseController):
         uri = f"/v1.0/nrs/containers/{identifier}"
         return self.cmp_get(uri).get("resourcecontainer", {})
 
-    def get_cmp_resource(self, identifier: str) -> dict:
+    def get_res_provider_compute_instance(self, identifier: str) -> Dict:
         """
         Get resource.
         """
+        if identifier is None:
+            return None
+        self.app.subsystem = "resource"
+        uri: str = f"/v1.0/nrs/provider/instances/{identifier}"
+        result: dict = self.cmp_get(uri)
+        return result.get("instance")
+
+    def get_cmp_resource(self, identifier: str) -> Dict:
+        """
+        Get resource.
+        """
+        if identifier is None:
+            return None
         self.app.subsystem = "resource"
         uri: str = f"/v1.0/nrs/entities/{identifier}"
         result: dict = self.cmp_get(uri)
@@ -204,7 +228,7 @@ class AdminChildController(BaseController):
             res = "error " + str(ex)
         return res
 
-    def reset_cmp_cache_resource(self, identifier: str) -> dict:
+    def reset_cmp_cache_resource(self, identifier: str) -> Dict:
         """
         Reset cache for resource.
         """
@@ -222,7 +246,7 @@ class AdminChildController(BaseController):
         res = self.cmp_put(uri, data={"state": "ACTIVE"})
         return res
 
-    def set_cmp_resource(self, identifier: str, **kwargs) -> dict:
+    def set_cmp_resource(self, identifier: str, **kwargs) -> Dict:
         """
         Set reosource attribute using force in order to not trigger any management logic in the resource layer.
         """
@@ -263,7 +287,7 @@ class AdminChildController(BaseController):
         res = self.cmp_put(uri, data={"config": {"key": key, "value": value}})
         return res
 
-    def get_cmp_restree(self, identifier: str) -> dict:
+    def get_cmp_restree(self, identifier: str) -> Dict:
         """
         Get resource entity tree.
         """
@@ -272,15 +296,19 @@ class AdminChildController(BaseController):
         tree = self.cmp_get(uri)
         return tree
 
-    def get_cmp_linkedres(self, identifier: str) -> List[dict]:
+    def get_cmp_linkedres(self, identifier: str, **kvargs) -> List[dict]:
         """
         Get linked resource.
         """
         self.app.subsystem = "resource"
         uri = f"/v1.0/nrs/entities/{identifier}/linked"
-        return self.cmp_get(uri).get("resources", [])
+        data = ""
+        link_type = kvargs.get("link_type")
+        if link_type:
+            data = {"link_type": link_type}
+        return self.cmp_get(uri, data=data).get("resources", [])
 
-    def get_cmp_service_instance(self, oid: str, plugin: str = "DatabaseInstance") -> dict:
+    def get_cmp_service_instance(self, oid: str, plugin: str = "DatabaseInstance") -> Dict:
         """
         Get cmp service instance.
         """
@@ -293,20 +321,47 @@ class AdminChildController(BaseController):
             raise AdminError(f" {oid} not found")
         return bu_servinst
 
+    def find_cmp_service_instance(self,**kwargs) -> Dict:
+        if kwargs.get("oid"):
+            plugin = kwargs.get("plugintype", "DatabaseInstance") # same default as other function
+            return self.get_cmp_service_instance(kwargs.get("oid"), plugin=plugin)
+        filtered_params = {k: v for k, v in kwargs.items() if v is not None}
+        query_string = urlencode(filtered_params)
+        self.app.subsystem = "service"
+        uri = "/v2.0/nws/serviceinsts"
+        res = self.cmp_get(uri,data=query_string).get("serviceinsts")
+        if not res:
+            raise AdminError(_("no service instance found"))
+        if len(res) > 1:
+            raise AdminError(_("found more than one service instance"))
+        return res[0]
+
+    def get_cmp_service_definition(self, oid: str) -> Dict:
+        """
+        get cmp service definition
+        """
+        self.app.subsystem = "service"
+        uri = f"/v1.0/nws/servicedefs/{oid}"
+        return self.cmp_get(uri).get("servicedef")
+
     def set_cmp_resource_ext_id(self, res_uuid: str, ext_id: Optional[str] = None):
         """
         Set low resource ext_id (link to platform)
         """
-        print(
-            self.styler.clear_line() + f"Setting ext_id {ext_id} on resource {res_uuid}",
-            end="",
+        msg =  _("Setting ext_id {ext_id} on resource {res_uuid}").format(
+            ext_id=ext_id,
+            res_uuid=res_uuid,
         )
+
+        print(self.styler.clear_line() + msg, end="",)
         uri = f"/v1.0/nrs/entities/{res_uuid}"
         status = self.cmp_put(uri, data={"resource": {"ext_id": ext_id}})
-        print(
-            self.styler.clear_line() + f"Set ext_id {ext_id} on resource {res_uuid} with status {status}",
-            end="",
+        formatted_message = _("Set ext_id {ext_id} on resource {res_uuid} with status {status}").format(
+            ext_id=ext_id,
+            res_uuid=res_uuid,
+            status=status
         )
+        print(self.styler.clear_line() + formatted_message, end="")
 
     def set_cmp_resource_enable_quotas(self, identifier: str, value: bool = False):
         """
@@ -320,7 +375,7 @@ class AdminChildController(BaseController):
             res = self.cmp_put(uri, data={"resource": {"disable_quotas": True}})
         return res
 
-    def get_cmp_account(self, identifier: str, div_uuid: str = None) -> dict:
+    def get_cmp_account(self, identifier: str, div_uuid: str = None) -> Dict:
         """
         Get cmp account.
 
@@ -354,15 +409,15 @@ class AdminChildController(BaseController):
             res = self.cmp_get(uri, data)
             count = res.get("count")
             if count > 1:
-                raise AdminError("""Multiple accounts with the given name. Select one using its uuid instead.""")
+                raise AdminError(_("Multiple accounts with the given name. Select one using its uuid instead."))
             if count == 0:
-                raise AdminError(f"The account {identifier} does not exist")
+                raise AdminError(_("The account {identifier} does not exist.").format(identifier=identifier))
             return res.get("accounts")[0]
         uri = uri + f"/{identifier}"
         res = self.cmp_get(uri)
         return res.get("account")
 
-    def get_cmp_division(self, identifier: str, org_uuid: str = None) -> dict:
+    def get_cmp_division(self, identifier: str, org_uuid: str = None) -> Dict:
         """
         Get cmp division.
 
@@ -390,15 +445,15 @@ class AdminChildController(BaseController):
             res = self.cmp_get(uri, data)
             count = res.get("count")
             if count > 1:
-                raise AdminError("""Multiple divisions with the given name. Select one using its uuid instead.""")
+                raise AdminError(_("Multiple divisions with the given name. Select one using its uuid instead."))
             if count == 0:
-                raise AdminError(f"The division {identifier} does not exist")
+                raise AdminError(_("The division {identifier} does not exist.").format(identifier=identifier))
             return res.get("divisions")[0]
         uri = uri + f"/{identifier}"
         res = self.cmp_get(uri)
         return res.get("division")
 
-    def get_cmp_sites(self) -> dict:
+    def get_cmp_sites(self) -> Dict:
         """
         Get cmp sites.
         """
@@ -420,7 +475,7 @@ class AdminChildController(BaseController):
         Import resource.
         """
         if container is None or resclass is None or name is None:
-            raise AdminError("container resclass and name are mandatory parameters")
+            raise AdminError(_("Container resclass and name are mandatory parameters."))
 
         config = {
             "container": container,
@@ -490,14 +545,14 @@ class AdminChildController(BaseController):
         name: str = None,
         desc: str = None,
         parent: str = None,
-        attribute: dict = None,
+        attribute: Dict = None,
         tags: List[str] = None,
     ) -> str:
         """
         Add resource.
         """
         if container is None or resclass is None or name is None:
-            raise AdminError("container resclass and name are mandatory parameters")
+            raise AdminError(_("Container resclass and name are mandatory parameters."))
         data = {
             "container": container,
             "resclass": resclass,
@@ -558,15 +613,17 @@ class AdminChildController(BaseController):
                     data = f"name={oid[2]}&division_id={divs['divisions'][0]['uuid']}"
                     res = self.cmp_get(uri, data=data)
                 else:
-                    raise Exception("Account is wrong")
+                    raise Exception(_("Account is wrong"))
             else:
-                raise Exception("Account is wrong")
+                raise Exception(_("Account is wrong"))
 
             count = res.get("count")
             if count > 1:
-                raise Exception(f"There are some account with name {account_id}. Select one using uuid")
+                error_message = _("There are some account with name {account_id}. Select one using uuid")
+                raise Exception(error_message.format(account_id=account_id))
             if count == 0:
-                raise Exception(f"The account {account_id} does not exist")
+                error_message = _("The account {account_id} does not exist.").format(account_id=account_id)
+                raise Exception(error_message)
 
             account = res.get("accounts")[0]
             self.app.log.info(f"get account by name: {account}")
@@ -581,25 +638,32 @@ class AdminChildController(BaseController):
         """
         User interaction in order to force volume mapping.
         """
-        PR1_VOL_CHANGEVOLUME = "Do you want to Update cmp metadata volume with hypervisor volume? [y/n] "
-        PR1_VOL_NEW_CHANGEVOLUME = "Do you want to Update another cmp metadata volume with hypervisor volume? [y/n] "
-        PR2_VOL_CHOOSECMP = "Which cmp metadata volume do you want to change? [#/-1 for all] "
-        PR3_VOL_CHOOSEHYP = "Which hypervisor volume do you want to map to cmp metadata volume %s? [#] "
-        PR4_VOL_CHECK = "Do you want to Update cmp metadata volume %s with hypervisor volume %s? [y/n] "
-        VOL_SUCCESS = "Updated cmp metadata volume %s with hypervisor volume %s. "
-        PR4_VOL_CHECK_ALL = "Do you want to Update ALL cmp metadata volume with hypervisor volumes? [y/n] "
-        PR4_VOL_CHECK_ERR = (
-            "You can not Update ALL cmp metadata; "
-            + "the number of volumes reported by hypervisor does not match the volumes in metadata! "
+        yn = " [y/n] "
+        pr1_vol_changevolume = _("Do you want to Update cmp metadata volume with hypervisor volume?") + yn
+        pr1_vol_new_changevolume = _("Do you want to Update another cmp metadata volume with hypervisor volume?") + yn
+        pr2_vol_choosecmp = _("Which cmp metadata volume do you want to change?") + " [#/-1 " + _("for all") + "] "
+        pr3_vol_choosehyp = _(
+            "Which hypervisor volume do you want to map to cmp metadata volume {meta_vol_num}?"
+        ) + " [#] "
+        pr4_vol_check = _(
+            "Do you want to Update cmp metadata volume {meta_vol_num} with hypervisor volume {hyp_vol_num}?"
+        ) + yn
+        pr4_vol_check_all = _("Do you want to Update ALL cmp metadata volume with hypervisor volumes?") + yn
+        pr4_vol_check_err = _(
+            "You can not Update ALL cmp metadata; the number of volumes reported by hypervisor does not match the volumes in metadata! "
         )
-
         print()
+        hypervisor = dict_get(metadata, "provider_compute_instance.attributes.type")
+        if hypervisor == "openstack":
+            print(self.styler.red(OPENSTACK_ALIGN_VOL_NOT_SUPPORTED))
+            return
+
         # change volume metadata using hypervisor data
-        check = self.ask(PR1_VOL_CHANGEVOLUME, yn=True)
+        check = self.ask(pr1_vol_changevolume, yn=True)
         while check == "Y":
             cmpindex = None
             while cmpindex is None:
-                indata = self.ask(PR2_VOL_CHOOSECMP, yn=False)
+                indata = self.ask(pr2_vol_choosecmp, yn=False)
                 try:
                     cmpindex = int(indata)
                     if cmpindex < -1 or cmpindex > len(tab_cmp) - 1:
@@ -611,7 +675,7 @@ class AdminChildController(BaseController):
                 if cmpindex == -1:
                     indata = "-1"
                 else:
-                    indata = self.ask(PR3_VOL_CHOOSEHYP % (cmpindex), yn=False)
+                    indata = self.ask(pr3_vol_choosehyp.format(meta_vol_num=cmpindex), yn=False)
                 try:
                     hypindex = int(indata)
                     if hypindex < -1 or cmpindex > len(tab_hyp) - 1:
@@ -619,112 +683,76 @@ class AdminChildController(BaseController):
                 except Exception:
                     hypindex = None
             if cmpindex != -1:
-                check = self.ask(PR4_VOL_CHECK % (cmpindex, hypindex), yn=True)
+                check = self.ask(pr4_vol_check.format(meta_vol_num=hypindex, hyp_vol_num=hypindex), yn=True)
             elif len(tab_hyp) == len(tab_cmp):
-                check = self.ask(PR4_VOL_CHECK_ALL, yn=True)
+                check = self.ask(pr4_vol_check_all, yn=True)
             else:
                 check = False
-                print(self.styler.clear_line() + self.styler.red(PR4_VOL_CHECK_ERR), flush=True)
+                print(self.styler.clear_line() + self.styler.red(pr4_vol_check_err), flush=True)
                 return
             print()
             if check == "Y":
                 print("", end="", flush=True)
                 if cmpindex != -1:
                     self.update_volume(cmpindex, hypindex, metadata)
-                    print(self.styler.clear_line() + self.styler.green(VOL_SUCCESS % (cmpindex, hypindex)), flush=True)
+                    msg = VOL_SUCCESS.format(meta_vol_num=cmpindex, hyp_vol_num=hypindex)
+                    print(self.styler.clear_line() + self.styler.green(msg), flush=True)
                 else:
-                    for index in range(len(tab_cmp)):
-                        self.update_volume(index, index, metadata)
-                        print(self.styler.clear_line() + self.styler.green(VOL_SUCCESS % (index, index)), flush=True)
+                    self.update_volumes(metadata)
 
             if cmpindex != -1:
-                check = self.ask(PR1_VOL_NEW_CHANGEVOLUME, yn=True)
+                check = self.ask(pr1_vol_new_changevolume, yn=True)
             else:
                 check = False
+        compute_instance = metadata['provider_compute_instance']['uuid']
+        self.reset_cmp_cache_resource(compute_instance)
 
-        def update_volume(self, volc: int, volh: int, metadata: dict):
-            """
-            Update volume.
-            """
-            STOK = f"SUCCESS filled metadata {volc} with hypervisor volume {volh}"
-            STERR = f"ERROR filling metadata {volc} with hypervisor volume {volh} : %s"
-
-            try:
-                vol_meta: dict = metadata["provider_compute_instance"]["block_device_mapping"][volc]
-            except Exception as exc:
-                raise AdminError(f"Nivola volume {volc} not found") from exc
-            try:
-                vol_hyp: dict = metadata["hypervisor_serverserver_det"]["volumes"][volh]
-            except Exception as exc:
-                raise AdminError(f"Hypervisor volume {volh} not found") from exc
-
-            try:
-                # Setting Provider volume size
-                r_id = vol_meta["id"]
-                val = int(vol_hyp["size"])
-                print(self.styler.clear_line(), f"Setting Provider {r_id} volume size to {val}", end="", sep="")
-                self.set_cmp_resource_config(r_id, "configs.size", str(val))
-                self.reset_cmp_cache_resource(r_id)
-
-                # Setting physical volume size
-                r_id = vol_meta["resource_hypervisor_volume"]["uuid"]
-                print(self.styler.clear_line(), f"Setting physical {r_id} volume size to {val}", end="", sep="")
-                self.set_cmp_resource_config(r_id, "size", str(val))
-                self.reset_cmp_cache_resource(r_id)
-                # Setting physical volume ext_id to
-                val = vol_hyp["disk_object_id"]
-                print(self.styler.clear_line(), "Setting physical {r_id} volume ext_id to {val}", end="", sep="")
-                self.set_cmp_resource_ext_id(r_id, val)
-                self.reset_cmp_cache_resource(r_id)
-
-                print(self.styler.clear_line(), STOK, self.styler.cur_up(1), end="", sep="")
-            except Exception as e:
-                print(self.styler.clear_line(), STERR % str(e), self.styler.cur_up(1), end="", sep="")
-
-    def remove_volume_metadata(self, volc: int, metadata: dict):
+    def remove_volume_metadata(self, volc: int, metadata: Dict):
         """
         Remove volume metadata.
         """
-        STOK = f"SUCCESS removing volume {volc}"
-        STERR = f"ERROR removing volume {volc} : %s"
+        stok = _("SUCCESS removing volume {volc}").format(volc=volc)
         try:
-            vol_meta: dict = metadata["provider_compute_instance"]["block_device_mapping"][volc]
+            vol_meta: Dict = metadata["provider_compute_instance"]["block_device_mapping"][volc]
         except Exception as exc:
             raise AdminError(f"Nivola volume {volc} not found") from exc
         try:
             r_id = vol_meta["resource_hypervisor_volume"]["uuid"]
-            print(self.styler.clear_line(), f"Setting physical {r_id} volume size to null", end="", sep="")
+            msg = _("Setting physical {r_id} volume size to null").format(r_id=r_id)
+            print(self.styler.clear_line(), msg, end="", sep="")
             self.set_cmp_resource_ext_id(r_id, "")
             self.set_cmp_resource_ext_id(r_id, None)
 
             r_id = vol_meta["id"]
-            print(self.styler.clear_line(), f"deleting Provider Volume {r_id} volume", end="", sep="")
+            msg = _("deleting Provider Volume {r_id} volume").format(r_id=r_id)
+            print(self.styler.clear_line(), msg, end="", sep="")
             self.delete_resource(r_id, force=True, deep=False)
 
-            print(self.styler.clear_line(), f"deleting Provider Volume {r_id} volume", end="", sep="")
+            msg = _("deleted Provider Volume {r_id} volume").format(r_id=r_id)
+            print(self.styler.clear_line(), msg, end="", sep="")
 
             self.reset_cmp_cache_resource(dict_get(metadata, "provider_compute_instance.id", default=r_id))
 
-            print(self.styler.clear_line() + STOK, self.styler.cur_up(1), end="", sep="")
+            print(self.styler.clear_line() + stok, self.styler.cur_up(1), end="", sep="")
 
             return r_id
         except Exception as exc:
-            print(self.styler.clear_line(), STERR % str(exc), self.styler.cur_up(1), end="", sep="")
+            sterr = _("ERROR removing volume {volc} : {stacktrace}").format(volc=volc, stacktrace=f"{exc}")
+            print(self.styler.clear_line(), sterr, self.styler.cur_up(1), end="", sep="")
             return None
 
-    def update_volume(self, volc: int, volh: int, metadata: dict):
+    def update_volume(self, volc: int, volh: int, metadata: Dict):
         """
         Update volume.
         """
-        STOK = f"SUCCESS filled metadata {volc} with hypervisor volume {volh}"
-        STERR = f"ERROR filling metadata {volc} with hypervisor volume {volh} : %s"
+        stok = _("SUCCESS filled metadata {volc} with hypervisor volume {volh}").format(volc=volc, volh=volh)
 
         try:
-            vol_meta: dict = metadata["provider_compute_instance"]["block_device_mapping"][volc]
+            vol_meta: Dict = metadata["provider_compute_instance"]["block_device_mapping"][volc]
         except Exception as exc:
             raise AdminError(f"Nivola volume {volc} not found") from exc
         try:
-            vol_hyp: dict = metadata["hypervisor_serverserver_det"]["volumes"][volh]
+            vol_hyp: Dict = metadata["hypervisor_serverserver_det"]["volumes"][volh]
         except Exception as exc:
             raise AdminError(f"Hypervisor volume {volh} not found") from exc
 
@@ -738,56 +766,89 @@ class AdminChildController(BaseController):
 
             # Setting physical volume size
             r_id = vol_meta["resource_hypervisor_volume"]["uuid"]
-            print(self.styler.clear_line(), f"Setting physical {r_id} volume size to {val}", end="", sep="")
+            msg = _("Setting physical {r_id} volume size to {val}").format(r_id=r_id, val=val)
+            print(self.styler.clear_line(), msg, end="", sep="")
             self.set_cmp_resource_config(r_id, "size", str(val))
             self.reset_cmp_cache_resource(r_id)
 
             # Setting physical volume ext_id to
             val = vol_hyp["disk_object_id"]
-            print(self.styler.clear_line(), "Setting physical {r_id} volume ext_id to {val}", end="", sep="")
+            msg = _("Setting physical {r_id} volume ext_id to {val}").format(r_id=r_id, val=val)
+            print(self.styler.clear_line(), msg, end="", sep="")
             self.set_cmp_resource_ext_id(r_id, val)
             self.reset_cmp_cache_resource(r_id)
 
-            print(self.styler.clear_line(), STOK, self.styler.cur_up(1), end="", sep="")
+            print(self.styler.clear_line(), stok, self.styler.cur_up(1), end="", sep="")
         except Exception as e:
-            print(self.styler.clear_line(), STERR % str(e), self.styler.cur_up(1), end="", sep="")
+            sterr = _(
+                "ERROR filling metadata {volc} with hypervisor volume {volh} : {stack_det}"
+            ).format(volc=volc, volh=volh, stack_det=f"{e}")
+            print(self.styler.clear_line(), sterr, self.styler.cur_up(1), end="", sep="")
 
-    def import_volume(self, volh: int, metadata: dict):
+    def update_volumes(self, metadata):
+        """
+        Update volumes.
+        """
+        hypervisor = dict_get(metadata, "provider_compute_instance.attributes.type")
+        if hypervisor == "openstack":
+            print(self.styler.red(OPENSTACK_ALIGN_VOL_NOT_SUPPORTED))
+            return
+        cmp_vols: list = dict_get(metadata, "provider_compute_instance.block_device_mapping")
+        hyp_vols: list = self.get_hypervisor_volumes(metadata)
+        if len(hyp_vols) != len(cmp_vols):
+            raise AdminError(_("Hypervisor and Cmp has not the same numer of volumes"))
+
+        for index in range(len(cmp_vols)):
+            self.update_volume(index, index, metadata)
+            msg = VOL_SUCCESS.format(meta_vol_num=index, hyp_vol_num=index)
+            print(self.styler.clear_line() + self.styler.green(msg), flush=True)
+
+    def get_hypervisor_volumes(self, metadata: Dict):
+        """
+        Get hypervisor volumes.
+        """
+        hypervisor = dict_get(metadata, "provider_compute_instance.attributes.type")
+        if hypervisor == "vsphere":
+            vol_hyp = metadata["hypervisor_serverserver_det"]["volumes"]
+        elif hypervisor == "openstack":
+            vol_hyp = metadata["hypervisor_serverserver_det"]["os-extended-volumes:volumes_attached"]
+        else:
+            raise Exception(_("unsupported hypervisor: {hypervisor}").format(hypervisor=hypervisor))
+        return vol_hyp
+
+    def import_volume(self, volh: int, metadata: Dict):
         """
         Import volume.
         """
-        STOK = f"SUCCESS importing volume {volh}"
-        STERR = f"ERROR importing volume {volh} : %s"
 
-        print("\n", self.styler.clear_line(), "Gathering info", sep="", end="")
+        print("\n", self.styler.clear_line(), _("Gathering info"), sep="", end="")
         container: str = dict_get(metadata, "provider_compute_instance.attributes.type", default="").lower()
         container_name: str = dict_get(metadata, "hypervisor_container.name")
         template_id = dict_get(
             metadata, "provider_compute_instance.block_device_mapping.0.resource_hypervisor_volume.uuid"
         )
-        print(self.styler.clear_line(), "Using first volume as template", sep="", end="")
+        print(self.styler.clear_line(), _("Using first volume as template"), sep="", end="")
         physical_vol_template: dict = self.get_cmp_resource(template_id)
         if container_name is None:
-            raise AdminError("Container Name not found")
+            raise AdminError(_("Container Name not found"))
         try:
-            hypervisor = dict_get(metadata, "provider_compute_instance.attributes.type")
-            vol_hyp: dict = {}
-            if hypervisor == "vsphere":
-                vol_hyp = metadata["hypervisor_serverserver_det"]["volumes"][volh]
-            elif hypervisor == "openstack":
-                vol_hyp = metadata["hypervisor_serverserver_det"]["os-extended-volumes:volumes_attached"][volh]
+            vol_hyp = self.get_hypervisor_volumes(metadata)[volh]
         except Exception as exc:
-            raise AdminError(f"Hypervisor volume {volh} not found") from exc
+            raise AdminError(_("Hypervisor volume {volh} not found").format(volh=volh)) from exc
         try:
             if container == "openstack":
                 vol_hyp["unit_number"] = volh
             self._import_volume_resource(container_name, vol_hyp, physical_vol_template, metadata, container)
-            print(self.styler.clear_line() + STOK + self.styler.cur_up(1), end="", sep="")
+            stok = _("SUCCESS importing volume {volh}").format(volh=volh)
+            print(self.styler.clear_line() + stok + self.styler.cur_up(1), end="", sep="")
         except Exception as exc:
-            print(self.styler.clear_line(), STERR % str(exc), self.styler.cur_up(1), end="", sep="")
+            sterr = _("ERROR importing volume {volh} : {stack_det}").format(volh=volh, stack_det=f"{exc}")
+            print(self.styler.clear_line(), sterr, self.styler.cur_up(1), end="", sep="")
 
-    def _import_volume_resource(self, container_name, vol_hyp, physical_vol_template, metadata, container):
-        print(self.styler.clear_line(), f"vSphere {container_name}", sep="", end="")
+    def _import_volume_resource(
+        self, container_name, vol_hyp, physical_vol_template, metadata, container, has_quotas=True
+    ):
+        print(self.styler.clear_line(), _("vSphere {container_name}"), sep="", end="")
         # import resource describing physical volume
         volume_type = dict_get(physical_vol_template, "attributes.volume_type")
         attribute = {
@@ -797,10 +858,11 @@ class AdminChildController(BaseController):
             "source_image": None,
             "bootable": False,
             "encrypted": False,
-            "has_quotas": True,
+            "has_quotas": has_quotas,
             "status": "in-use",
         }
-        name = dict_get(metadata, "service_servinst.name") + "-" + vol_hyp.get("name", "imported_volume")
+        provider_vm_name = dict_get(metadata, "service_servinst.name")
+        name = provider_vm_name + "-" + vol_hyp.get("name", "imported_volume")
         resclass = None
         desc = ""
         physical_resource_id = None
@@ -814,7 +876,8 @@ class AdminChildController(BaseController):
             physical_resource_id = vol_hyp.get("id")
 
         parent = str(physical_vol_template["parent"])
-        print(self.styler.clear_line(), "Adding physical volume metadata. ", sep="", end="")
+        # parent = str(1611515)
+        print(self.styler.clear_line(), _("Adding physical volume metadata. "), sep="", end="")
         volph = self.cmp_resource_import(
             container=container_name,
             resclass=resclass,
@@ -826,37 +889,39 @@ class AdminChildController(BaseController):
         )
 
         # set state and ext_id
-        print(self.styler.clear_line(), "Ensure physical volume metadata end status. ", sep="", end="")
+        print(self.styler.clear_line(), _("Ensure physical volume metadata end status. "), sep="", end="")
         volph_uuid = volph["uuid"]
         serph_uuid = dict_get(metadata, "resource_hypervisor_server.uuid")
         self.set_cmp_resource(volph_uuid, ext_id=physical_resource_id)
         self.set_cmp_resource_active(volph_uuid)
-        print(self.styler.clear_line(), "Linking physical Server metadata with volume metadata. ", sep="", end="")
+        print(self.styler.clear_line(), _("Linking physical Server metadata with volume metadata. "), sep="", end="")
         # add link from resource physical server
         self.add_cmp_resource_link(
-            name=f"{serph_uuid}-{volph_uuid}volume-link",
+            name=f"{serph_uuid}-{volph_uuid}-volume-link",
             linktype="volume",
             attrib={"boot": False},
             start_resource=serph_uuid,
             end_resource=volph_uuid,
         )
         # add  provider volume
-        print(self.styler.clear_line(), "Adding provider volume metadata. ", sep="", end="")
-        volpr = self.cmp_volume_import(physical_resource_id=volph["uuid"], name=name)
-        # add link from provider compute instance
-        print(self.styler.clear_line(), "Linking provider server with provider volume metadata.", sep="", end="")
-        volpr_uuid = volpr["uuid"]
         unit_number = vol_hyp["unit_number"]
+        print(self.styler.clear_line(), _("Adding provider volume metadata. "), sep="", end="")
+        volpr = self.cmp_volume_import(
+            physical_resource_id=volph["uuid"], name=f"{provider_vm_name}-volume-{unit_number}"
+        )
+        # add link from provider compute instance
+        print(self.styler.clear_line(), _("Linking provider server with provider volume metadata."), sep="", end="")
+        volpr_uuid = volpr["uuid"]
         serpr_uuid = dict_get(metadata, "provider_compute_instance.uuid")
         self.add_cmp_resource_link(
-            name=f"{serpr_uuid}-{volpr_uuid}volume-link",
+            name=f"{serpr_uuid}-{volpr_uuid}-volume-link",
             linktype=f"volume.{unit_number}",
             start_resource=serpr_uuid,
             end_resource=volpr_uuid,
         )
-        self.set_cmp_resource_enable_quotas(volpr_uuid, value=True)
+        self.set_cmp_resource_enable_quotas(volpr_uuid, value=has_quotas)
         # clear cache
-        print(self.styler.clear_line(), "Clear provider server cache.", sep="", end="")
+        print(self.styler.clear_line(), _("Clear provider server cache."), sep="", end="")
         self.reset_cmp_cache_resource(serpr_uuid)
         self.reset_cmp_cache_resource(dict_get(metadata, "provider_compute_instance.id", default=serpr_uuid))
         return serpr_uuid
@@ -865,146 +930,250 @@ class AdminChildController(BaseController):
         """
         Manage interactive import.
         """
-        PR1_LOAD_CHANGE = "Do you want to Add an existing hypervisor volume on cmp metadata volumes? [y/n] "
-        PR2_LOAD_CHOOSE = "Which hypervisor volume do you want to Add? [#] "
-        PR3_LOAD_CHECK = "Are you sure you want to Add hypervisor volume # %s in cmp metadata volumes? [y/n] "
-        LOAD_SUCCESS = "Added hypervisor volume %s in cmp metadata volumes %s. "
+        yn = " [y/n] "
+        pr1_load_change = _("Do you want to Add an existing hypervisor volume on cmp metadata volumes?") + yn
+        pr2_load_choose = _("Which hypervisor volume do you want to Add?") + " [#] "
+        pr3_load_check = _(
+            "Are you sure you want to Add hypervisor volume # {hyp_vol_num} in cmp metadata volumes?"
+        ) + yn
+        load_success = _("Added hypervisor volume {hyp_vol_num} in cmp metadata volumes {cmp_vol_num}. ")
         # change t backup tag interaction
         print()
-        check = self.ask(PR1_LOAD_CHANGE, yn=True)
+        check = self.ask(pr1_load_change, yn=True)
         if check == "Y":
-            volumenumber = -1
-            while volumenumber == -1:
-                indata = self.ask(PR2_LOAD_CHOOSE, yn=False)
+            valid = False
+            while not valid:
+                indata = self.ask(pr2_load_choose, yn=False)
                 try:
-                    volumenumber = int(indata)
-                    if volumenumber < 0:
-                        volumenumber = -1
+                    volumenumbers = [int(i) for i in indata.split(",")]
+                    valid = True
                 except Exception:
-                    volumenumber = -1
-            check = self.ask(PR3_LOAD_CHECK % (volumenumber), yn=True)
+                    valid = False
+
+            check = self.ask(pr3_load_check.format(hyp_vol_num=indata), yn=True)
             print()
             if check == "Y":
-                self.import_volume(volumenumber, metadata)
-                msg = self.styler.clear_line() + self.styler.green(LOAD_SUCCESS % (volumenumber, volumenumber))
-                print(msg, flush=True)
+                for volumenumber in volumenumbers:
+                    self.import_volume(volumenumber, metadata)
+                    msg = load_success.format(hyp_vol_num=volumenumber, cmp_vol_num=volumenumber)
+                    msg = self.styler.clear_line() + self.styler.green(msg)
+                    print(msg, flush=True)
 
-    def manage_interactive_delete(self, metadata: dict):
+    def manage_interactive_delete(self, metadata: Dict):
         """
         Manage interactive delete.
         """
-        PR1_REMOVE_PROMPT = "Do you want to Delete a non existing volume described by cmp metadata? [y/n] "
-        PR2_REMOVE_CHOOSE = "Which cmp metadata volume do you want to Delete? [#] "
-        PR3_REMOVE_CHECK = "Are you sure you want to Delete metadata volume # %s? [y/n] "
-        REMOVE_SUCCESS = "Deleted cmp metadata volume %s."
+        yn = " [y/n] "
+        pr1_remove_prompt = _("Do you want to Delete a non existing volume described by cmp metadata?") + yn
+        pr2_remove_choose = _("Which cmp metadata volume do you want to Delete?") + " [#] "
+        pr3_remove_check = _("Are you sure you want to Delete metadata volume # {cmp_vol_num}?") + yn
+        remove_success = _("Deleted cmp metadata volume {cmp_vol_num}.")
         # change t backup tag interaction
         print()
-        check = self.ask(PR1_REMOVE_PROMPT, yn=True)
+        check = self.ask(pr1_remove_prompt, yn=True)
         if check == "Y":
             volumenumber = -1
             while volumenumber == -1:
-                indata = self.ask(PR2_REMOVE_CHOOSE, yn=False)
+                indata = self.ask(pr2_remove_choose, yn=False)
                 try:
                     volumenumber = int(indata)
                     if volumenumber < 0:
                         volumenumber = -1
                 except Exception:
                     volumenumber = -1
-            check = self.ask(PR3_REMOVE_CHECK % (volumenumber), yn=True)
+            check = self.ask(pr3_remove_check.format(cmp_vol_num=volumenumber), yn=True)
             print()
             if check == "Y":
                 self.remove_volume_metadata(volumenumber, metadata)
-                print(self.styler.clear_line() + self.styler.green(REMOVE_SUCCESS % volumenumber), flush=True)
+                msg = self.styler.green(remove_success.format(cmp_vol_num=volumenumber))
+                print(self.styler.clear_line() + msg, flush=True)
 
-    def manage_interactive_tags(self, tab_cmp):
+    def toggle_backup_tags(self, tab_cmp):
         """
-        Manage tags, including the backup one.
+        Toggle backup tags on volume.
         """
-        PR1_TAG_CHANGE = "Do you want to add/remove backup a tag from volume? [y/n] "
-        PR2_TAG_CHOOSECMP = "Which cmp metadata volume's tag do you want to change? [#] "
-        PR3_TAG_CHECK = "Are you sure you want to %s the '%s' tag from cmp metadata volume %s? [y/n] "
-        TAG_SUCCESS = "Tagged cmp metadata volume %s."
-        TAG = "nws$volume_bck"
+        yn = " [y/n] "
+        pr1_tag_change = _("Do you want to add/remove backup a tag from volume?") + yn
+        pr2_tag_choosecmp = _("Which cmp metadata volume's tag do you want to change?") + " [#] "
+        pr3_tag_check = _(
+            "Are you sure you want to {action} the {tag_name} tag from cmp metadata volume {cmp_vol_num}?"
+        ) + yn
+        tag_success = _("Tagged cmp metadata volume {cmp_vol_num}.")
+        tag = "nws$volume_bck"
         # change tag interaction
         print()
-        check = self.ask(PR1_TAG_CHANGE, yn=True)
+        check = self.ask(pr1_tag_change, yn=True)
         while check == "Y":
             cmpindex = -1
             action = ""
             while cmpindex == -1:
-                indata = self.ask(PR2_TAG_CHOOSECMP, yn=False)
+                indata = self.ask(pr2_tag_choosecmp, yn=False)
                 try:
                     cmpindex = int(indata)
                     if cmpindex < 0 or cmpindex > len(tab_cmp) - 1:
                         cmpindex = -1
                     else:
-                        if TAG in tab_cmp[cmpindex]["tags"]:
-                            action = "delete"
+                        if tag in tab_cmp[cmpindex]["tags"]:
+                            action = _("delete")
                         else:
-                            action = "add"
+                            action = _("add")
                 except Exception:
                     cmpindex = -1
-            check = self.ask(PR3_TAG_CHECK % (action, TAG, cmpindex), yn=True)
+            msg = pr3_tag_check.format(action=action, tag_name=tag, cmp_vol_num=cmpindex)
+            check = self.ask(msg, yn=True)
             print()
             if check == "Y":
                 print("", end="", flush=True)
                 r_id = tab_cmp[cmpindex]["id"]
                 if action == "delete":
-                    self.del_cmp_entity_tags(r_id, TAG)
+                    self.del_cmp_entity_tags(r_id, tag)
                 else:
-                    self.set_cmp_entity_tags(r_id, TAG)
-                print(self.styler.clear_line() + self.styler.green(TAG_SUCCESS % cmpindex), flush=True)
+                    self.set_cmp_entity_tags(r_id, tag)
+                msg = tag_success.format(cmp_vol_num=cmpindex)
+                print(self.styler.clear_line() + self.styler.green(msg), flush=True)
 
-            check = self.ask(PR1_TAG_CHANGE, yn=True)
+            check = self.ask(pr1_tag_change, yn=True)
+
+    def data_bulk_tags(self, tab_cmp):
+        """
+        Bulk tag volumes as backup.
+        """
+        tag = "nws$volume_bck"
+        input_prompt = _("Please enter the indexes (#) of the CMP data volumes, separated by commas (e.g., 1,2,5).")
+        indata = self.ask(input_prompt, yn=False)
+        cmpindexes = []
+        try:
+            cmpindexes = [int(n) for n in indata.split(",")]
+        except:
+            msg = _("Invalid input {indata}").format(indata=indata)
+            print(self.styler.clear_line() + self.styler.red(msg), flush=True)
+        for cmpindex in cmpindexes:
+            if cmpindex < 0 or cmpindex > len(tab_cmp) - 1:
+                msg = _("Invalid index {cmpindex}").format(cmpindex=cmpindex)
+                print(self.styler.clear_line() + self.styler.red(msg), flush=True)
+        for item in tab_cmp:
+            index = item["#"]
+            if index == 0:
+                if 0 in cmpindexes:
+                    msg = _("Skip boot index {index}").format(index=index)
+                    print(self.styler.clear_line() + self.styler.red(msg), flush=True)
+                continue
+            r_id = item["id"]
+            if index in cmpindexes:
+                # This is a data volume, I remove the backup tag if it has one.
+                if tag in item["tags"]:
+                    self.del_cmp_entity_tags(r_id, tag)
+            else:
+                # This is a backup volume, I add the backup tag if it doesn't have one.
+                if tag not in item["tags"]:
+                    self.set_cmp_entity_tags(r_id, tag)
+
+    def manage_interactive_tags(self, tab_cmp):
+        """
+        Manage tags, including the backup one.
+        """
+        prompt = (
+            "\n" + _("You can press: ") + "\n"
+            + self.styler.underline("D") + "; "
+            + _("to tag Data volumes in bulk") + ",\n"
+            + self.styler.underline("B") + "; "
+            + _("to toggle the Backup tag on a specific volume") + ",\n"
+            + self.styler.underline("H") + "; "
+            + _("to return to Home") + ".\n"
+        )
+        print(prompt)
+
+        allowed = ("D", "B", "H")
+        prompt_choose = f"Data, Backup, or Home [{'/'.join(allowed)}]? "
+
+        check = self.ask(prompt_choose, yn=False, allowed=allowed)
+        if check == "B":
+            self.toggle_backup_tags(tab_cmp)
+        if check == "D":
+            self.data_bulk_tags(tab_cmp)
+        if check == "H":
+            return
 
     def suggestion_print(self, action, text):
-        msg = self.styler.red("Please " + self.styler.underline(action)) + self.styler.red(text)
+        """
+        Print menu suggestion
+        """
+        red = self.styler.red
+        msg = red(_("Press")) + " " + red(self.styler.underline(action)) + red("; " +text)
         print(msg)
 
     def print_warning(self):
-        print("\n" + self.styler.red(self.styler.format("Warning! ", self.styler.BLINK)))
+        """
+        Print warning.
+        """
+        print("\n" + self.styler.red(self.styler.format(_("Warning! "), self.styler.BLINK)))
 
     def print_success(self):
-        print("\n" + self.styler.green(self.styler.format("Success! ", self.styler.BLINK)))
+        """
+        Print success.
+        """
+        print("\n" + self.styler.green(self.styler.format(_("Success! "), self.styler.BLINK)))
 
     def print_info(self):
-        print("\n" + self.styler.red(self.styler.format("Info! ", self.styler.BLINK)))
+        """
+        Print info.
+        """
+        print("\n" + self.styler.red(self.styler.format(_("Info! "), self.styler.BLINK)))
 
     def print_looking_for(self, msg):
-        sentence = self.styler.green(self.styler.clear_line() + "I'm looking for " + msg)
+        """
+        Print looking for msg.
+        """
+        sentence = self.styler.green(self.styler.clear_line() + _("I'm looking for ") + msg)
         print(sentence, end="...", flush=True)
 
     def make_suggestions(self, tab_cmp, tab_hyp):
-        ext_cmp = {i: a["ext_id"] for i, a in enumerate(tab_cmp)}
-        hyp_cmp = {i: a["ext_id"] for i, a in enumerate(tab_hyp)}
-        cmp_vol_index = set(ext_cmp.keys())
-        hyp_vol_index = set(hyp_cmp.keys())
+        """
+        Make suggestions to solve discrepancies between the cmp metadata and the vm information on hypervisor.
+        """
+        ext_cmp = {a["ext_id"]: a["size"] for a in tab_cmp}
+        hyp_cmp = {a["ext_id"]: a["size"] for a in tab_hyp}
+        cmp_vol_index = set(a for a, v in enumerate(ext_cmp))
+        hyp_vol_index = set(a for a, v in enumerate(hyp_cmp))
         if len(tab_cmp) != len(tab_hyp):
-            msg = "The number of volumes reported by hypervisor does not match the volumes in metadata!"
-            print("\n" + self.styler.format("Warning! ", self.styler.BLINK) + self.styler.red(msg))
+            warn = self.styler.format("\n" + _("Warning! ") + "\n", self.styler.BLINK)
+            msg = _("The number of volumes reported by hypervisor does not match the volumes in metadata!")
+            print(self.styler.red(warn) + self.styler.red(msg))
             missing_cmp_vol = hyp_vol_index - cmp_vol_index
             for a in missing_cmp_vol:
-                self.suggestion_print(
-                    "A", f"dd the cmp volume metadata # {a} this exists in hypervisor but not in cmp."
-                )
+                msg = _("Add the cmp volume metadata # {a} this exists in hypervisor but not in cmp.").format(a=a)
+                self.suggestion_print("A", msg)
             cmp_vol_no_hyp = cmp_vol_index - hyp_vol_index
             for a in cmp_vol_no_hyp:
-                self.suggestion_print("D", f"elete the cmp volume metadata # {a} this does not exist in hypervisor.")
+                msg = _("Delete the cmp volume metadata # {a} this does not exist in hypervisor.").format(a=a)
+                self.suggestion_print("D", msg)
         else:
             same_keys = cmp_vol_index == hyp_vol_index
+            same_values = None
             if same_keys:
-                same_values = [a for a in ext_cmp.values()] == [a for a in hyp_cmp.values()]
+                same_values = all(ext_cmp.get(k) == hyp_cmp.get(k) for k in hyp_cmp)
             else:
                 self.print_warning()
-                self.suggestion_print("U", "pdate cmp metadata volumes, detected some problems on indices.")
+                self.suggestion_print("U", _("to Update cmp metadata volumes, detected some problems on indices."))
             if same_keys and not same_values:
                 self.print_warning()
                 self.suggestion_print(
-                    "U", "pdate cmp metadata volumes, some ext_id are not aligned to hypervisor data volumes."
+                    "U", _("to Update cmp metadata volumes, some ext_id are not aligned to hypervisor data volumes.")
                 )
             else:
                 self.print_success()
-                msg = "Cmp metadata volumes match with hypervisor data volumes."
+                msg = _("Cmp metadata volumes match with hypervisor data volumes.")
                 print(self.styler.green(msg))
                 return True
         return False
+
+    def exit_suggestion(self):
+        """
+        All is ok, suggest to exit.
+        """
+        self.print_info()
+        red = self.styler.red
+        green = self.styler.green
+        exit_msg = _("Press") + " " + self.styler.underline("X")
+        msg = red(exit_msg) + " " + red(_("to eXit")) + ", " + green(_("everything is ok!"))
+        print(msg)

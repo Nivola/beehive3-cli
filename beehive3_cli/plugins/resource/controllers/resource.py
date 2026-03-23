@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive3_cli.core.controller import CliController
+from beehive3_cli.translate import _
 
 
-class ResourceState(object):
+class ResourceState():
     PENDING = 0
     BUILDING = 1
     ACTIVE = 2
@@ -27,5 +28,5 @@ class ResourceController(CliController):
         label = "res"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "resource management"
-        help = "resource management"
+        description = _("resource management")
+        help = _("resource management")

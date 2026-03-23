@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement.core.output import OutputHandler
 from tabulate import tabulate
@@ -28,7 +28,7 @@ class TabularColorOutputHandler(OutputHandler):
                     res = res.get(k, {})
         # if isinstance(res, list):
         #     res = res
-        if res is None or res == {}:
+        if res is None or res == {} or res == "":
             res = "-"
 
         return res
@@ -124,8 +124,7 @@ class TabularColorOutputHandler(OutputHandler):
             print(tabulate(table, tablefmt=table_style, showindex=showindex))
 
     def color_even(self, transform, item, maxsize, parent_item_key: str = ""):
-        func = lambda a: self.c.yellow(a)
-        self.color_item(transform, item, maxsize, func, parent_item_key)
+        self.color_item(transform, item, maxsize, self.c.yellow, parent_item_key)
 
     def color_odd(self, transform, item, maxsize, parent_item_key: str = ""):
         # func = lambda a: self.c.white(a)
@@ -146,11 +145,10 @@ class TabularColorOutputHandler(OutputHandler):
 
         for item_key in item:
             colortext = transform.get(parent_item_key + item_key + ".colortext")
-            # print("transform key: %s - value: %s" % (parent_item_key + item_key, transform.get(parent_item_key + item_key + ".colortext")))
             if (
-                type(item_key) is str
-                and (transform.get(parent_item_key + item_key) is None or colortext is True)
-                and (colortext is None or colortext is True)
+                (colortext is None or colortext)
+                and isinstance(item_key, str)
+                and (colortext or transform.get(parent_item_key + item_key) is None)
             ):
                 # print("parent_item_key - item_key: %s - %s  - %s" % (parent_item_key, item_key, type(item_key)))
 
@@ -159,28 +157,25 @@ class TabularColorOutputHandler(OutputHandler):
                 # value = item[item_key]
                 value = dict_get(item, item_key)
 
-                if type(value) == str:
+                if isinstance(value, str):
                     if getattr(self.app.pargs, "notruncate", False) is False:
                         value = truncate(value, size=(maxsize), replace_new_line=False)
                     dict_set(item, item_key, func(value))
 
-                elif type(value) == bool:
+                elif isinstance(value, bool):
                     from beecell.types.type_string import bool2str
 
                     item[item_key] = func(bool2str(value))
 
-                elif type(value) == int:
+                elif isinstance(value, (int, float)):
                     item[item_key] = func(str(value))
 
-                elif type(value) == float:
-                    item[item_key] = func(str(value))
-
-                elif type(value) == dict:
+                elif isinstance(value, dict):
                     self.color_item(transform, value, maxsize, func, parent_item_key=parent_item_key + item_key + ".")
 
-                elif type(value) == list:
+                elif isinstance(value, list):
                     for subitem in value:
-                        if type(subitem) == dict:
+                        if isinstance(value, dict):
                             self.color_item(transform, subitem, maxsize, func)
                         # TODO: not dict (list IP)
 
@@ -258,12 +253,6 @@ class TabularColorOutputHandler(OutputHandler):
 
         sections = []
 
-        # # check if get by id
-        # if getattr(self.app.pargs, 'id', None) is not None:
-        #     details = True
-        #     if isinstance(data, list):
-        #         data = data[0]
-
         # convert input data for query with one raw
         if details is True:
             resp = []
@@ -278,11 +267,11 @@ class TabularColorOutputHandler(OutputHandler):
                 if isinstance(v, list):
                     i = 0
                     for n in v:
-                        __format_table_data("%s.%s" % (k, i), n)
+                        __format_table_data(f"{k}.{i}", n)
                         i += 1
                 elif isinstance(v, dict):
                     for k1, v1 in v.items():
-                        __format_table_data("%s.%s" % (k, k1), v1)
+                        __format_table_data(f"{k}.{k1}", v1)
                 else:
                     # if isinstance(v, str):
                     #     v = v
@@ -326,18 +315,13 @@ class TabularColorOutputHandler(OutputHandler):
                 new_data.append(item)
             return new_data
 
-        if isinstance(data, dict) or isinstance(data, list):
+        if isinstance(data, (dict, list)):
             if data is not None and "page" in data:
-                print("Page: %s" % data["page"])
-                print("Count: %s" % data["count"])
-                print("Total: %s" % data["total"])
-                print(
-                    "Order: %s %s"
-                    % (
-                        data.get("sort").get("field"),
-                        data.get("sort").get("order"),
-                    )
-                )
+                print(f"Page: {data['page']}")
+                print(f"Count: {data['count']}")
+                print(f"Total: {data['total']}")
+                sort_data = data.get("sort", {})
+                print(f"Order: {sort_data.get('field')} {sort_data.get('order')}")
                 print("")
 
             # color odd rows

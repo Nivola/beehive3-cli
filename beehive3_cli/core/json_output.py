@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement.ext.ext_json import JsonOutputHandler as OriginalJsonOutputHandler
 from cement.utils.misc import minimal_logger
@@ -30,5 +30,5 @@ class JsonOutputHandler(OriginalJsonOutputHandler):
             str: A JSON encoded string.
 
         """
-        LOG.debug("rendering output as Json via %s" % self.__module__)
+        LOG.debug(f"rendering output as Json via {self.__module__}")
         return dumps(data, indent=2) + "\n"

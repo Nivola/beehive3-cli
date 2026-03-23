@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from cement import ex
 from beecell.types.type_string import truncate
 from beehive3_cli.core.controller import BaseController, PARGS, ARGS
-from cement import ex
+from beehive3_cli.translate import _
 
 
 class OpenstackController(BaseController):
@@ -12,8 +13,8 @@ class OpenstackController(BaseController):
         label = "res_openstack"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "openstack orchestrator"
-        help = "openstack orchestrator"
+        description = _("openstack orchestrator")
+        help = _("openstack orchestrator")
 
         cmp = {"baseuri": "/v1.0/nrs/openstack", "subsystem": "resource"}
 
@@ -279,19 +280,19 @@ class OpenstackController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(OpenstackController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
     @ex(
-        help="get domains",
-        description="get domains",
+        help=_("get domains"),
+        description=_("get domains"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "domain id",
+                        "help": _("domain id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -303,7 +304,7 @@ class OpenstackController(BaseController):
     def domain_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/domains/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/domains/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -315,19 +316,19 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/domains" % self.baseuri
+            uri = f"{self.baseuri}/domains"
             res = self.cmp_get(uri, data=data)
             self.app.render(res, key="domains", headers=self._meta.headers, fields=self._meta.fields)
 
     @ex(
-        help="get projects",
-        description="get projects",
+        help=_("get projects"),
+        description=_("get projects"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -339,7 +340,7 @@ class OpenstackController(BaseController):
     def project_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/projects/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/projects/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -351,7 +352,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/projects" % self.baseuri
+            uri = f"{self.baseuri}/projects"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -364,14 +365,14 @@ class OpenstackController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=20)
 
     @ex(
-        help="get project quotas",
-        description="get project quotas",
+        help=_("get project quotas"),
+        description=_("get project quotas"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -382,7 +383,7 @@ class OpenstackController(BaseController):
     )
     def project_quota_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "%s/projects/%s/quotas" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/projects/{oid}/quotas"
         res = self.cmp_get(uri)
         res = res.get("quotas")
         resp = []
@@ -398,14 +399,14 @@ class OpenstackController(BaseController):
         self.app.render(resp, details=True, maxsize=45)
 
     @ex(
-        help="get project default quotas",
-        description="get project default quotas",
+        help=_("get project default quotas"),
+        description=_("get project default quotas"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -416,7 +417,7 @@ class OpenstackController(BaseController):
     )
     def project_default_quota_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "%s/projects/%s/system/project/quotas" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/projects/{oid}/system/project/quotas"
         res = self.cmp_get(uri)
         res = res.get("default_quotas")
         resp = []
@@ -437,14 +438,14 @@ class OpenstackController(BaseController):
         self.app.render(resp, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="set project quotas",
-        description="set project quotas",
+        help=_("set project quotas"),
+        description=_("set project quotas"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -453,7 +454,7 @@ class OpenstackController(BaseController):
                 (
                     ["type"],
                     {
-                        "help": "quota type",
+                        "help": _("quota type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -462,7 +463,7 @@ class OpenstackController(BaseController):
                 (
                     ["quota"],
                     {
-                        "help": "quota name",
+                        "help": _("quota name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -471,7 +472,7 @@ class OpenstackController(BaseController):
                 (
                     ["value"],
                     {
-                        "help": "quota value",
+                        "help": _("quota value"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -491,19 +492,19 @@ class OpenstackController(BaseController):
                 }
             ]
         }
-        uri = "%s/projects/%s/quotas" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/projects/{oid}/quotas"
         self.cmp_post(uri, data=data)
-        self.app.render(msg={"msg": "set project %s quota %s" % (oid, data["quotas"])})
+        self.app.render(msg={"msg": f"set project {oid} quota {data['quotas']}"})
 
     @ex(
-        help="get project members",
-        description="get project members",
+        help=_("get project members"),
+        description=_("get project members"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -514,7 +515,7 @@ class OpenstackController(BaseController):
     )
     def project_member_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "%s/projects/%s/members" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/projects/{oid}/members"
         res = self.cmp_get(uri)
         res = res.get("members")
         headers = ["user_id", "user_name", "role_id", "role_name"]
@@ -522,14 +523,14 @@ class OpenstackController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="set project member TODO",
-        description="set project member TODO",
+        help=_("set project member TODO"),
+        description=_("set project member TODO"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -538,7 +539,7 @@ class OpenstackController(BaseController):
                 (
                     ["type"],
                     {
-                        "help": "quota type",
+                        "help": _("quota type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -547,7 +548,7 @@ class OpenstackController(BaseController):
                 (
                     ["quota"],
                     {
-                        "help": "quota name",
+                        "help": _("quota name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -556,7 +557,7 @@ class OpenstackController(BaseController):
                 (
                     ["value"],
                     {
-                        "help": "quota value",
+                        "help": _("quota value"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -576,19 +577,19 @@ class OpenstackController(BaseController):
                 }
             ]
         }
-        uri = "%s/projects/%s/members" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/projects/{oid}/members"
         self.cmp_post(uri, data=data)
-        self.app.render(msg={"msg": "set project %s quota %s" % (oid, data["quotas"])})
+        self.app.render(msg={"msg": f"set project {oid} quota {data['quotas']}"})
 
     @ex(
-        help="get networks",
-        description="get networks",
+        help=_("get networks"),
+        description=_("get networks"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -600,7 +601,7 @@ class OpenstackController(BaseController):
     def network_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/networks/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/networks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -612,7 +613,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/networks" % self.baseuri
+            uri = f"{self.baseuri}/networks"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -622,14 +623,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get subnets",
-        description="get subnets",
+        help=_("get subnets"),
+        description=_("get subnets"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -641,7 +642,7 @@ class OpenstackController(BaseController):
     def subnet_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/subnets/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/subnets/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -653,7 +654,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/subnets" % self.baseuri
+            uri = f"{self.baseuri}/subnets"
             res = self.cmp_get(uri, data=data)
             transform = {"desc": lambda x: truncate(x, 20)}
             self.app.render(
@@ -665,14 +666,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get ports",
-        description="get ports",
+        help=_("get ports"),
+        description=_("get ports"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -684,7 +685,7 @@ class OpenstackController(BaseController):
     def port_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/ports/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/ports/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -696,7 +697,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/ports" % self.baseuri
+            uri = f"{self.baseuri}/ports"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -706,14 +707,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get security groups",
-        description="get security groups",
+        help=_("get security groups"),
+        description=_("get security groups"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -725,7 +726,7 @@ class OpenstackController(BaseController):
     def security_group_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/security_groups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/security_groups/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -762,7 +763,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/security_groups" % self.baseuri
+            uri = f"{self.baseuri}/security_groups"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -772,14 +773,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="delete security group rule",
-        description="delete security group rule",
+        help=_("delete security group rule"),
+        description=_("delete security group rule"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -788,7 +789,7 @@ class OpenstackController(BaseController):
                 (
                     ["rule"],
                     {
-                        "help": "security group rule id",
+                        "help": _("security group rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -801,18 +802,18 @@ class OpenstackController(BaseController):
         oid = self.app.pargs.id
         ruleid = self.app.pargs.rule
         data = {"security_group_rule": {"rule_id": ruleid}}
-        uri = "%s/security_groups/%s/rules" % (self.baseuri, oid)
-        self.cmp_delete(uri, data=data, entity="security group %s rule %s" % (oid, ruleid))
+        uri = f"{self.baseuri}/security_groups/{oid}/rules"
+        self.cmp_delete(uri, data=data, entity=f"security group {oid} rule {ruleid}")
 
     @ex(
-        help="get routers",
-        description="get routers",
+        help=_("get routers"),
+        description=_("get routers"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -824,7 +825,7 @@ class OpenstackController(BaseController):
     def router_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/routers/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/routers/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -878,7 +879,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/routers" % self.baseuri
+            uri = f"{self.baseuri}/routers"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -888,14 +889,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="delete router port",
-        description="delete router port",
+        help=_("delete router port"),
+        description=_("delete router port"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -904,7 +905,7 @@ class OpenstackController(BaseController):
                 (
                     ["subnet"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -916,22 +917,22 @@ class OpenstackController(BaseController):
     def router_port_del(self):
         oid = self.app.pargs.id
         subnet = self.app.pargs.subnet
-        uri = "%s/routers/%s/ports" % (self.baseuri, oid)
-        res = self.cmp_delete(
+        uri = f"{self.baseuri}/routers/{oid}/ports"
+        self.cmp_delete(
             uri,
             data={"router_port": {"subnet_id": subnet}},
-            entity="router %s port on subnet %s" % (oid, subnet),
+            entity=f"router {oid} port on subnet {subnet}",
         )
 
     @ex(
-        help="get images",
-        description="get images",
+        help=_("get images"),
+        description=_("get images"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -943,7 +944,7 @@ class OpenstackController(BaseController):
     def image_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/images/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/images/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -960,7 +961,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/images" % self.baseuri
+            uri = f"{self.baseuri}/images"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -970,14 +971,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get flavors",
-        description="get flavors",
+        help=_("get flavors"),
+        description=_("get flavors"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -989,7 +990,7 @@ class OpenstackController(BaseController):
     def flavor_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/flavors/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/flavors/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1001,7 +1002,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/flavors" % self.baseuri
+            uri = f"{self.baseuri}/flavors"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -1011,14 +1012,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get servers",
-        description="get servers",
+        help=_("get servers"),
+        description=_("get servers"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1027,7 +1028,7 @@ class OpenstackController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "instance name",
+                        "help": _("instance name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1036,7 +1037,7 @@ class OpenstackController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "instance description",
+                        "help": _("instance description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1045,7 +1046,7 @@ class OpenstackController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "instance parent",
+                        "help": _("instance parent"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1054,7 +1055,7 @@ class OpenstackController(BaseController):
                 (
                     ["-state"],
                     {
-                        "help": "instance state",
+                        "help": _("instance state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1063,7 +1064,7 @@ class OpenstackController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "instance tags",
+                        "help": _("instance tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1072,7 +1073,7 @@ class OpenstackController(BaseController):
                 (
                     ["-container"],
                     {
-                        "help": "container uuid or name",
+                        "help": _("container uuid or name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1084,7 +1085,7 @@ class OpenstackController(BaseController):
     def server_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/servers/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/servers/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1128,7 +1129,7 @@ class OpenstackController(BaseController):
             params = ["name", "desc", "parent", "state", "tags", "container"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/servers" % self.baseuri
+            uri = f"{self.baseuri}/servers"
             res = self.cmp_get(uri, data=data)
             transform = {"desc": lambda x: truncate(x, 20)}
             self.app.render(
@@ -1140,14 +1141,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="patch server",
-        description="patch server",
+        help=_("patch server"),
+        description=_("patch server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1158,19 +1159,19 @@ class OpenstackController(BaseController):
     )
     def server_patch(self):
         oid = self.app.pargs.id
-        uri = "/v1.0/nrs/entities/%s" % oid
+        uri = f"/v1.0/nrs/entities/{oid}"
         self.cmp_patch(uri, data={"resource": {}})
-        self.app.render({"msg": "patch server %s" % oid}, details=True)
+        self.app.render({"msg": f"patch server {oid}"}, details=True)
 
     @ex(
-        help="delete server",
-        description="delete server",
+        help=_("delete server"),
+        description=_("delete server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1181,18 +1182,18 @@ class OpenstackController(BaseController):
     )
     def server_del(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, "server %s" % oid)
+        uri = f"{self.baseuri}/servers/{oid}"
+        self.cmp_delete(uri, f"server {oid}")
 
     @ex(
-        help="get server console",
-        description="get server console",
+        help=_("get server console"),
+        description=_("get server console"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1203,19 +1204,19 @@ class OpenstackController(BaseController):
     )
     def server_console(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/console" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/console"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get server console",
-        description="get server console",
+        help=_("get server console"),
+        description=_("get server console"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1226,19 +1227,19 @@ class OpenstackController(BaseController):
     )
     def server_runtime(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/runtime" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/runtime"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get server stats",
-        description="get server stats",
+        help=_("get server stats"),
+        description=_("get server stats"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1249,7 +1250,7 @@ class OpenstackController(BaseController):
     )
     def server_stats(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/stats" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/stats"
         res = self.cmp_get(uri)
 
         if self.is_output_text():
@@ -1259,14 +1260,14 @@ class OpenstackController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="get server actions",
-        description="get server actions",
+        help=_("get server actions"),
+        description=_("get server actions"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1277,19 +1278,19 @@ class OpenstackController(BaseController):
     )
     def server_actions(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/actions" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/actions"
         res = self.cmp_get(uri)
         self.app.render(res, headers=["action", "request_id", "message"])
 
     @ex(
-        help="get server metadata",
-        description="get server metadata",
+        help=_("get server metadata"),
+        description=_("get server metadata"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1300,19 +1301,19 @@ class OpenstackController(BaseController):
     )
     def server_metadata(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/metadata" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/metadata"
         res = self.cmp_get(uri)
         self.app.render(res, details=True)
 
     @ex(
-        help="get openstack server snapshots",
-        description="get openstack server snapshots",
+        help=_("get openstack server snapshots"),
+        description=_("get openstack server snapshots"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1323,19 +1324,19 @@ class OpenstackController(BaseController):
     )
     def server_snapshot_get(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/snapshots"
         res = self.cmp_get(uri).get("server_snapshots")
         self.app.render(res, headers=["id", "name", "status", "created_at"])
 
     @ex(
-        help="add openstack server snapshot",
-        description="add openstack server snapshot",
+        help=_("add openstack server snapshot"),
+        description=_("add openstack server snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1344,7 +1345,7 @@ class OpenstackController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1356,20 +1357,20 @@ class OpenstackController(BaseController):
     def server_snapshot_add(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_snapshot": {"snapshot": name}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add server %s snapshot %s" % (oid, name)})
+        self.app.render({"msg": f"add server {oid} snapshot {name}"})
 
     @ex(
-        help="delete openstack server snapshot",
-        description="delete openstack server snapshot",
+        help=_("delete openstack server snapshot"),
+        description=_("delete openstack server snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1378,7 +1379,7 @@ class OpenstackController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1390,20 +1391,20 @@ class OpenstackController(BaseController):
     def server_snapshot_del(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del server %s snapshot %s" % (oid, snapshot)})
+        self.app.render({"msg": f"del server {oid} snapshot {snapshot}"})
 
     @ex(
-        help="revert openstack server to snapshot",
-        description="revert openstack server to snapshot",
+        help=_("revert openstack server to snapshot"),
+        description=_("revert openstack server to snapshot"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1412,7 +1413,7 @@ class OpenstackController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1424,20 +1425,20 @@ class OpenstackController(BaseController):
     def server_snapshot_revert(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"revert_snapshot": {"snapshot": snapshot}}}
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "revert server %s to snapshot %s" % (oid, snapshot)})
+        self.app.render({"msg": f"revert server {oid} to snapshot {snapshot}"})
 
     @ex(
-        help="add openstack server security group",
-        description="add openstack server security group",
+        help=_("add openstack server security group"),
+        description=_("add openstack server security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1446,7 +1447,7 @@ class OpenstackController(BaseController):
                 (
                     ["sg"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1458,19 +1459,19 @@ class OpenstackController(BaseController):
     def server_sg_add(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="delete openstack server security group",
-        description="delete openstack server security group",
+        help=_("delete openstack server security group"),
+        description=_("delete openstack server security group"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1479,7 +1480,7 @@ class OpenstackController(BaseController):
                 (
                     ["sg"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1491,19 +1492,19 @@ class OpenstackController(BaseController):
     def server_sg_del(self):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_security_group": {"security_group": security_group}}}
         self.cmp_put(uri, data=data)
 
     @ex(
-        help="add volume to server",
-        description="add volume to server",
+        help=_("add volume to server"),
+        description=_("add volume to server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1512,7 +1513,7 @@ class OpenstackController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1524,19 +1525,19 @@ class OpenstackController(BaseController):
     def server_volume_add(self):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"add_volume": {"volume": volume}}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="get server security groups",
-        description="get server security groups",
+        help=_("get server security groups"),
+        description=_("get server security groups"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1545,7 +1546,7 @@ class OpenstackController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1557,19 +1558,19 @@ class OpenstackController(BaseController):
     def server_volume_del(self):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"del_volume": {"volume": volume}}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="stop server",
-        description="stop server",
+        help=_("stop server"),
+        description=_("stop server"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1580,19 +1581,19 @@ class OpenstackController(BaseController):
     )
     def server_stop(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"stop": True}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="get server security groups",
-        description="get server security groups",
+        help=_("get server security groups"),
+        description=_("get server security groups"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1603,19 +1604,19 @@ class OpenstackController(BaseController):
     )
     def server_start(self):
         oid = self.app.pargs.id
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"start": True}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="get server security groups",
-        description="get server security groups",
+        help=_("get server security groups"),
+        description=_("get server security groups"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1624,7 +1625,7 @@ class OpenstackController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1636,19 +1637,19 @@ class OpenstackController(BaseController):
     def server_resize(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        uri = "%s/servers/%s/action" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/servers/{oid}/action"
         data = {"server_action": {"set_flavor": {"flavor": flavor}}}
-        res = self.cmp_put(uri, data=data)
+        self.cmp_put(uri, data=data)
 
     @ex(
-        help="get volumes",
-        description="get volumes",
+        help=_("get volumes"),
+        description=_("get volumes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1660,7 +1661,7 @@ class OpenstackController(BaseController):
     def volume_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/volumes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/volumes/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1679,7 +1680,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/volumes" % self.baseuri
+            uri = f"{self.baseuri}/volumes"
             res = self.cmp_get(uri, data=data)
             transform = {
                 "desc": lambda x: truncate(x, 20),
@@ -1694,14 +1695,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get volume snapshots",
-        description="get volume snapshots",
+        help=_("get volume snapshots"),
+        description=_("get volume snapshots"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1712,7 +1713,7 @@ class OpenstackController(BaseController):
     )
     def volume_snapshot_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "%s/volumes/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumes/{oid}/snapshots"
         res = self.cmp_get(uri).get("snapshots")
         headers = ["id", "name", "status", "size", "created", "progress"]
         fields = [
@@ -1726,14 +1727,14 @@ class OpenstackController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="add volume snapshot",
-        description="add volume snapshot",
+        help=_("add volume snapshot"),
+        description=_("add volume snapshot"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1742,7 +1743,7 @@ class OpenstackController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1754,20 +1755,20 @@ class OpenstackController(BaseController):
     def volume_snapshot_add(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        uri = "%s/volumes/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumes/{oid}/snapshots"
         data = {"snapshot": {"name": name}}
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add volume %s snapshot: %s" % (oid, name)})
+        self.app.render({"msg": f"add volume {oid} snapshot: {name}"})
 
     @ex(
-        help="delete volume snapshot",
-        description="delete volume snapshot",
+        help=_("delete volume snapshot"),
+        description=_("delete volume snapshot"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1776,7 +1777,7 @@ class OpenstackController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1788,19 +1789,19 @@ class OpenstackController(BaseController):
     def volume_snapshot_del(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        uri = "%s/volumes/%s/snapshots" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/volumes/{oid}/snapshots"
         data = {"snapshot": {"name": name}}
-        self.cmp_delete(uri, data=data, entity="volume %s snapshot: %s" % (oid, name))
+        self.cmp_delete(uri, data=data, entity=f"volume {oid} snapshot: {name}")
 
     @ex(
-        help="revert volume to snapshot",
-        description="revert volume to snapshot",
+        help=_("revert volume to snapshot"),
+        description=_("revert volume to snapshot"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1809,7 +1810,7 @@ class OpenstackController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1818,21 +1819,22 @@ class OpenstackController(BaseController):
             ]
         ),
     )
-    def volume_snapshot_del(self):
+    def volume_snapshot_revert(self):
         oid = self.app.pargs.id
         snapshot = self.app.pargs.snapshot
-        uri = "%s/volumes/%s/snapshots/%s/revert" % (self.baseuri, oid, snapshot)
-        self.cmp_put(uri, entity="revert volume %s to snapshot %s" % (oid, snapshot))
+        uri = f"{self.baseuri}/volumes/{oid}/snapshots/{snapshot}/revert"
+        self.cmp_put(uri, {})
+        self.app.render({"msg": f"revert volume {oid} to snapshot {snapshot}"})
 
     @ex(
-        help="get volumetypes",
-        description="get volumetypes",
+        help=_("get volumetypes"),
+        description=_("get volumetypes"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volumetype id",
+                        "help": _("volumetype id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1844,7 +1846,7 @@ class OpenstackController(BaseController):
     def volumetype_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/volumetypes/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/volumetypes/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1856,7 +1858,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/volumetypes" % self.baseuri
+            uri = f"{self.baseuri}/volumetypes"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -1866,14 +1868,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get stacks",
-        description="get stacks",
+        help=_("get stacks"),
+        description=_("get stacks"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1885,7 +1887,7 @@ class OpenstackController(BaseController):
     def stack_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/stacks/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/stacks/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -1973,7 +1975,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/stacks" % self.baseuri
+            uri = f"{self.baseuri}/stacks"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -1983,14 +1985,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="get stack template",
-        description="get stack template",
+        help=_("get stack template"),
+        description=_("get stack template"),
         arguments=ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2001,19 +2003,19 @@ class OpenstackController(BaseController):
     )
     def stack_template_get(self):
         oid = getattr(self.app.pargs, "id", None)
-        uri = "%s/stacks/%s/template" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/stacks/{oid}/template"
         res = self.cmp_get(uri).get("stack_template", {})
         self.app.render(res, details=True)
 
     @ex(
-        help="get orchestrator heat template versions",
-        description="get orchestrator heat template versions",
+        help=_("get orchestrator heat template versions"),
+        description=_("get orchestrator heat template versions"),
         arguments=ARGS(
             [
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2025,18 +2027,18 @@ class OpenstackController(BaseController):
     def stack_template_versions(self):
         orchestrator = self.app.pargs.orchestrator
         uri = self.uri
-        res = self.cmp_get(uri, data="container=%s" % orchestrator).get("template_versions", {})
+        res = self.cmp_get(uri, data=f"container={orchestrator}").get("template_versions", {})
         self.app.render(res, headers=["version", "type", "aliases"])
 
     @ex(
-        help="get stack template functions",
-        description="get stack template functions",
+        help=_("get stack template functions"),
+        description=_("get stack template functions"),
         arguments=ARGS(
             [
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2045,7 +2047,7 @@ class OpenstackController(BaseController):
                 (
                     ["template"],
                     {
-                        "help": "template",
+                        "help": _("template"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2058,20 +2060,20 @@ class OpenstackController(BaseController):
         orchestrator = self.app.pargs.orchestrator
         template = self.app.pargs.template
         uri = "/v1.0/nrs/openstack/stack-template-functions"
-        res = self.cmp_get(uri, data="container=%s&template=%s" % (orchestrator, template)).get(
+        res = self.cmp_get(uri, data=f"container={orchestrator}&template={template}").get(
             "template_functions", {}
         )
         self.app.render(res, headers=["functions", "description"], maxsize=200)
 
     @ex(
-        help="validate stack template",
-        description="validate stack template",
+        help=_("validate stack template"),
+        description=_("validate stack template"),
         arguments=PARGS(
             [
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2080,7 +2082,7 @@ class OpenstackController(BaseController):
                 (
                     ["template_uri"],
                     {
-                        "help": "template uri",
+                        "help": _("template uri"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2103,14 +2105,14 @@ class OpenstackController(BaseController):
     # share
     #
     @ex(
-        help="get shares",
-        description="get shares",
+        help=_("get shares"),
+        description=_("get shares"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2122,7 +2124,7 @@ class OpenstackController(BaseController):
     def share_get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/shares/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/shares/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -2149,7 +2151,7 @@ class OpenstackController(BaseController):
                 )
 
                 self.c("\ngrants", "underline")
-                uri = "%s/shares/%s/grant" % (self.baseuri, oid)
+                uri = f"{self.baseuri}/shares/{oid}/grant"
                 try:
                     res = self.cmp_get(uri).get("share_grant", [])
                     self.app.render(
@@ -2171,7 +2173,7 @@ class OpenstackController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/shares" % self.baseuri
+            uri = f"{self.baseuri}/shares"
             res = self.cmp_get(uri, data=data)
             transform = {"details.host": lambda x: truncate(x, 25)}
             self.app.render(
@@ -2183,14 +2185,14 @@ class OpenstackController(BaseController):
             )
 
     @ex(
-        help="add share",
-        description="add share",
+        help=_("add share"),
+        description=_("add share"),
         arguments=PARGS(
             [
                 (
                     ["container"],
                     {
-                        "help": "container id",
+                        "help": _("container id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2199,7 +2201,7 @@ class OpenstackController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "share name",
+                        "help": _("share name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2208,7 +2210,7 @@ class OpenstackController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "share description",
+                        "help": _("share description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2217,7 +2219,7 @@ class OpenstackController(BaseController):
                 (
                     ["project"],
                     {
-                        "help": "share project id",
+                        "help": _("share project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2226,7 +2228,7 @@ class OpenstackController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "comma separated list of tags",
+                        "help": _("comma separated list of tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2235,7 +2237,7 @@ class OpenstackController(BaseController):
                 (
                     ["share_proto"],
                     {
-                        "help": "share protocol. A valid value is NFS, CIFS, GlusterFS, HDFS, or CephFS",
+                        "help": _("share protocol. A valid value is NFS, CIFS, GlusterFS, HDFS, or CephFS"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2244,7 +2246,7 @@ class OpenstackController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "the share size, in GBs",
+                        "help": _("the share size, in GBs"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2253,7 +2255,7 @@ class OpenstackController(BaseController):
                 (
                     ["share_type"],
                     {
-                        "help": "The share type id.",
+                        "help": _("The share type id."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2262,7 +2264,7 @@ class OpenstackController(BaseController):
                 (
                     ["-snapshot_id"],
                     {
-                        "help": "The id of the share's base snapshot.",
+                        "help": _("The id of the share's base snapshot."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2271,7 +2273,7 @@ class OpenstackController(BaseController):
                 (
                     ["-share_group_id"],
                     {
-                        "help": "The id of the share group.",
+                        "help": _("The id of the share group."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2280,7 +2282,7 @@ class OpenstackController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "id of the network to use",
+                        "help": _("id of the network to use"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2289,7 +2291,7 @@ class OpenstackController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "id of the subnet to use",
+                        "help": _("id of the subnet to use"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2298,7 +2300,7 @@ class OpenstackController(BaseController):
                 (
                     ["-metadata"],
                     {
-                        "help": "One or more metadata key and value pairs as a dictionary of strings.",
+                        "help": _("One or more metadata key and value pairs as a dictionary of strings."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2307,7 +2309,7 @@ class OpenstackController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "The availability zone.",
+                        "help": _("The availability zone."),
                         "action": "store",
                         "type": str,
                         "default": "nova",
@@ -2339,19 +2341,19 @@ class OpenstackController(BaseController):
         self.add_field_from_pargs_to_data("subnet", data, "subnet")
         self.add_field_from_pargs_to_data("metadata", data, "metadata")
         self.add_field_from_pargs_to_data("availability_zone", data, "availability_zone")
-        uri = "%s/shares" % self.baseuri
+        uri = f"{self.baseuri}/shares"
         res = self.cmp_post(uri, data={"share": data})
-        self.app.render({"msg": "add share %s" % res["uuid"]})
+        self.app.render({"msg": f"add share {res['uuid']}"})
 
     @ex(
-        help="delete share",
-        description="delete share",
+        help=_("delete share"),
+        description=_("delete share"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2362,18 +2364,18 @@ class OpenstackController(BaseController):
     )
     def share_del(self):
         oid = self.app.pargs.id
-        uri = "%s/shares/%s" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data="", entity="share %s" % oid)
+        uri = f"{self.baseuri}/shares/{oid}"
+        self.cmp_delete(uri, data="", entity=f"share {oid}")
 
     @ex(
-        help="get share types",
-        description="get share types",
+        help=_("get share types"),
+        description=_("get share types"),
         arguments=PARGS(
             [
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2384,8 +2386,8 @@ class OpenstackController(BaseController):
     )
     def share_type_get(self):
         orchestrator = self.app.pargs.orchestrator
-        uri = "%s/shares/types" % self.baseuri
-        res = self.cmp_get(uri, data="container=%s" % orchestrator)
+        uri = f"{self.baseuri}/shares/types"
+        res = self.cmp_get(uri, data=f"container={orchestrator}")
         headers = ["id", "name", "snapshot_support", "backend"]
         fields = [
             "id",
@@ -2399,14 +2401,14 @@ class OpenstackController(BaseController):
     # share grant
     #
     @ex(
-        help="add share grant",
-        description="add share grant",
+        help=_("add share grant"),
+        description=_("add share grant"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2414,12 +2416,12 @@ class OpenstackController(BaseController):
                 ),
                 (
                     ["access_level"],
-                    {"help": "rw, ro", "action": "store", "type": str, "default": None},
+                    {"help": _("rw, ro"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["access_type"],
                     {
-                        "help": "access type like ip or user",
+                        "help": _("access type like ip or user"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2428,7 +2430,7 @@ class OpenstackController(BaseController):
                 (
                     ["access_to"],
                     {
-                        "help": "access to like ###.###.###.###/24 or admin/user",
+                        "help": _("access to like ###.###.###.###/24 or admin/user"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2449,19 +2451,19 @@ class OpenstackController(BaseController):
                 "access_to": access_to,
             }
         }
-        uri = "%s/shares/%s/grant" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/shares/{oid}/grant"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "Add grant to share %s: %s" % (oid, res["uuid"])})
+        self.app.render({"msg": f"Add grant to share {oid}: {res['uuid']}"})
 
     @ex(
-        help="delete share grant",
-        description="delete share grant",
+        help=_("delete share grant"),
+        description=_("delete share grant"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2470,7 +2472,7 @@ class OpenstackController(BaseController):
                 (
                     ["access_id"],
                     {
-                        "help": "access grant id",
+                        "help": _("access grant id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2483,21 +2485,21 @@ class OpenstackController(BaseController):
         oid = self.app.pargs.id
         access_id = self.app.pargs.access_id
         data = {"share_grant": {"access_id": access_id}}
-        uri = "%s/shares/%s/grant" % (self.baseuri, oid)
-        res = self.cmp_delete(uri, data=data, entity="share %s grant %s" % (oid, access_id))
+        uri = f"{self.baseuri}/shares/{oid}/grant"
+        self.cmp_delete(uri, data=data, entity=f"share {oid} grant {access_id}")
 
     #
     # share network
     #
     @ex(
-        help="get share networks",
-        description="get share networks",
+        help=_("get share networks"),
+        description=_("get share networks"),
         arguments=ARGS(
             [
                 (
                     ["orchestrator"],
                     {
-                        "help": "orchestrator id",
+                        "help": _("orchestrator id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2508,8 +2510,8 @@ class OpenstackController(BaseController):
     )
     def share_network_get(self):
         orchestrator = self.app.pargs.orchestrator
-        uri = "%s/shares/networks" % self.baseuri
-        res = self.cmp_get(uri, data="container=%s" % orchestrator).get("share_networks")
+        uri = f"{self.baseuri}/shares/networks"
+        res = self.cmp_get(uri, data=f"container={orchestrator}").get("share_networks")
         headers = [
             "id",
             "name",

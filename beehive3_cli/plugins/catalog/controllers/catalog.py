@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from cement.ext.ext_argparse import ex
 from beehive3_cli.core.controller import BaseController, ARGS, PARGS
+from beehive3_cli.translate import _
 
 
 class CatalogController(BaseController):
@@ -11,8 +12,8 @@ class CatalogController(BaseController):
         label = "catalogs"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "api catalog management"
-        help = "api catalog management"
+        description = _("api catalog management")
+        help = _("api catalog management")
 
         cmp = {"baseuri": "/v1.0/ncs", "subsystem": "auth"}
 
@@ -50,19 +51,19 @@ class CatalogController(BaseController):
         self._parser.print_help()
 
     def pre_command_run(self):
-        super(CatalogController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
     @ex(
-        help="get catalogs",
-        description="get catalogs",
+        help=_("get catalogs"),
+        description=_("get catalogs"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "catalog uuid",
+                        "help": _("catalog uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -74,7 +75,7 @@ class CatalogController(BaseController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/catalogs/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/catalogs/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -94,7 +95,7 @@ class CatalogController(BaseController):
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/catalogs" % self.baseuri
+            uri = f"{self.baseuri}/catalogs"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -104,12 +105,12 @@ class CatalogController(BaseController):
             )
 
     @ex(
-        help="add catalog",
-        description="add catalog",
+        help=_("add catalog"),
+        description=_("add catalog"),
         arguments=ARGS(
             [
-                (["name"], {"help": "catalog name", "action": "store", "type": str}),
-                (["zone"], {"help": "catalog zone", "action": "store", "type": str}),
+                (["name"], {"help": _("catalog name"), "action": "store", "type": str}),
+                (["zone"], {"help": _("catalog zone"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -117,31 +118,31 @@ class CatalogController(BaseController):
         name = self.app.pargs.name
         zone = self.app.pargs.zone
         res = self.api.client.catalog.create_catalog(name, zone)
-        self.app.render({"msg": "add catalog %s" % res["uuid"]})
+        self.app.render({"msg": f"add catalog {res['uuid']}"})
 
     @ex(
-        help="delete catalog",
-        description="delete catalog",
+        help=_("delete catalog"),
+        description=_("delete catalog"),
         arguments=ARGS(
             [
-                (["id"], {"help": "catalog uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("catalog uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/catalogs/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="catalog %s" % oid)
+        uri = f"{self.baseuri}/catalogs/{oid}"
+        self.cmp_delete(uri, entity=f"catalog {oid}")
 
     @ex(
-        help="get catalog endpoints",
-        description="get catalog endpoints",
+        help=_("get catalog endpoints"),
+        description=_("get catalog endpoints"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "catalog endpoint uuid",
+                        "help": _("catalog endpoint uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -153,14 +154,14 @@ class CatalogController(BaseController):
     def get_endpoints(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/endpoints/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/endpoints/{oid}"
             res = self.cmp_get(uri)
             self.app.render(res, key="endpoint", details=True)
         else:
             params = []
             mappings = {}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/endpoints" % self.baseuri
+            uri = f"{self.baseuri}/endpoints"
             res = self.cmp_get(uri, data=data)
             self.app.render(
                 res,
@@ -170,24 +171,24 @@ class CatalogController(BaseController):
             )
 
     @ex(
-        help="add catalog endpoint",
-        description="add catalog endpoint",
+        help=_("add catalog endpoint"),
+        description=_("add catalog endpoint"),
         arguments=ARGS(
             [
                 (
                     ["name"],
-                    {"help": "catalog endpoint name", "action": "store", "type": str},
+                    {"help": _("catalog endpoint name"), "action": "store", "type": str},
                 ),
-                (["catalog"], {"help": "catalog uuid", "action": "store", "type": str}),
+                (["catalog"], {"help": _("catalog uuid"), "action": "store", "type": str}),
                 (
                     ["service"],
                     {
-                        "help": "service name like auth or resource",
+                        "help": _("service name like auth or resource"),
                         "action": "store",
                         "type": str,
                     },
                 ),
-                (["uri"], {"help": "service uri", "action": "store", "type": str}),
+                (["uri"], {"help": _("service uri"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -201,18 +202,18 @@ class CatalogController(BaseController):
         try:
             res = self.api.client.catalog.get_endpoint(name)
             res = self.api.client.catalog.update_endpoint(name, catalog_id=catalog, name=name, service=service, uri=uri)
-        except Exception as ex:
+        except Exception:
             res = self.api.client.catalog.create_endpoint(catalog, name, service, uri)
-        self.app.render({"msg": "add catalog endpoint %s" % res["uuid"]})
+        self.app.render({"msg": f"add catalog endpoint {res['uuid']}"})
 
     @ex(
-        help="delete catalog endpoint",
-        description="delete catalog endpoint",
+        help=_("delete catalog endpoint"),
+        description=_("delete catalog endpoint"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "catalog endpoint uuid", "action": "store", "type": str},
+                    {"help": _("catalog endpoint uuid"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -222,13 +223,13 @@ class CatalogController(BaseController):
         self.api.client.catalog.delete_endpoint(oid)
 
     @ex(
-        help="ping catalog endpoint",
-        description="ping catalog endpoint",
+        help=_("ping catalog endpoint"),
+        description=_("ping catalog endpoint"),
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "catalog endpoint uuid", "action": "store", "type": str},
+                    {"help": _("catalog endpoint uuid"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -236,16 +237,15 @@ class CatalogController(BaseController):
     def ping_endpoint(self):
         oid = self.app.pargs.id
         endpoint = self.api.client.catalog.get_endpoint(oid).get("endpoint").get("endpoint")
-        # todo: ping
         res = self.api.client.ping(endpoint=endpoint)
         self.app.render({"endpoint": endpoint, "ping": res}, headers=["endpoint", "ping"])
 
     @ex(
-        help="ping catalog endpoints",
-        description="ping catalog endpoints",
+        help=_("ping catalog endpoints"),
+        description=_("ping catalog endpoints"),
         arguments=ARGS(
             [
-                (["id"], {"help": "catalog uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("catalog uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -255,7 +255,6 @@ class CatalogController(BaseController):
         catalog = self.api.client.catalog.get_catalog(oid)
         for v in catalog.get("services", {}):
             for v1 in v.get("endpoints", []):
-                # todo: ping
                 res = self.api.client.ping(endpoint=v1)
                 services.append({"service": v["service"], "endpoint": v1, "ping": res})
         self.app.render(services, headers=["service", "endpoint", "ping"])

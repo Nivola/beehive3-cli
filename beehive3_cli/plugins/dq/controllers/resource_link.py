@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beehive3_cli.core.controller import BaseController, PARGS
 from cement import ex
 from tinydb import TinyDB, Query
+
+from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.translate import _
 
 
 class DqResourceLinkController(BaseController):
@@ -12,8 +14,8 @@ class DqResourceLinkController(BaseController):
         stacked_on = "dq_res"
         stacked_type = "nested"
         label = "dq_links"
-        description = "links data quality"
-        help = "links data quality"
+        description = _("links data quality")
+        help = _("links data quality")
 
         cmp = {"baseuri": "/v1.0/nrs", "subsystem": "resource"}
 
@@ -85,7 +87,7 @@ class DqResourceLinkController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(DqResourceLinkController, self).pre_command_run()
+        super().pre_command_run()
 
         self.configure_cmp_api_client()
 
@@ -94,14 +96,14 @@ class DqResourceLinkController(BaseController):
         self.query = Query()
 
     @ex(
-        help="repair resource links",
-        description="repair resource links",
+        help=_("repair resource links"),
+        description=_("repair resource links"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "link id",
+                        "help": _("link id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -113,44 +115,44 @@ class DqResourceLinkController(BaseController):
     def check(self):
         # size = self.app.pargs.size
         # page = self.app.pargs.page
-        uri = "%s/links" % self.baseuri
+        uri = f"{self.baseuri}/links"
         res = self.cmp_get(uri, data={"size": 1})
         total = res["total"]
-        print("found %s links" % total)
+        print(f"found {total} links")
 
         page_size = 500
         page_num = round(total / page_size)
         print(total, page_num)
         for page in range(0, page_num):
-            uri = "%s/links" % self.baseuri
+            uri = f"{self.baseuri}/links"
             res = self.cmp_get(uri, data={"size": page_size, "page": page})
-            print("found %s links from %s" % (res["count"], res["total"]))
+            print(f"found {res['count']} links from {res['total']}")
             res = res.get("resourcelinks", [])
             idx = page_size * page + 1
 
             for item in res:
                 oid = item["id"]
-                print("# idx: %s - id: %s - name: %s" % (idx, oid, item["name"]))
+                print(f"# idx: {idx} - id: {oid} - name: {item['name']}")
 
                 details = item.get("details")
                 start_resource = details.get("start_resource")
                 end_resource = details.get("end_resource")
                 check = True
 
-                uri = "%s/entities/%s" % (self.baseuri, start_resource)
+                uri = f"{self.baseuri}/entities/{start_resource}"
                 try:
                     self.cmp_get(uri).get("resource")
                     # print(' - start resource: %s - OK' % start_resource)
                 except:
-                    self.app.error(" - start resource: %s - KO" % start_resource)
+                    self.app.error(f" - start resource: {start_resource} - KO")
                     check = False
 
-                uri = "%s/entities/%s" % (self.baseuri, end_resource)
+                uri = f"{self.baseuri}/entities/{end_resource}"
                 try:
                     self.cmp_get(uri).get("resource")
                     # print(' - end resource: %s - OK' % end_resource)
                 except:
-                    self.app.error(" - end resource: %s - KO" % end_resource)
+                    self.app.error(f" - end resource: {end_resource} - KO")
                     check = False
 
                 if check is False:
@@ -161,14 +163,14 @@ class DqResourceLinkController(BaseController):
                 idx += 1
 
     @ex(
-        help="get bad links",
-        description="get bad links",
+        help=_("get bad links"),
+        description=_("get bad links"),
         arguments=PARGS(
             [
                 (
                     ["-definition"],
                     {
-                        "help": "entity definition",
+                        "help": _("entity definition"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -195,14 +197,14 @@ class DqResourceLinkController(BaseController):
         self.app.render(items, headers=headers, fields=fields)
 
     @ex(
-        help="get bad links",
-        description="get bad links",
+        help=_("get bad links"),
+        description=_("get bad links"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "link id",
+                        "help": _("link id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -218,14 +220,14 @@ class DqResourceLinkController(BaseController):
             self.table_link.remove(doc_ids=[data[0].doc_id])
 
     @ex(
-        help="remove bad link",
-        description="remove bad link",
+        help=_("remove bad link"),
+        description=_("remove bad link"),
         arguments=PARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "link id",
+                        "help": _("link id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -236,7 +238,7 @@ class DqResourceLinkController(BaseController):
     )
     def remove(self):
         oid = self.app.pargs.id
-        uri = "%s/links/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/links/{oid}"
         self.cmp_delete(uri, data="")
 
         data = self.table_link.search(self.query.id == oid)

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beecell.simple import set_request_params
-from beehive3_cli.core.controller import BaseController, PARGS, ARGS
-from cement import ex
 from ujson import loads
+from cement import ex
+from beecell.simple import set_request_params
+from beehive3_cli.translate import _
+from beehive3_cli.core.controller import BaseController, PARGS, ARGS
 
 
 class ResourceLinkController(BaseController):
@@ -13,8 +14,8 @@ class ResourceLinkController(BaseController):
         stacked_on = "res"
         stacked_type = "nested"
         label = "links"
-        description = "links management"
-        help = "links management"
+        description = _("links management")
+        help = _("links management")
 
         cmp = {"baseuri": "/v1.0/nrs", "subsystem": "resource"}
 
@@ -25,9 +26,9 @@ class ResourceLinkController(BaseController):
             "details.type",
             "details.start_resource",
             "details.end_resource",
-            "details.attributes",
             "date.creation",
             "date.modified",
+            "details.attributes",
         ]
         headers = [
             "id",
@@ -36,26 +37,25 @@ class ResourceLinkController(BaseController):
             "type",
             "start",
             "end",
-            "attributes",
             "creation",
             "modified",
+            "attributes",
         ]
 
     def pre_command_run(self):
-        super(ResourceLinkController, self).pre_command_run()
-
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     @ex(
-        help="list resource links",
-        description="list resource links",
-        example="beehive res links get 2143757;beehive res links get -id 2143757",
+        help=_("list resource links"),
+        description=_("list resource links"),
+        example="beehive res links get -id 2143757",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "link uuid",
+                        "help": _("link uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -64,7 +64,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "link name",
+                        "help": _("link name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -73,7 +73,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-resource"],
                     {
-                        "help": "start or end resource uuid",
+                        "help": _("start or end resource uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -82,7 +82,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "link type",
+                        "help": _("link type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -91,7 +91,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-objid"],
                     {
-                        "help": "link authorization id",
+                        "help": _("link authorization id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -100,7 +100,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-tags"],
                     {
-                        "help": "link tags",
+                        "help": _("link tags"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -112,7 +112,7 @@ class ResourceLinkController(BaseController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/links/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/links/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -134,10 +134,10 @@ class ResourceLinkController(BaseController):
             params = ["name", "resource", "type", "objid", "tags"]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/links" % self.baseuri
+            uri = f"{self.baseuri}/links"
             res = self.cmp_get(uri, data=data)
 
-            transform = {"details.attributes.subnet": lambda x: x, "details.attributes.subnet.colortext": False}
+            transform = {"details.attributes.colortext": False}
 
             self.app.render(
                 res,
@@ -149,19 +149,19 @@ class ResourceLinkController(BaseController):
             )
 
     @ex(
-        help="add resource link",
-        description="add resource link",
-        example="beehive res links add link-49186-747644 relation 49186 747644 -e <env>;beehive res links add link-52343-747563 relation 52343 747563 -e <env>",
+        help=_("add resource link"),
+        description=_("add resource link"),
+        example="beehive res links add link-49186-747644 relation 49186 747644 -e <env>",
         arguments=ARGS(
             [
                 (
                     ["name"],
-                    {"help": "resource link name", "action": "store", "type": str},
+                    {"help": _("resource link name"), "action": "store", "type": str},
                 ),
                 (
                     ["type"],
                     {
-                        "help": "resource link type",
+                        "help": _("resource link type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -169,16 +169,16 @@ class ResourceLinkController(BaseController):
                 ),
                 (
                     ["start_resource"],
-                    {"help": "start resource uuid", "action": "store", "type": str},
+                    {"help": _("start resource uuid"), "action": "store", "type": str},
                 ),
                 (
                     ["end_resource"],
-                    {"help": "end resource uuid", "action": "store", "type": str},
+                    {"help": _("end resource uuid"), "action": "store", "type": str},
                 ),
                 (
                     ["-attributes"],
                     {
-                        "help": "resource link attributes",
+                        "help": _("resource link attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -189,7 +189,7 @@ class ResourceLinkController(BaseController):
     )
     def add(self):
         name = self.app.pargs.name
-        type = self.app.pargs.type
+        ltype = self.app.pargs.type
         start_resource = self.app.pargs.start_resource
         end_resource = self.app.pargs.end_resource
         attrib = self.app.pargs.attributes
@@ -199,30 +199,30 @@ class ResourceLinkController(BaseController):
             attrib = {}
 
         data = {
-            "type": type,
+            "type": ltype,
             "name": name,
             "attributes": attrib,
             "start_resource": start_resource,
             "end_resource": end_resource,
         }
-        uri = "%s/links" % self.baseuri
+        uri = f"{self.baseuri}/links"
         res = self.cmp_post(uri, data={"resourcelink": data})
-        self.app.render({"msg": "add resource link %s" % res["uuid"]})
+        self.app.render({"msg": f"add resource link {res['uuid']}"})
 
     @ex(
-        help="update resource link",
-        description="update resource link",
+        help=_("update resource link"),
+        description=_("update resource link"),
         example="beehive res links update 2890463 -end_resource 17569 -e <env>",
         arguments=ARGS(
             [
                 (
                     ["id"],
-                    {"help": "resource link uuid", "action": "store", "type": str},
+                    {"help": _("resource link uuid"), "action": "store", "type": str},
                 ),
                 (
                     ["-name"],
                     {
-                        "help": "resource link name",
+                        "help": _("resource link name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -231,7 +231,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "resource link type",
+                        "help": _("resource link type"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -240,7 +240,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-start_resource"],
                     {
-                        "help": "start resource uuid",
+                        "help": _("start resource uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -249,7 +249,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-end_resource"],
                     {
-                        "help": "end resource uuid",
+                        "help": _("end resource uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -258,7 +258,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-attributes"],
                     {
-                        "help": "resource link attributes",
+                        "help": _("resource link attributes"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -278,19 +278,19 @@ class ResourceLinkController(BaseController):
             data["attributes"] = loads(attrib)
         else:
             attrib = {}
-        uri = "%s/links/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/links/{oid}"
         self.cmp_put(uri, data={"resourcelink": data})
-        self.app.render({"msg": "update resource link %s" % oid})
+        self.app.render({"msg": f"update resource link {oid}"})
 
     @ex(
-        help="patch resource links",
-        description="patch resource links",
+        help=_("patch resource links"),
+        description=_("patch resource links"),
         arguments=ARGS(
             [
                 (
                     ["ids"],
                     {
-                        "help": "comma separated resource link uuids",
+                        "help": _("comma separated resource link uuids"),
                         "action": "store",
                         "type": str,
                     },
@@ -303,20 +303,20 @@ class ResourceLinkController(BaseController):
         params = {}
         for oid in oids:
             data = {"resourcelink": params}
-            uri = "%s/links/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/links/{oid}"
             self.cmp_patch(uri, data=data)
-            self.app.render({"msg": "patch resource link %s" % oid})
+            self.app.render({"msg": f"patch resource link {oid}"})
 
     @ex(
-        help="delete resource links",
-        description="delete resource links",
+        help=_("delete resource links"),
+        description=_("delete resource links"),
         example="beehive res links delete #### -e <env>",
         arguments=ARGS(
             [
                 (
                     ["ids"],
                     {
-                        "help": "comma separated resource link uuids",
+                        "help": _("comma separated resource link uuids"),
                         "action": "store",
                         "type": str,
                     },
@@ -324,7 +324,7 @@ class ResourceLinkController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -337,7 +337,25 @@ class ResourceLinkController(BaseController):
         oids = self.app.pargs.ids.split(",")
         force = self.app.pargs.force
         for oid in oids:
-            uri = "%s/links/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/links/{oid}"
             if force is True:
                 uri += "?force=true"
-            self.cmp_delete(uri, entity="link %s" % oid)
+            self.cmp_delete(uri, entity=f"link {oid}")
+
+    @ex(
+        help=_("register resource link"),
+        description=_("register resource link"),
+        example="beehive res links register <id>",
+        arguments=ARGS(
+            [
+                (
+                    ["id"],
+                    {"help": _("resource link uuid"), "action": "store", "type": str},
+                ),
+            ]
+        ),
+    )
+    def register(self):
+        oid = self.app.pargs.id
+        uri = f"{self.baseuri}/links/{oid}/register"
+        self.cmp_put(uri)

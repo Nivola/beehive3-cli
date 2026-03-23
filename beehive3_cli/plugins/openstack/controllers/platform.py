@@ -1,21 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from datetime import datetime
-from ujson import loads
 from sys import stdout
-from copy import deepcopy
+from datetime import datetime
 from time import sleep, time
-from ipaddress import IPv4Address
+from copy import deepcopy
+from ujson import loads
 from cement import ex
+
 from beecell.types.type_string import str2bool
 from beecell.types.type_dict import dict_get
 from beecell.types.type_date import format_date
 from beecell.types.type_list import merge_list
 from beedrones.openstack.client import OpenstackManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, StringAction
-from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar
+from beehive3_cli.core.util import load_environment_config, load_config, stoprotation, rotating_bar
+from beehive3_cli.translate import _
 
 
 def OPENSTACK_ARGS(*list_args):
@@ -25,7 +26,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "openstack platform reference label",
+                "help": _("openstack platform reference label"),
             },
         ),
         (
@@ -33,7 +34,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "openstack current project name",
+                "help": _("openstack current project name"),
             },
         ),
     ]
@@ -46,11 +47,11 @@ class OpenstackPlatformController(BaseController):
         label = "openstack"
         stacked_on = "platform"
         stacked_type = "nested"
-        description = "openstack platform"
-        help = "openstack platform"
+        description = _("openstack platform")
+        help = _("openstack platform")
 
     def pre_command_run(self):
-        super(OpenstackPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -63,23 +64,23 @@ class OpenstackPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No openstack default platform is available for this environment. Select " "another environment"
+                    "No openstack default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
 
         conf = orchestrators.get(label)
 
         project = getattr(self.app.pargs, "project", None)
         if project is None:
             project = conf.get("project")
-        uri = "%s://%s:%s%s" % (
-            conf.get("proto"),
-            conf.get("vhost"),
-            conf.get("port"),
-            conf.get("path"),
-        )
+
+        proto = conf.get("proto")
+        vhost = conf.get("vhost")
+        port = conf.get("port")
+        path = conf.get("path")
+        uri = f"{proto}://{vhost}:{port}{path}"
 
         if self.app.config.get("log.clilog", "verbose_log"):
             # log to stdout and to logfile
@@ -89,8 +90,8 @@ class OpenstackPlatformController(BaseController):
         command = getattr(self.app.pargs, "command", None)
 
         self.client = OpenstackManager(uri, default_region=conf.get("region"))
-        if command == "token-release" or command == "token-validate":
-            print("no authorize per command: %s" % command)
+        if command in ('token-release', 'token-validate'):
+            print(f"no authorize per command: {command}")
         else:
             self.client.authorize(
                 conf.get("user"),
@@ -124,20 +125,15 @@ class OpenstackPlatformController(BaseController):
             instances = instances.split(",")
         for instance in instances:
             if instance not in orchestrators_available:
-                self.app.log.error("Select orchestrators among: %s" % orchestrators_available)
-                raise Exception("Select orchestrators among: %s" % orchestrators_available)
+                self.app.log.error(f"Select orchestrators among: {orchestrators_available}")
+                raise Exception(f"Select orchestrators among: {orchestrators_available}")
 
             conf = orchestrators.get(instance)
             hosts = conf.pop("hosts")
             if vip is True:
                 hosts = [conf.get("vhost")]
             for host in hosts:
-                uri = "%s://%s:%s%s" % (
-                    conf.get("proto"),
-                    host,
-                    conf.get("port"),
-                    conf.get("path"),
-                )
+                uri = f"{conf.get('proto')}://{host}:{conf.get('port')}{conf.get('path')}"
                 new_conf = deepcopy(conf)
                 new_conf["instance"] = instance
                 new_conf["uri"] = uri
@@ -160,16 +156,10 @@ class OpenstackPlatformController(BaseController):
     def __get_mariadb_engine(self, host, port, user, db):
         from beecell.db import MysqlManager
 
-        db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % (
-            user["name"],
-            user["password"],
-            host,
-            port,
-            db,
-        )
+        db_uri = f"mysql+pymysql://{user['name']}:{user['password']}@{host}:{port}/{db}"
         server = MysqlManager(1, db_uri)
         server.create_simple_engine()
-        self.app.log.info("Get maria engine for %s" % db_uri)
+        self.app.log.info(f"Get maria engine for {db_uri}")
         return server
 
     def run_cmd(self, func, configs):
@@ -188,15 +178,15 @@ class OpenstackPlatformController(BaseController):
                         "response": res,
                     }
                 )
-                self.app.log.info("Query openstack %s : %s" % (config["host"], elapsed))
+                self.app.log.info(f"Query openstack {config['host']} : {elapsed}")
             self.app.render(resp, headers=["instance", "host", "elapsed", "response"], maxsize=300)
-        except Exception as ex:
-            self.error(ex)
+        except Exception as exc:
+            self.error(exc)
 
     @ex(
-        help="ping mariadb instances",
-        description="ping mariadb instances",
-        example="beehive platform openstack mariadb-ping -e <env>;beehive platform openstack mariadb-ping -e <env>",
+        help=_("ping mariadb instances"),
+        description=_("ping mariadb instances"),
+        example="beehive platform openstack mariadb-ping -e <env>",
         arguments=OPENSTACK_ARGS([]),
     )
     def mariadb_ping(self):
@@ -210,14 +200,14 @@ class OpenstackPlatformController(BaseController):
             server = self.__get_mariadb_engine(host, port, user, db)
             res = server.ping()
             resp.append({"host": host, "response": res})
-            self.app.log.info("Ping maria : %s" % res)
+            self.app.log.info(f"Ping maria : {res}")
 
         self.app.render(resp, headers=["host", "response"])
 
     @ex(
-        help="get mariadb galera cluster status",
-        description="get mariadb galera cluster status",
-        example="beehive platform openstack mariadb-cluster-status -e <env>;beehive platform openstack mariadb-cluster-status -e <env>",
+        help=_("get mariadb galera cluster status"),
+        description=_("get mariadb galera cluster status"),
+        example="beehive platform openstack mariadb-cluster-status -e <env>",
         arguments=OPENSTACK_ARGS([]),
     )
     def mariadb_cluster_status(self):
@@ -232,7 +222,7 @@ class OpenstackPlatformController(BaseController):
             try:
                 server = self.__get_mariadb_engine(host, port, user, db)
                 status = server.get_galera_cluster_status()
-                self.app.log.info("get maria cluster status : %s" % status)
+                self.app.log.info(f"get maria cluster status : {status}")
                 summary_status = (
                     (status["wsrep_cluster_status"] == "Primary")
                     and int(status["wsrep_cluster_size"]) == cluster_size
@@ -240,8 +230,8 @@ class OpenstackPlatformController(BaseController):
                 )
                 status.update({"check_host": host, "status": summary_status})
                 resp.append(status)
-            except Exception as ex:
-                self.app.log.error(ex)
+            except Exception as exc:
+                self.app.log.error(exc)
                 status = {"check_host": host, "status": False}
                 resp.append(status)
 
@@ -255,14 +245,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(resp, headers=headers)
 
     @ex(
-        help="ultra ping openstack",
-        description="ultra ping openstack",
+        help=_("ultra ping openstack"),
+        description=_("ultra ping openstack"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-vip"],
                     {
-                        "help": "if true check only the vip",
+                        "help": _("if true check only the vip"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -278,10 +268,9 @@ class OpenstackPlatformController(BaseController):
         def func(conf):
             try:
                 client = self.__get_client(conf)
-                # client.server.list()
                 client.ping()
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
                 return False
             return True
 
@@ -289,14 +278,14 @@ class OpenstackPlatformController(BaseController):
         self.run_cmd(func, configs)
 
     @ex(
-        help="ultra ping openstack instances using an heavy query",
-        description="ultra ping openstack instances using an heavy query",
+        help=_("ultra ping openstack instances using an heavy query"),
+        description=_("ultra ping openstack instances using an heavy query"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-vip"],
                     {
-                        "help": "if true check only the vip",
+                        "help": _("if true check only the vip"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -313,8 +302,8 @@ class OpenstackPlatformController(BaseController):
             try:
                 client = self.__get_client(conf)
                 client.server.list()
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
                 return False
             return True
 
@@ -322,14 +311,14 @@ class OpenstackPlatformController(BaseController):
         self.run_cmd(func, configs)
 
     @ex(
-        help="ultra ping openstack instances components",
-        description="ultra ping openstack instances components",
+        help=_("ultra ping openstack instances components"),
+        description=_("ultra ping openstack instances components"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-vip"],
                     {
-                        "help": "if true check only the vip",
+                        "help": _("if true check only the vip"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -358,90 +347,90 @@ class OpenstackPlatformController(BaseController):
             }
             try:
                 client = self.__get_client(conf)
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
                 return res
 
             try:
                 client.identity.api()
                 res["keystone"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.system.compute_api()
                 res["compute"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.system.object_storage_api()
                 res["object-storage"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.system.storage_api()
                 res["block-storage"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.system.network_api()
                 res["network"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.system.orchestrator_api()
                 res["orchestrator"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.manila.api()
                 res["manila"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.aodh.api()
                 res["aodh"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.glance.api()
                 res["glance"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.gnocchi.api()
                 res["gnocchi"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             try:
                 client.masakari.api()
                 res["masakari"] = True
-            except Exception as ex:
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.log.error(exc, exc_info=True)
 
             return res
 
         configs = self.__get_orchestartors(instances, vip=vip)
         self.run_cmd(func, configs)
 
-    @ex(help="ping openstack", description="ping openstack", arguments=OPENSTACK_ARGS())
+    @ex(help=_("ping openstack"), description=_("ping openstack"), arguments=OPENSTACK_ARGS())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get openstack version",
-        description="get openstack version",
-        example="beehive platform openstack version -e <env>;beehive platform openstack version -e <env>",
+        help=_("get openstack version"),
+        description=_("get openstack version"),
+        example="beehive platform openstack version -e <env>",
         arguments=OPENSTACK_ARGS(),
     )
     def version(self):
@@ -452,14 +441,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render({"version": res}, headers=["version"])
 
     @ex(
-        help="validate token openstack",
-        description="validate token openstack",
+        help=_("validate token openstack"),
+        description=_("validate token openstack"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["token"],
                     {
-                        "help": "token",
+                        "help": _("token"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -470,21 +459,21 @@ class OpenstackPlatformController(BaseController):
     )
     def token_validate(self):
         identity_token = self.client.identity.token
-        print("identity token: %s" % identity_token)
+        print(f"identity token: {identity_token}")
 
         token = getattr(self.app.pargs, "token", None)
         res = self.client.identity.validate_token(token)
-        print("validate token %s - res: %s" % (token, res))
+        print(f"validate token {token} - res: {res}")
 
     @ex(
-        help="release token openstack",
-        description="release token openstack",
+        help=_("release token openstack"),
+        description=_("release token openstack"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["token"],
                     {
-                        "help": "token",
+                        "help": _("token"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -495,86 +484,83 @@ class OpenstackPlatformController(BaseController):
     )
     def token_release(self):
         identity_token = self.client.identity.token
-        print("identity token: %s" % identity_token)
+        print(f"identity token: {identity_token}")
 
         token = getattr(self.app.pargs, "token", None)
         res = self.client.identity.release_token(token)
-        print("release token %s - res: %s" % (token, res))
+        print(f"release token {token} - res: {res}")
 
     @ex(
-        help="get openstack keystone catalog",
-        description="get openstack keystone catalog",
+        help=_("get openstack keystone catalog"),
+        description=_("get openstack keystone catalog"),
         arguments=OPENSTACK_ARGS(),
     )
     def catalog(self):
         res = self.client.get_catalog()
         self.app.render(res, details=True)
 
-    @ex(help="get users", description="get users", arguments=OPENSTACK_ARGS())
+    @ex(help=_("get users"), description=_("get users"), arguments=OPENSTACK_ARGS())
     def sys_user_get(self):
         res = self.client.identity.user.list(detail=True)
         self.app.render(res, headers=["id", "name", "domain_id"])
 
     @ex(
-        help="get api versions",
-        description="get api versions",
+        help=_("get api versions"),
+        description=_("get api versions"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_api_get(self):
         resp = []
+
         res = self.client.system.compute_api().get("versions", [])
         for r in res:
             r["component"] = "compute"
         resp.extend(res)
+
         res = self.client.system.storage_api().get("versions", [])
         for r in res:
             r["component"] = "storage"
         resp.extend(res)
+
         res = self.client.system.network_api().get("versions", [])
         for r in res:
             r["component"] = "network"
         resp.extend(res)
+
         res = self.client.system.orchestrator_api().get("versions", [])
         for r in res:
             r["component"] = "orchestrator"
         resp.extend(res)
-        res = self.client.system.manila_api().get("versions", [])
-        for r in res:
-            r["component"] = "manila"
-        resp.extend(res)
+
+        try:
+            res = self.client.system.manila_api().get("versions", [])
+            for r in res:
+                r["component"] = "manila"
+            resp.extend(res)
+        except:
+            pass
+
         self.app.render(
             resp,
             headers=["component", "id", "version", "min_version", "status", "updated"],
         )
 
     @ex(
-        help="get api extensions",
-        description="get api extensions",
+        help=_("get api extensions"),
+        description=_("get api extensions"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_api_extension_get(self):
         resp = []
-        # res = self.client.system.compute_api().get('versions', [])
-        # for r in res:
-        #     r['component'] = 'compute'
-        # resp.extend(res)
-        # res = self.client.system.storage_api().get('versions', [])
-        # for r in res:
-        #     r['component'] = 'storage'
-        # resp.extend(res)
         res = self.client.system.network_api_extension().get("extensions", [])
         for r in res:
             r["component"] = "network"
         resp.extend(res)
-        # res = self.client.system.orchestrator_api().get('versions', [])
-        # for r in res:
-        #     r['component'] = 'orchestrator'
-        # resp.extend(res)
         self.app.render(resp, headers=["component", "name", "alias", "description", "updated"])
 
     @ex(
-        help="get compute services",
-        description="get compute service",
+        help=_("get compute services"),
+        description=_("get compute service"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_service_get(self):
@@ -583,8 +569,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="get compute availability zones",
-        description="get compute availability zones",
+        help=_("get compute availability zones"),
+        description=_("get compute availability zones"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_zone_get(self):
@@ -604,8 +590,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(resp, headers=["name", "hosts", "state"], maxsize=200)
 
     @ex(
-        help="get physical hosts",
-        description="get physical hosts",
+        help=_("get physical hosts"),
+        description=_("get physical hosts"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_host_get(self):
@@ -613,18 +599,18 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=["service", "host_name", "zone"], maxsize=200)
 
     @ex(
-        help="set physical host status",
-        description="set physical host status",
-        arguments=OPENSTACK_ARGS([(["host"], {"help": "host id", "action": "store", "type": str})]),
+        help=_("set physical host status"),
+        description=_("set physical host status"),
+        arguments=OPENSTACK_ARGS([(["host"], {"help": _("host id"), "action": "store", "type": str})]),
     )
     def sys_compute_host_status(self):
         host = self.app.pargs.host
-        res = self.client.system.compute_host_status(host)
-        self.app.render({"msg": "set host %s status" % host})
+        self.client.system.compute_host_status(host)
+        self.app.render({"msg": f"set host {host} status"})
 
     @ex(
-        help="get compute host aggregates",
-        description="get compute host aggregates",
+        help=_("get compute host aggregates"),
+        description=_("get compute host aggregates"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_host_aggregate_get(self):
@@ -635,20 +621,15 @@ class OpenstackPlatformController(BaseController):
             maxsize=200,
         )
 
-    # @ex(
-    #     help='get compute server groups',
-    #     description='get compute server groups',
-    #     arguments=OPENSTACK_ARGS()
-    # )
-    # def sys_compute_server_group_get(self):
-    #     res = self.client.system.compute_server_groups()
-    #     self.app.render(res, headers=['id', 'name', 'policies', 'members'], maxsize=200)
-
     @ex(
-        help="displays extra statistical information from the machine that hosts the hypervisor through the API for "
-        "the hypervisor (XenAPI or KVM/libvirt).",
-        description="displays extra statistical information from the machine that hosts the hypervisor through the "
-        "API for the hypervisor (XenAPI or KVM/libvirt).",
+        help=_(
+            "displays extra statistical information from the machine that hosts the hypervisor through the API for "
+            "the hypervisor (XenAPI or KVM/libvirt)."
+        ),
+        description=_(
+            "displays extra statistical information from the machine that hosts the hypervisor through the "
+            "API for the hypervisor (XenAPI or KVM/libvirt)."
+        ),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_hypervisor_get(self):
@@ -672,8 +653,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="compute hypervisors statistics",
-        description="compute hypervisors statistics",
+        help=_("compute hypervisors statistics"),
+        description=_("compute hypervisors statistics"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_hypervisor_stats(self):
@@ -695,10 +676,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="displays extra statistical information from the machine that hosts the hypervisor through the API for "
-        "the hypervisor (XenAPI or KVM/libvirt).",
-        description="displays extra statistical information from the machine that hosts the hypervisor through the "
-        "API for the hypervisor (XenAPI or KVM/libvirt).",
+        help=_(
+            "displays extra statistical information from the machine that hosts the hypervisor through the API for "
+            "the hypervisor (XenAPI or KVM/libvirt)."
+        ),
+        description=_(
+            "displays extra statistical information from the machine that hosts the hypervisor through the "
+            "API for the hypervisor (XenAPI or KVM/libvirt)."
+        ),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_hypervisor_servers(self):
@@ -733,14 +718,18 @@ class OpenstackPlatformController(BaseController):
         self.app.render(hosts, headers=headers, maxsize=200)
 
     @ex(
-        help="get compute agents. Use guest agents to access files on the disk, configure networking, and run other "
-        "applications and scripts in the guest while it runs. This hypervisor-specific extension is not currently "
-        "enabled for KVM. Use of guest agents is possible only if the underlying service provider uses the Xen "
-        "driver.",
-        description="get compute agents. Use guest agents to access files on the disk, configure networking, and run "
-        "other applications and scripts in the guest while it runs. This hypervisor-specific extension is "
-        "not currently enabled for KVM. Use of guest agents is possible only if the underlying service "
-        "provider uses the Xen driver.",
+        help=_(
+            "get compute agents. Use guest agents to access files on the disk, configure networking, and run other "
+            "applications and scripts in the guest while it runs. This hypervisor-specific extension is not currently "
+            "enabled for KVM. Use of guest agents is possible only if the underlying service provider uses the Xen "
+            "driver."
+        ),
+        description=_(
+            "get compute agents. Use guest agents to access files on the disk, configure networking, and run "
+            "other applications and scripts in the guest while it runs. This hypervisor-specific extension is "
+            "not currently enabled for KVM. Use of guest agents is possible only if the underlying service "
+            "provider uses the Xen driver."
+        ),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_compute_agent_get(self):
@@ -749,8 +738,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=[], maxsize=200)
 
     @ex(
-        help="get storage service.",
-        description="get storage service.",
+        help=_("get storage service."),
+        description=_("get storage service."),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_storage_service_get(self):
@@ -759,8 +748,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="lists all hosts summary info that is not disabled",
-        description="lists all hosts summary info that is not disabled",
+        help=_("lists all hosts summary info that is not disabled"),
+        description=_("lists all hosts summary info that is not disabled"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_storage_host_get(self):
@@ -776,8 +765,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers)
 
     @ex(
-        help="lists all back-end storage pools",
-        description="lists all back-end storage pools",
+        help=_("lists all back-end storage pools"),
+        description=_("lists all back-end storage pools"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_storage_backend_storage_pool_get(self):
@@ -807,9 +796,9 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="shows capabilities for a storage back end",
-        description="shows capabilities for a storage back end",
-        arguments=OPENSTACK_ARGS([(["host"], {"help": "host id", "action": "store", "type": str})]),
+        help=_("shows capabilities for a storage back end"),
+        description=_("shows capabilities for a storage back end"),
+        arguments=OPENSTACK_ARGS([(["host"], {"help": _("host id"), "action": "store", "type": str})]),
     )
     def sys_storage_backend_capabilitie(self):
         oid = self.app.pargs.host
@@ -837,8 +826,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, details=True, manage_data=manage_data)
 
     @ex(
-        help="get network agents",
-        description="get network agents",
+        help=_("get network agents"),
+        description=_("get network agents"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_network_agent_get(self):
@@ -855,8 +844,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="get api versions",
-        description="get api versions",
+        help=_("get api versions"),
+        description=_("get api versions"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_network_service_provider_get(self):
@@ -865,8 +854,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=["service_type", "name", "default"], maxsize=200)
 
     @ex(
-        help="get heat services",
-        description="get heat services",
+        help=_("get heat services"),
+        description=_("get heat services"),
         arguments=OPENSTACK_ARGS(),
     )
     def sys_orchestrator_service_get(self):
@@ -875,8 +864,8 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, maxsize=200)
 
     @ex(
-        help="get keystone users",
-        description="get keystone users",
+        help=_("get keystone users"),
+        description=_("get keystone users"),
         arguments=OPENSTACK_ARGS(),
     )
     def keystone_user_get(self):
@@ -884,28 +873,28 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=["id", "name", "domain_id", "enabled"])
 
     @ex(
-        help="get keystone roles",
-        description="get keystone roles",
+        help=_("get keystone roles"),
+        description=_("get keystone roles"),
         arguments=OPENSTACK_ARGS(),
     )
     def keystone_role_get(self):
         res = self.client.identity.role.list(detail=False)
         self.app.render(res, headers=["id", "name"])
 
-    @ex(help="get regions", description="get regions", arguments=OPENSTACK_ARGS())
+    @ex(help=_("get regions"), description=_("get regions"), arguments=OPENSTACK_ARGS())
     def region_get(self):
         res = self.client.identity.get_regions()
         self.app.render(res, headers=["id", "parent_region_id", "description"])
 
     @ex(
-        help="get domains",
-        description="get domains",
+        help=_("get domains"),
+        description=_("get domains"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "cluster id",
+                        "help": _("cluster id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -918,10 +907,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.domain.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -929,14 +914,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=["id", "description"])
 
     @ex(
-        help="get projects",
-        description="get projects",
+        help=_("get projects"),
+        description=_("get projects"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -965,14 +950,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers)
 
     @ex(
-        help="get project quotas",
-        description="get project quotas",
+        help=_("get project quotas"),
+        description=_("get project quotas"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -996,14 +981,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, details=True)
 
     @ex(
-        help="set project quotas",
-        description="set project quotas",
+        help=_("set project quotas"),
+        description=_("set project quotas"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1012,7 +997,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["quota_type"],
                     {
-                        "help": "project quota type. can be compute, block, network, share",
+                        "help": _("project quota type. can be compute, block, network, share"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1021,7 +1006,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["quota"],
                     {
-                        "help": "project quota name",
+                        "help": _("project quota name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1030,7 +1015,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["value"],
                     {
-                        "help": "project quota value",
+                        "help": _("project quota value"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1044,21 +1029,21 @@ class OpenstackPlatformController(BaseController):
         quota_type = self.app.pargs.quota_type
         quota = self.app.pargs.quota
         value = self.app.pargs.value
-        res = self.client.project.update_quota(oid, quota_type, quota, value)
+        self.client.project.update_quota(oid, quota_type, quota, value)
         self.app.render(
-            {"msg": "update quota %s %s with value %s" % (quota_type, quota, value)},
+            {"msg": f"update quota {quota_type} {quota} with value {value}"},
             maxsize=200,
         )
 
     @ex(
-        help="add openstack project",
-        description="add openstack project",
+        help=_("add openstack project"),
+        description=_("add openstack project"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "project name",
+                        "help": _("project name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1067,7 +1052,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["domain"],
                     {
-                        "help": "project domain id",
+                        "help": _("project domain id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1076,8 +1061,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "project description",
-                        "action": "store",
+                        "help": _("project description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -1087,7 +1071,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1096,7 +1080,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "enabled status",
+                        "help": _("enabled status"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -1119,17 +1103,17 @@ class OpenstackPlatformController(BaseController):
             description=description,
             enabled=enabled,
         )
-        self.app.render({"msg": "create project %s" % res["id"]})
+        self.app.render({"msg": f"create project {res['id']}"})
 
     @ex(
-        help="update openstack project",
-        description="update openstack project",
+        help=_("update openstack project"),
+        description=_("update openstack project"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1138,7 +1122,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "project name",
+                        "help": _("project name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1147,8 +1131,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "project description",
-                        "action": "store",
+                        "help": _("project description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -1158,7 +1141,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-domain"],
                     {
-                        "help": "parent domain id",
+                        "help": _("parent domain id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1167,7 +1150,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-parent"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1176,7 +1159,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "enabled status",
+                        "help": _("enabled status"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1200,17 +1183,17 @@ class OpenstackPlatformController(BaseController):
             description=description,
             parent_id=parent_id,
         )
-        self.app.render({"msg": "update project %s" % oid})
+        self.app.render({"msg": f"update project {oid}"})
 
     @ex(
-        help="delete openstack project",
-        description="delete openstack project",
+        help=_("delete openstack project"),
+        description=_("delete openstack project"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1222,17 +1205,17 @@ class OpenstackPlatformController(BaseController):
     def project_del(self):
         oid = self.app.pargs.id
         self.client.project.delete(oid)
-        self.app.render({"msg": "Delete project %s" % oid})
+        self.app.render({"msg": f"Delete project {oid}"})
 
     @ex(
-        help="get openstack project members",
-        description="get openstack project members",
+        help=_("get openstack project members"),
+        description=_("get openstack project members"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1247,14 +1230,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=["user_id", "user_name", "role_id", "role_name"])
 
     @ex(
-        help="get openstack project default members",
-        description="get openstack project default members",
+        help=_("get openstack project default members"),
+        description=_("get openstack project default members"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1291,9 +1274,9 @@ class OpenstackPlatformController(BaseController):
             if obj.get("name").find("ComputeService-") == 0:
                 roles = []
                 members = self.client.project.get_members(obj.get("id"))
-                print("project: (%s, %s)" % (obj.get("id"), obj.get("name")))
+                print(f"project: ({obj.get('id')}, {obj.get('name')})")
                 for m in members:
-                    print("- get user role: (%s, %s)" % (m.get("user_name"), m.get("role_name")))
+                    print(f"- get user role: ({m.get('user_name')}, {m.get('role_name')})")
                     roles.append((m.get("user_name"), m.get("role_name")))
                 if ("admin", "trilio_backup_role") not in roles:
                     self.client.project.assign_member(obj.get("id"), admin_id, trilio_backup_role_id)
@@ -1309,15 +1292,15 @@ class OpenstackPlatformController(BaseController):
                     break
 
     @ex(
-        help="get networks",
-        description="get networks",
+        help=_("get networks"),
+        description=_("get networks"),
         example="beehive platform openstack network-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1357,7 +1340,7 @@ class OpenstackPlatformController(BaseController):
                     "enable_dhcp",
                     "service_types",
                 ]
-                transform = {"allocation_pools": lambda x: "%s:%s" % (x[0]["start"], x[0]["end"])}
+                transform = {"allocation_pools": lambda x: f"{x[0]['start']}:{x[0]['end']}"}
                 self.app.render(subnets, headers=headers, fields=fields, transform=transform)
 
                 self.c("\nports", "underline")
@@ -1411,15 +1394,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack network",
-        description="add openstack network",
+        help=_("add openstack network"),
+        description=_("add openstack network"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "network name", "action": "store", "type": str}),
+                (["name"], {"help": _("network name"), "action": "store", "type": str}),
                 (
                     ["project"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1428,7 +1411,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-physical_network"],
                     {
-                        "help": "physical network",
+                        "help": _("physical network"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1437,7 +1420,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-segmentation_id"],
                     {
-                        "help": "segmentation id",
+                        "help": _("segmentation id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1446,7 +1429,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "network type. Can be flat, vlan, vxlan, or gre",
+                        "help": _("network type. Can be flat, vlan, vxlan, or gre"),
                         "action": "store",
                         "type": str,
                         "default": "vlan",
@@ -1455,7 +1438,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-mt"],
                     {
-                        "help": "the maximum transmission unit MTU",
+                        "help": _("the maximum transmission unit MTU"),
                         "action": "store",
                         "type": int,
                         "default": 1500,
@@ -1479,17 +1462,17 @@ class OpenstackPlatformController(BaseController):
             network_type=network_type,
             mtu=mtu,
         )
-        self.app.render({"msg": "add network %s" % name})
+        self.app.render({"msg": f"add network {name}"})
 
     @ex(
-        help="update openstack network",
-        description="update openstack network",
+        help=_("update openstack network"),
+        description=_("update openstack network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1498,7 +1481,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "network name",
+                        "help": _("network name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1507,7 +1490,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-shared"],
                     {
-                        "help": "network shared",
+                        "help": _("network shared"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1516,7 +1499,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-mtu"],
                     {
-                        "help": "network mtu",
+                        "help": _("network mtu"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -1530,18 +1513,18 @@ class OpenstackPlatformController(BaseController):
         name = self.app.pargs.name
         mtu = self.app.pargs.mtu
         shared = str2bool(self.app.pargs.shared)
-        res = self.client.network.update(oid, name=name, shared=shared, mtu=mtu)
-        self.app.render({"msg": "update network %s" % oid})
+        self.client.network.update(oid, name=name, shared=shared, mtu=mtu)
+        self.app.render({"msg": f"update network {oid}"})
 
     @ex(
-        help="delete openstack network",
-        description="delete openstack network",
+        help=_("delete openstack network"),
+        description=_("delete openstack network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1553,18 +1536,18 @@ class OpenstackPlatformController(BaseController):
     def network_del(self):
         oid = self.app.pargs.id
         self.client.network.delete(oid)
-        self.app.render({"msg": "Delete network %s" % oid})
+        self.app.render({"msg": f"Delete network {oid}"})
 
     @ex(
-        help="get subnets",
-        description="get subnets",
+        help=_("get subnets"),
+        description=_("get subnets"),
         example="beehive platform openstack subnet-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1573,7 +1556,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-project"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1582,21 +1565,12 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                # (['-status'], {'help': 'the subnet status. Value is ACTIVE or DOWN', 'action': 'store', 'type': str,
-                #                'default': None}),
-                # (['-device'], {'help': 'the id of the device that uses this subnet', 'action': 'store', 'type': str,
-                #                'default': None}),
-                # (['-device_owner'], {'help': 'the entity type that uses this subnet. For example: - compute:nova (server '
-                #                              'instance), network:dhcp (DHCP agent) - network:router_interface (router '
-                #                              'interface).', 'action': 'store', 'type': str, 'default': None}),
-                # (['-security_group'], {'help': 'the id of any attached security groups', 'action': 'store', 'type': str,
-                #                        'default': None}),
             ]
         ),
     )
@@ -1609,30 +1583,11 @@ class OpenstackPlatformController(BaseController):
                 self.app.render(res, details=True)
 
                 self.c("\nallocation pool", "underline")
-                end = IPv4Address(dict_get(res, "allocation_pools.0.end"))
-                start = IPv4Address(dict_get(res, "allocation_pools.0.start"))
-                num = 1
-                while start != end:
-                    start += 1
-                    num += 1
-
-                ports = self.client.network.port.list(subnet_id=res["id"])
                 report = {
-                    "pool_size": num,
-                    "pool_used": 0,
-                    "pool_available": num,
+                    "pool_size": res["pool_size"],
+                    "pool_used": res["pool_used"],
+                    "pool_available": res["pool_available"],
                 }
-                for port in ports:
-                    device_owner = port.get("device_owner")
-                    # if device_owner == 'compute:twin':
-                    #     report['twin'] += 1
-                    if device_owner == "compute:nova":
-                        report["pool_used"] += 1
-                        report["pool_available"] -= 1
-                    elif device_owner == "network:dhcp":
-                        report["pool_used"] += 1
-                        report["pool_available"] -= 1
-
                 self.app.render(report, details=True)
 
                 self.c("\nports", "underline")
@@ -1656,18 +1611,13 @@ class OpenstackPlatformController(BaseController):
                     "device_owner",
                     "security_groups",
                 ]
+                ports = self.client.network.port.list(subnet_id=res["id"])
                 self.app.render(ports, headers=headers, fields=fields)
             else:
                 self.app.render(res, details=True)
         else:
             tenant = self.app.pargs.project
             network = self.app.pargs.network
-            # status = self.app.pargs.status
-            # device_id = self.app.pargs.device
-            # device_owner = self.app.pargs.device_owner
-            # security_group = self.app.pargs.security_group
-            # subnet_id = self.app.pargs.subnet
-            # ip_address = self.app.pargs.ip_address
             res = self.client.network.subnet.list(tenant=tenant, network=network)
             headers = [
                 "id",
@@ -1677,6 +1627,9 @@ class OpenstackPlatformController(BaseController):
                 "cidr",
                 "enable_dhcp",
                 "service_types",
+                "pool_size",
+                "pool_used",
+                "pool_available",
             ]
             fields = [
                 "id",
@@ -1686,19 +1639,22 @@ class OpenstackPlatformController(BaseController):
                 "cidr",
                 "enable_dhcp",
                 "service_types",
+                "pool_size",
+                "pool_used",
+                "pool_available",
             ]
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack subnet",
-        description="add openstack subnet",
+        help=_("add openstack subnet"),
+        description=_("add openstack subnet"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "subnet name", "action": "store", "type": str}),
+                (["name"], {"help": _("subnet name"), "action": "store", "type": str}),
                 (
                     ["network"],
                     {
-                        "help": "parent network id",
+                        "help": _("parent network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1707,7 +1663,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-gateway"],
                     {
-                        "help": "gateway ip",
+                        "help": _("gateway ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1716,7 +1672,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["cidr"],
                     {
-                        "help": "subnet cidr",
+                        "help": _("subnet cidr"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1725,7 +1681,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-enable-dhcp"],
                     {
-                        "help": "enable dhcp",
+                        "help": _("enable dhcp"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -1734,7 +1690,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["dns"],
                     {
-                        "help": "comma separated subnet dns",
+                        "help": _("comma separated subnet dns"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1764,19 +1720,19 @@ class OpenstackPlatformController(BaseController):
             enable_dhcp=enable_dhcp,
             host_routes=None,
             dns_nameservers=dns,
-            service_types=None,
+            service_types=None,  # NB: va solo se si usa l'update ma non si sa perché
         )
-        self.app.render({"msg": "add subnet %s" % name})
+        self.app.render({"msg": f"add subnet {name}"})
 
     @ex(
-        help="update openstack subnet",
-        description="update openstack subnet",
+        help=_("update openstack subnet"),
+        description=_("update openstack subnet"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1785,7 +1741,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "subnet name",
+                        "help": _("subnet name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1794,8 +1750,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "subnet description",
-                        "action": "store",
+                        "help": _("subnet description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -1809,18 +1764,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        res = self.client.network.subnet.update(oid, name, desc)
-        self.app.render({"msg": "update subnet %s" % oid})
+        self.client.network.subnet.update(oid, name, desc)
+        self.app.render({"msg": f"update subnet {oid}"})
 
     @ex(
-        help="delete openstack subnet",
-        description="delete openstack subnet",
+        help=_("delete openstack subnet"),
+        description=_("delete openstack subnet"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1832,18 +1787,18 @@ class OpenstackPlatformController(BaseController):
     def subnet_del(self):
         oid = self.app.pargs.id
         self.client.network.subnet.delete(oid)
-        self.app.render({"msg": "Delete subnet %s" % oid})
+        self.app.render({"msg": f"Delete subnet {oid}"})
 
     @ex(
-        help="get ports",
-        description="get ports",
-        example="beehive platform openstack port-get -id <uuid> -e <env>;beehive platform openstack port-get -id <uuid> --env test",
+        help=_("get ports"),
+        description=_("get ports"),
+        example="beehive platform openstack port-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1852,7 +1807,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-project"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1861,7 +1816,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1870,7 +1825,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-status"],
                     {
-                        "help": "the port status. Value is ACTIVE or DOWN",
+                        "help": _("the port status. Value is ACTIVE or DOWN"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1879,7 +1834,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-device"],
                     {
-                        "help": "the id of the device that uses this port",
+                        "help": _("the id of the device that uses this port"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1888,9 +1843,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-device_owner"],
                     {
-                        "help": "the entity type that uses this port. For example: - compute:nova (server "
-                        "instance), network:dhcp (DHCP agent) - network:router_interface (router "
-                        "interface).",
+                        "help": _(
+                            "the entity type that uses this port. For example: - compute:nova (server "
+                            "instance), network:dhcp (DHCP agent) - network:router_interface (router "
+                            "interface)."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1899,7 +1856,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-security_group"],
                     {
-                        "help": "the id of any attached security groups",
+                        "help": _("the id of any attached security groups"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1912,10 +1869,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.port.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             tenant = self.app.pargs.project
@@ -1957,15 +1910,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack port",
-        description="add openstack port",
+        help=_("add openstack port"),
+        description=_("add openstack port"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "port name", "action": "store", "type": str}),
+                (["name"], {"help": _("port name"), "action": "store", "type": str}),
                 (
                     ["network"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1974,7 +1927,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1983,7 +1936,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-tenant"],
                     {
-                        "help": "tenant id",
+                        "help": _("tenant id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1992,7 +1945,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ipaddress"],
                     {
-                        "help": "ip addresses associated to subnet",
+                        "help": _("ip addresses associated to subnet"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2001,7 +1954,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-allowed-ipaddress"],
                     {
-                        "help": "allowed ip address",
+                        "help": _("allowed ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2010,7 +1963,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-allowed-macaddress"],
                     {
-                        "help": "allowed ip macaddress",
+                        "help": _("allowed ip macaddress"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2019,7 +1972,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-host"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2028,7 +1981,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-device_owner"],
                     {
-                        "help": "device owner",
+                        "help": _("device owner"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2037,7 +1990,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-security_groups"],
                     {
-                        "help": "One or more security group id.",
+                        "help": _("One or more security group id."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2096,12 +2049,12 @@ class OpenstackPlatformController(BaseController):
             mac_address=None,
             allowed_address_pairs=allowed_address_pairs,
         )
-        self.app.render({"msg": "add port %s" % res["id"]})
+        self.app.render({"msg": f"add port {res['id']}"})
         self.app.render(res, details=True)
 
     @ex(
-        help="add openstack port",
-        description="add openstack port",
+        help=_("add openstack port"),
+        description=_("add openstack port"),
         arguments=OPENSTACK_ARGS([]),
     )
     def port_add_batch(self):
@@ -2116,7 +2069,7 @@ class OpenstackPlatformController(BaseController):
             ip_address = ip_tmpl % i
             fixed_ips = [{"subnet_id": subnet_id, "ip_address": ip_address}]
             allowed_address_pairs = [{"ip_address": ip_address}]
-            name = "port-%s" % ip_address.replace(".", "-")
+            name = f"port-{ip_address.replace('.', '-')}"
             if ip_address not in allocated_port_ips:
                 port = self.client.network.port.create(
                     name,
@@ -2128,17 +2081,17 @@ class OpenstackPlatformController(BaseController):
                     device_owner=device_owner,
                     allowed_address_pairs=allowed_address_pairs,
                 )
-                print("add port %s" % port["id"])
+                print(f"add port {port['id']}")
 
     @ex(
-        help="update openstack port",
-        description="update openstack port",
+        help=_("update openstack port"),
+        description=_("update openstack port"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2147,7 +2100,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "port name",
+                        "help": _("port name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2156,8 +2109,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "port description",
-                        "action": "store",
+                        "help": _("port description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -2167,7 +2119,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-sgs"],
                     {
-                        "help": "port security groups comma separated",
+                        "help": _("port security groups comma separated"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2176,7 +2128,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-allowed_ips"],
                     {
-                        "help": "a comma separated list of allowed ip address",
+                        "help": _("a comma separated list of allowed ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2185,7 +2137,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-port_security_enabled"],
                     {
-                        "help": "enable or disable port security",
+                        "help": _("enable or disable port security"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2216,7 +2168,7 @@ class OpenstackPlatformController(BaseController):
                 allowed_ips = allowed_ips.split(",")
                 allowed_address_pairs = [{"ip_address": ip} for ip in allowed_ips]
 
-        res = self.client.network.port.update(
+        self.client.network.port.update(
             oid,
             name,
             desc,
@@ -2224,18 +2176,18 @@ class OpenstackPlatformController(BaseController):
             allowed_address_pairs=allowed_address_pairs,
             port_security_enabled=port_security_enabled,
         )
-        self.app.render({"msg": "update port %s" % oid})
+        self.app.render({"msg": f"update port {oid}"})
 
     @ex(
-        help="delete openstack port",
-        description="delete openstack port",
-        example="beehive platform openstack port-del <uuid> -e <env>;beehive platform openstack port-del <uuid> -e <env>",
+        help=_("delete openstack port"),
+        description=_("delete openstack port"),
+        example="beehive platform openstack port-del <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2247,17 +2199,17 @@ class OpenstackPlatformController(BaseController):
     def port_del(self):
         oid = self.app.pargs.id
         self.client.network.port.delete(oid)
-        self.app.render({"msg": "Delete port %s" % oid})
+        self.app.render({"msg": f"Delete port {oid}"})
 
     @ex(
-        help="get floatingips",
-        description="get floatingips",
+        help=_("get floatingips"),
+        description=_("get floatingips"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "floatingip id",
+                        "help": _("floatingip id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2270,10 +2222,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.network.floatingip.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -2294,50 +2242,15 @@ class OpenstackPlatformController(BaseController):
             ]
             self.app.render(res, headers=headers, fields=fields)
 
-    # @ex(
-    #     help='add openstack floatingip',
-    #     description='add openstack floatingip',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['name'], {'help': 'floatingip name', 'action': 'store', 'type': str}),
-    #         (['project'], {'help': 'parent project id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['physical_floatingip'], {'help': 'physical floatingip', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-segmentation_id'], {'help': 'segmentation id', 'action': 'store', 'type': str, 'default': None})
-    #     ])
-    # )
-    # def floatingip_add(self):
-    #     name = self.app.pargs.name
-    #     tenant_id = self.app.pargs.tenant
-    #     physical_floatingip = self.app.pargs.physical_floatingip
-    #     segmentation_id = self.app.pargs.segmentation_id
-    #     self.client.network.floatingip.create(name, tenant_id, physical_floatingip, segmentation_id=segmentation_id)
-    #     self.app.render({'msg': 'add floatingip %s' % name})
-    #
-    # @ex(
-    #     help='update openstack floatingip',
-    #     description='update openstack floatingip',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['id'], {'help': 'floatingip id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-name'], {'help': 'floatingip name', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-desc'], {'help': 'floatingip description', 'action': 'store', 'action': StringAction, 'type': str,
-    #                      'nargs': '+', 'default': None})
-    #     ])
-    # )
-    # def floatingip_update(self):
-    #     oid = self.app.pargs.id
-    #     name = self.app.pargs.name
-    #     desc = self.app.pargs.desc
-    #     res = self.client.network.floatingip.update(oid, name, desc)
-    #     self.app.render({'msg': 'update floatingip %s' % oid})
-
     @ex(
-        help="delete openstack floatingip",
-        description="delete openstack floatingip",
+        help=_("delete openstack floatingip"),
+        description=_("delete openstack floatingip"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "floatingip id",
+                        "help": _("floatingip id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2349,17 +2262,17 @@ class OpenstackPlatformController(BaseController):
     def floatingip_del(self):
         oid = self.app.pargs.id
         self.client.network.floatingip.delete(oid)
-        self.app.render({"msg": "Delete floatingip %s" % oid})
+        self.app.render({"msg": f"Delete floatingip {oid}"})
 
     @ex(
-        help="get routers",
-        description="get routers",
+        help=_("get routers"),
+        description=_("get routers"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2409,15 +2322,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack router",
-        description="add openstack router",
+        help=_("add openstack router"),
+        description=_("add openstack router"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "router name", "action": "store", "type": str}),
+                (["name"], {"help": _("router name"), "action": "store", "type": str}),
                 (
                     ["tenant"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2426,7 +2339,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "physical router",
+                        "help": _("physical router"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2435,7 +2348,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ext-subnet"],
                     {
-                        "help": "external subnet",
+                        "help": _("external subnet"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2444,7 +2357,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ext-ip"],
                     {
-                        "help": "external ip address",
+                        "help": _("external ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2463,17 +2376,17 @@ class OpenstackPlatformController(BaseController):
         if ext_subnet is not None and ext_ip is not None:
             external_ips = [{"subnet_id": ext_subnet, "ip": ext_ip}]
         self.client.network.router.create(name, tenant_id, network, external_ips=external_ips)
-        self.app.render({"msg": "add router %s" % name})
+        self.app.render({"msg": f"add router {name}"})
 
     @ex(
-        help="update openstack router",
-        description="update openstack router",
+        help=_("update openstack router"),
+        description=_("update openstack router"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2482,7 +2395,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "router name",
+                        "help": _("router name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2491,7 +2404,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "physical router",
+                        "help": _("physical router"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2500,7 +2413,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ext-subnet"],
                     {
-                        "help": "external subnet",
+                        "help": _("external subnet"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2509,7 +2422,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ext-ip"],
                     {
-                        "help": "external ip address",
+                        "help": _("external ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2518,7 +2431,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-routes"],
                     {
-                        "help": "routes like dest:nexthop,dest:nexthop",
+                        "help": _("routes like dest:nexthop,dest:nexthop"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2550,17 +2463,17 @@ class OpenstackPlatformController(BaseController):
             external_ips=external_ips,
             routes=router_routes,
         )
-        self.app.render({"msg": "update router %s" % oid})
+        self.app.render({"msg": f"update router {oid}"})
 
     @ex(
-        help="reset openstack router routes",
-        description="reset openstack router routes",
+        help=_("reset openstack router routes"),
+        description=_("reset openstack router routes"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2572,17 +2485,17 @@ class OpenstackPlatformController(BaseController):
     def router_reset_routes(self):
         oid = self.app.pargs.id
         self.client.network.router.update(oid, routes=[])
-        self.app.render({"msg": "reset router %s routes" % oid})
+        self.app.render({"msg": f"reset router {oid} routes"})
 
     @ex(
-        help="rewrite existing openstack router routes",
-        description="rewrite existing openstack router routes",
+        help=_("rewrite existing openstack router routes"),
+        description=_("rewrite existing openstack router routes"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2610,17 +2523,17 @@ class OpenstackPlatformController(BaseController):
         print("reset routes")
         sleep(5)
         self.client.network.router.update(oid, routes=router_routes)
-        print("apply routes: %s" % routes)
+        print(f"apply routes: {routes}")
 
     @ex(
-        help="delete openstack router",
-        description="delete openstack router",
+        help=_("delete openstack router"),
+        description=_("delete openstack router"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2632,17 +2545,17 @@ class OpenstackPlatformController(BaseController):
     def router_del(self):
         oid = self.app.pargs.id
         self.client.network.router.delete(oid)
-        self.app.render({"msg": "Delete router %s" % oid})
+        self.app.render({"msg": f"Delete router {oid}"})
 
     @ex(
-        help="add openstack router internal interfafe",
-        description="add openstack router internal interfafe",
+        help=_("add openstack router internal interfafe"),
+        description=_("add openstack router internal interfafe"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2651,7 +2564,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["subnet"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2660,7 +2573,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ip"],
                     {
-                        "help": "intarface ip",
+                        "help": _("intarface ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2676,7 +2589,7 @@ class OpenstackPlatformController(BaseController):
 
         router = self.client.network.router.get(oid)
         subnet = self.client.network.subnet.get(subnet_id)
-        name = "%s-%s" % (router["name"], subnet["name"])
+        name = f"{router['name']}-{subnet['name']}"
 
         if subnet_id is not None or ip_address is not None:
             fixed_ips = {"subnet_id": subnet_id, "ip_address": ip_address}
@@ -2688,17 +2601,17 @@ class OpenstackPlatformController(BaseController):
             interface = self.client.network.router.add_internal_interface(oid, None, port=port["id"])
         else:
             interface = self.client.network.router.add_internal_interface(oid, subnet_id)
-        self.app.render({"msg": "add router %s internal port %s" % (oid, interface["id"])})
+        self.app.render({"msg": f"add router {oid} internal port {interface['id']}"})
 
     @ex(
-        help="delete openstack router internal interfafe",
-        description="delete openstack router internal interfafe",
+        help=_("delete openstack router internal interfafe"),
+        description=_("delete openstack router internal interfafe"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "router id",
+                        "help": _("router id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2707,7 +2620,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["subnet"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2721,18 +2634,18 @@ class OpenstackPlatformController(BaseController):
         subnet_id = self.app.pargs.subnet
 
         interface = self.client.network.router.delete_internal_interface(oid, subnet_id)
-        self.app.render({"msg": "delete router %s internal port %s" % (oid, interface["id"])})
+        self.app.render({"msg": f"delete router {oid} internal port {interface['id']}"})
 
     @ex(
-        help="get security_groups",
-        description="get security_groups",
+        help=_("get security_groups"),
+        description=_("get security_groups"),
         example="beehive platform openstack security-group-get -id <uuid> --env test",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "security_group id",
+                        "help": _("security_group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2800,18 +2713,18 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack security group",
-        description="add openstack security group",
+        help=_("add openstack security group"),
+        description=_("add openstack security group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
-                    {"help": "security_group name", "action": "store", "type": str},
+                    {"help": _("security_group name"), "action": "store", "type": str},
                 ),
                 (
                     ["project"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2824,17 +2737,17 @@ class OpenstackPlatformController(BaseController):
         name = self.app.pargs.name
         project = self.app.pargs.project
         self.client.network.security_group.create(name, name, project)
-        self.app.render({"msg": "add security group %s" % name})
+        self.app.render({"msg": f"add security group {name}"})
 
     @ex(
-        help="update openstack security group",
-        description="update openstack security group",
+        help=_("update openstack security group"),
+        description=_("update openstack security group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security_group id",
+                        "help": _("security_group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2843,7 +2756,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "security_group name",
+                        "help": _("security_group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2852,8 +2765,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "security_group description",
-                        "action": "store",
+                        "help": _("security_group description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -2867,18 +2779,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        res = self.client.network.security_group.update(oid, name, desc)
-        self.app.render({"msg": "update security_group %s" % oid})
+        self.client.network.security_group.update(oid, name, desc)
+        self.app.render({"msg": f"update security_group {oid}"})
 
     @ex(
-        help="delete openstack security_group",
-        description="delete openstack security_group",
+        help=_("delete openstack security_group"),
+        description=_("delete openstack security_group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security_group id",
+                        "help": _("security_group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2890,17 +2802,17 @@ class OpenstackPlatformController(BaseController):
     def security_group_del(self):
         oid = self.app.pargs.id
         self.client.network.security_group.delete(oid)
-        self.app.render({"msg": "delete security_group %s" % oid})
+        self.app.render({"msg": f"delete security_group {oid}"})
 
     @ex(
-        help="get openstack security group rule",
-        description="get openstack security group rule",
+        help=_("get openstack security group rule"),
+        description=_("get openstack security group rule"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security group rule id",
+                        "help": _("security group rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2911,18 +2823,18 @@ class OpenstackPlatformController(BaseController):
     )
     def security_group_rule_get(self):
         oid = self.app.pargs.id
-        self.client.network.security_group.get_rule(oid)
-        self.app.render({"msg": "get security group rule %s" % oid})
+        res = self.client.network.security_group.get_rule(oid)
+        self.app.render(res, details=True)
 
     @ex(
-        help="add openstack security group rule",
-        description="add openstack security group rule",
+        help=_("add openstack security group rule"),
+        description=_("add openstack security group rule"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security group rule id",
+                        "help": _("security group rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2931,7 +2843,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-direction"],
                     {
-                        "help": "direction. Can be ingress or egress",
+                        "help": _("direction. Can be ingress or egress"),
                         "action": "store",
                         "type": str,
                         "default": "ingress",
@@ -2940,7 +2852,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ethertype"],
                     {
-                        "help": "Must be IPv4 or IPv6",
+                        "help": _("Must be IPv4 or IPv6"),
                         "action": "store",
                         "type": str,
                         "default": "IPv4",
@@ -2949,7 +2861,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-port_min"],
                     {
-                        "help": "port range min",
+                        "help": _("port range min"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2958,7 +2870,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-port_max"],
                     {
-                        "help": "port range max",
+                        "help": _("port range max"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2967,7 +2879,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-protocol"],
                     {
-                        "help": "protocol",
+                        "help": _("protocol"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -2976,7 +2888,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-remote_ip"],
                     {
-                        "help": "remote ip",
+                        "help": _("remote ip"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3003,17 +2915,17 @@ class OpenstackPlatformController(BaseController):
             remote_group_id=None,
             remote_ip_prefix=remote_ip,
         )
-        self.app.render({"msg": "create security group rule %s" % oid})
+        self.app.render({"msg": f"create security group rule {oid}"})
 
     @ex(
-        help="delete openstack security group rule",
-        description="delete openstack security group rule",
+        help=_("delete openstack security group rule"),
+        description=_("delete openstack security group rule"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "security group rule id",
+                        "help": _("security group rule id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3025,14 +2937,14 @@ class OpenstackPlatformController(BaseController):
     def security_group_rule_del(self):
         oid = self.app.pargs.id
         self.client.network.security_group.delete_rule(oid)
-        self.app.render({"msg": "delete security group rule %s" % oid})
+        self.app.render({"msg": f"delete security group rule {oid}"})
 
     @ex(
-        help="check openstack security_group",
-        description="check openstack security_group",
+        help=_("check openstack security_group"),
+        description=_("check openstack security_group"),
         arguments=OPENSTACK_ARGS(
             [
-                (["-delete"], {"help": "security_group id", "action": "store_true"}),
+                (["-delete"], {"help": _("security_group id"), "action": "store_true"}),
             ]
         ),
     )
@@ -3049,14 +2961,14 @@ class OpenstackPlatformController(BaseController):
                     self.client.network.security_group.delete(v["id"])
 
     @ex(
-        help="get images",
-        description="get images",
+        help=_("get images"),
+        description=_("get images"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3064,12 +2976,12 @@ class OpenstackPlatformController(BaseController):
                 ),
                 (
                     ["-owner"],
-                    {"help": "owner", "action": "store", "type": str, "default": None},
+                    {"help": _("owner"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-visibility"],
                     {
-                        "help": "image visibility: all, public, private, shared, community",
+                        "help": _("image visibility: all, public, private, shared, community"),
                         "action": "store",
                         "type": str,
                         "default": "all",
@@ -3087,9 +2999,6 @@ class OpenstackPlatformController(BaseController):
                 block_device_mapping = loads(block_device_mapping_str)
                 # Inject links from nova image to cinder snapshot
                 res["snapshot_ids"] = ",".join([a["snapshot_id"] for a in block_device_mapping])
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             glance_version = float(self.client.glance.api()[0]["id"][1:])
@@ -3131,14 +3040,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="get image schemas",
-        description="get image schemas",
+        help=_("get image schemas"),
+        description=_("get image schemas"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3151,10 +3060,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.image.get_schema(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -3164,15 +3069,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack image",
-        description="add openstack image",
+        help=_("add openstack image"),
+        description=_("add openstack image"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "image name", "action": "store", "type": str}),
+                (["name"], {"help": _("image name"), "action": "store", "type": str}),
                 (
                     ["-disk_format"],
                     {
-                        "help": "disk format e.g.: ami, ari, aki, vhd, vhdx, vmdk, raw, qcow2, vdi, ploop, iso",
+                        "help": _("disk format e.g.: ami, ari, aki, vhd, vhdx, vmdk, raw, qcow2, vdi, ploop, iso"),
                         "action": "store",
                         "type": str,
                         "default": "qcow2",
@@ -3181,7 +3086,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-min_disk"],
                     {
-                        "help": "amount of disk space in GB that is required to boot the image.",
+                        "help": _("amount of disk space in GB that is required to boot the image."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3190,7 +3095,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-min_ram"],
                     {
-                        "help": "amount of RAM in MB that is required to boot the image",
+                        "help": _("amount of RAM in MB that is required to boot the image"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3199,7 +3104,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-visibility"],
                     {
-                        "help": "image visibility: public, private, shared, or community",
+                        "help": _("image visibility: public, private, shared, or community"),
                         "action": "store",
                         "type": str,
                         "default": "public",
@@ -3221,34 +3126,17 @@ class OpenstackPlatformController(BaseController):
             min_ram=min_ram,
             visibility=visibility,
         )
-        self.app.render({"msg": "add image %s" % name})
-
-    # @ex(
-    #     help='update openstack image',
-    #     description='update openstack image',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['id'], {'help': 'image id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-name'], {'help': 'image name', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-desc'], {'help': 'image description', 'action': 'store', 'action': StringAction, 'type': str,
-    #                      'nargs': '+', 'default': None})
-    #     ])
-    # )
-    # def image_update(self):
-    #     oid = self.app.pargs.id
-    #     name = self.app.pargs.name
-    #     desc = self.app.pargs.desc
-    #     res = self.client.image.update(oid, name, desc)
-    #     self.app.render({'msg': 'update image %s' % oid})
+        self.app.render({"msg": f"add image {name}"})
 
     @ex(
-        help="upload openstack image",
-        description="upload openstack image",
+        help=_("upload openstack image"),
+        description=_("upload openstack image"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3257,7 +3145,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "image file name",
+                        "help": _("image file name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3269,21 +3157,22 @@ class OpenstackPlatformController(BaseController):
     def image_upload(self):
         oid = self.app.pargs.id
         name = self.app.pargs.name
-        f = open(name + ".qcow2", "rb+")
-        data = f.read()
-        f.close()
+        filename = f"{name}.qcow2"
+        with open(filename, "rb") as f:
+            data = f.read()
+
         self.client.image.upload(oid, data)
-        self.app.render({"msg": "upload image %s" % oid})
+        self.app.render({"msg": f"upload image {oid}"})
 
     @ex(
-        help="download openstack image",
-        description="download openstack image",
+        help=_("download openstack image"),
+        description=_("download openstack image"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3292,7 +3181,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "image file name",
+                        "help": _("image file name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3305,20 +3194,19 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         data = self.client.image.download(oid)
-        f = open(name + ".qcow2", "wb+")
-        f.write(data)
-        f.close()
-        self.app.render({"msg": "download image %s" % oid})
+        with open(f"{name}.qcow2", "wb") as f:
+            f.write(data)
+        self.app.render({"msg": f"download image {oid}"})
 
     @ex(
-        help="delete openstack image",
-        description="delete openstack image",
+        help=_("delete openstack image"),
+        description=_("delete openstack image"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "image id",
+                        "help": _("image id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3330,17 +3218,17 @@ class OpenstackPlatformController(BaseController):
     def image_del(self):
         oid = self.app.pargs.id
         self.client.image.delete(oid)
-        self.app.render({"msg": "Delete image %s" % oid})
+        self.app.render({"msg": f"Delete image {oid}"})
 
     @ex(
-        help="get image tasks",
-        description="get image tasks",
+        help=_("get image tasks"),
+        description=_("get image tasks"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "image task id",
+                        "help": _("image task id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3353,10 +3241,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.image.get_task(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -3366,15 +3250,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="get flavors",
-        description="get flavors",
-        example="beehive platform openstack flavor-get -id <uuid> -e <env>;beehive platform openstack flavor-get -e <env>",
+        help=_("get flavors"),
+        description=_("get flavors"),
+        example="beehive platform openstack flavor-get -id <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3387,10 +3271,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.flavor.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {"detail": True}
@@ -3430,22 +3310,22 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add flavor",
-        description="add flavor",
+        help=_("add flavor"),
+        description=_("add flavor"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "flavor name", "action": "store", "type": str}),
+                (["name"], {"help": _("flavor name"), "action": "store", "type": str}),
                 (
                     ["vcpu"],
-                    {"help": "vcpu", "action": "store", "type": str, "default": None},
+                    {"help": _("vcpu"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["ram"],
-                    {"help": "ram", "action": "store", "type": str, "default": None},
+                    {"help": _("ram"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["disk"],
-                    {"help": "disk", "action": "store", "type": str, "default": None},
+                    {"help": _("disk"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -3456,17 +3336,17 @@ class OpenstackPlatformController(BaseController):
         ram = self.app.pargs.ram
         disk = self.app.pargs.disk
         self.client.flavor.create(name, vcpu, ram, disk, desc=None)
-        self.app.render({"msg": "add flavor %s" % name})
+        self.app.render({"msg": f"add flavor {name}"})
 
     @ex(
-        help="update openstack flavor",
-        description="update openstack flavor",
+        help=_("update openstack flavor"),
+        description=_("update openstack flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3475,7 +3355,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "flavor name",
+                        "help": _("flavor name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3484,8 +3364,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "flavor description",
-                        "action": "store",
+                        "help": _("flavor description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -3499,18 +3378,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        res = self.client.flavor.update(oid, name, desc)
-        self.app.render({"msg": "update flavor %s" % oid})
+        self.client.flavor.update(oid, name, desc)
+        self.app.render({"msg": f"update flavor {oid}"})
 
     @ex(
-        help="delete openstack flavor",
-        description="delete openstack flavor",
+        help=_("delete openstack flavor"),
+        description=_("delete openstack flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3522,17 +3401,17 @@ class OpenstackPlatformController(BaseController):
     def flavor_del(self):
         oid = self.app.pargs.id
         self.client.flavor.delete(oid)
-        self.app.render({"msg": "Delete flavor %s" % oid})
+        self.app.render({"msg": f"Delete flavor {oid}"})
 
     @ex(
-        help="get flavor extra specs",
-        description="get flavor extra specs",
+        help=_("get flavor extra specs"),
+        description=_("get flavor extra specs"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3541,7 +3420,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-spec"],
                     {
-                        "help": "flavor extra spec key",
+                        "help": _("flavor extra spec key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3555,25 +3434,20 @@ class OpenstackPlatformController(BaseController):
         spec = self.app.pargs.spec
         if spec is not None:
             res = self.client.flavor.extra_spec_get(oid, spec)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
-            params = {}
             res = self.client.flavor.extra_spec_list(oid)
             self.app.render(res, details=True)
 
     @ex(
-        help="add flavor extra spec",
-        description="add flavor",
+        help=_("add flavor extra spec"),
+        description=_("add flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3582,7 +3456,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["spec"],
                     {
-                        "help": "flavor extra spec keys. Syntax k1:v1,k2:v2",
+                        "help": _("flavor extra spec keys. Syntax k1:v1,k2:v2"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3599,17 +3473,17 @@ class OpenstackPlatformController(BaseController):
             k = item.split(":")
             spec[k[0]] = k[1]
         self.client.flavor.extra_spec_create(oid, spec)
-        self.app.render({"msg": "add flavor %s extra spec %s" % (oid, spec_str)})
+        self.app.render({"msg": f"add flavor {oid} extra spec {spec_str}"})
 
     @ex(
-        help="update openstack flavor",
-        description="update openstack flavor",
+        help=_("update openstack flavor"),
+        description=_("update openstack flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3618,7 +3492,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["spec"],
                     {
-                        "help": "flavor extra spec key. Syntax k1:v1",
+                        "help": _("flavor extra spec key. Syntax k1:v1"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3627,7 +3501,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["spec_value"],
                     {
-                        "help": "flavor extra spec key",
+                        "help": _("flavor extra spec key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3640,18 +3514,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         spec = self.app.pargs.spec
         spec_value = self.app.pargs.spec_value
-        res = self.client.flavor.extra_spec_update(oid, spec, spec_value)
-        self.app.render({"msg": "update flavor %s extra spec %s" % (oid, spec)})
+        self.client.flavor.extra_spec_update(oid, spec, spec_value)
+        self.app.render({"msg": f"update flavor {oid} extra spec {spec}"})
 
     @ex(
-        help="delete openstack flavor",
-        description="delete openstack flavor",
+        help=_("delete openstack flavor"),
+        description=_("delete openstack flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3660,7 +3534,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["spec"],
                     {
-                        "help": "flavor extra spec key",
+                        "help": _("flavor extra spec key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3673,17 +3547,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         spec = self.app.pargs.spec
         self.client.flavor.extra_spec_delete(oid, spec)
-        self.app.render({"msg": "Delete flavor %s extra spec %s" % (oid, spec)})
+        self.app.render({"msg": f"Delete flavor {oid} extra spec {spec}"})
 
     @ex(
-        help="get aggregates",
-        description="get aggregates",
+        help=_("get aggregates"),
+        description=_("get aggregates"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3696,10 +3570,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.aggregate.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -3729,15 +3599,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add aggregate",
-        description="add aggregate",
+        help=_("add aggregate"),
+        description=_("add aggregate"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "aggregate name", "action": "store", "type": str}),
+                (["name"], {"help": _("aggregate name"), "action": "store", "type": str}),
                 (
                     ["availability_zone"],
                     {
-                        "help": "availability zone",
+                        "help": _("availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3750,17 +3620,17 @@ class OpenstackPlatformController(BaseController):
         name = self.app.pargs.name
         availability_zone = self.app.pargs.availability_zone
         self.client.aggregate.create(name, availability_zone)
-        self.app.render({"msg": "add aggregate %s" % name})
+        self.app.render({"msg": f"add aggregate {name}"})
 
     @ex(
-        help="update openstack aggregate",
-        description="update openstack aggregate",
+        help=_("update openstack aggregate"),
+        description=_("update openstack aggregate"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3769,7 +3639,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "aggregate name",
+                        "help": _("aggregate name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3778,7 +3648,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "aggregate availability zone",
+                        "help": _("aggregate availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3792,17 +3662,17 @@ class OpenstackPlatformController(BaseController):
         name = self.app.pargs.name
         availability_zone = self.app.pargs.availability_zone
         self.client.aggregate.update(oid, name=name, availability_zone=availability_zone)
-        self.app.render({"msg": "update aggregate %s" % oid})
+        self.app.render({"msg": f"update aggregate {oid}"})
 
     @ex(
-        help="delete openstack aggregate",
-        description="delete openstack aggregate",
+        help=_("delete openstack aggregate"),
+        description=_("delete openstack aggregate"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3814,17 +3684,17 @@ class OpenstackPlatformController(BaseController):
     def aggregate_del(self):
         oid = self.app.pargs.id
         self.client.aggregate.delete(oid)
-        self.app.render({"msg": "Delete aggregate %s" % oid})
+        self.app.render({"msg": f"Delete aggregate {oid}"})
 
     @ex(
-        help="add host to openstack aggregate",
-        description="add host to openstack aggregate",
+        help=_("add host to openstack aggregate"),
+        description=_("add host to openstack aggregate"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3833,7 +3703,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["host"],
                     {
-                        "help": "host_id",
+                        "help": _("host_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3846,17 +3716,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         host = self.app.pargs.host
         self.client.aggregate.add_host(oid, host)
-        self.app.render({"msg": "update aggregate %s" % oid})
+        self.app.render({"msg": f"update aggregate {oid}"})
 
     @ex(
-        help="delete host from openstack aggregate",
-        description="delete host from openstack aggregate",
+        help=_("delete host from openstack aggregate"),
+        description=_("delete host from openstack aggregate"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3865,7 +3735,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["host"],
                     {
-                        "help": "host_id",
+                        "help": _("host_id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3878,17 +3748,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         host = self.app.pargs.host
         self.client.aggregate.del_host(oid, host)
-        self.app.render({"msg": "update aggregate %s" % oid})
+        self.app.render({"msg": f"update aggregate {oid}"})
 
     @ex(
-        help="update metadata to openstack aggregate",
-        description="update metadata  to openstack aggregate",
+        help=_("update metadata to openstack aggregate"),
+        description=_("update metadata  to openstack aggregate"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "aggregate id",
+                        "help": _("aggregate id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3897,7 +3767,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["metadata"],
                     {
-                        "help": "key:value,key:value",
+                        "help": _("key:value,key:value"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3914,17 +3784,17 @@ class OpenstackPlatformController(BaseController):
             k = item.split(":")
             metadata[k[0]] = k[1]
         self.client.aggregate.update_metatdata(oid, metadata)
-        self.app.render({"msg": "update aggregate %s metadata" % oid})
+        self.app.render({"msg": f"update aggregate {oid} metadata"})
 
     @ex(
-        help="get keypairs",
-        description="get keypairs",
+        help=_("get keypairs"),
+        description=_("get keypairs"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "keypair id",
+                        "help": _("keypair id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -3937,10 +3807,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.keypair.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -3949,50 +3815,15 @@ class OpenstackPlatformController(BaseController):
             fields = ["name", "public_key", "fingerprint"]
             self.app.render(res, headers=headers, fields=fields)
 
-    # @ex(
-    #     help='add openstack keypair',
-    #     description='add openstack keypair',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['name'], {'help': 'keypair name', 'action': 'store', 'type': str}),
-    #         (['project'], {'help': 'parent project id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['physical_keypair'], {'help': 'physical keypair', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-segmentation_id'], {'help': 'segmentation id', 'action': 'store', 'type': str, 'default': None})
-    #     ])
-    # )
-    # def keypair_add(self):
-    #     name = self.app.pargs.name
-    #     tenant_id = self.app.pargs.tenant
-    #     physical_keypair = self.app.pargs.physical_keypair
-    #     segmentation_id = self.app.pargs.segmentation_id
-    #     self.client.keypair.create(name, tenant_id, physical_keypair, segmentation_id=segmentation_id)
-    #     self.app.render({'msg': 'add keypair %s' % name})
-    #
-    # @ex(
-    #     help='update openstack keypair',
-    #     description='update openstack keypair',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['id'], {'help': 'keypair id', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-name'], {'help': 'keypair name', 'action': 'store', 'type': str, 'default': None}),
-    #         (['-desc'], {'help': 'keypair description', 'action': 'store', 'action': StringAction, 'type': str,
-    #                      'nargs': '+', 'default': None})
-    #     ])
-    # )
-    # def keypair_update(self):
-    #     oid = self.app.pargs.id
-    #     name = self.app.pargs.name
-    #     desc = self.app.pargs.desc
-    #     res = self.client.keypair.update(oid, name, desc)
-    #     self.app.render({'msg': 'update keypair %s' % oid})
-
     @ex(
-        help="delete openstack keypair",
-        description="delete openstack keypair",
+        help=_("delete openstack keypair"),
+        description=_("delete openstack keypair"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "keypair id",
+                        "help": _("keypair id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4004,18 +3835,18 @@ class OpenstackPlatformController(BaseController):
     def keypair_del(self):
         oid = self.app.pargs.id
         self.client.keypair.delete(oid)
-        self.app.render({"msg": "Delete keypair %s" % oid})
+        self.app.render({"msg": f"Delete keypair {oid}"})
 
     @ex(
-        help="get server groups",
-        description="get server groups",
-        example="beehive platform openstack server-group-get -e <env>;beehive platform openstack server-group-get -e <env>",
+        help=_("get server groups"),
+        description=_("get server groups"),
+        example="beehive platform openstack server-group-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server group id",
+                        "help": _("server group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4024,7 +3855,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-size"],
                     {
-                        "help": "number of item to return",
+                        "help": _("number of item to return"),
                         "action": "store",
                         "type": int,
                         "default": 20,
@@ -4033,7 +3864,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-page"],
                     {
-                        "help": "page to return",
+                        "help": _("page to return"),
                         "action": "store",
                         "type": int,
                         "default": 0,
@@ -4046,10 +3877,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.server_group.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             limit = self.app.pargs.size
@@ -4071,26 +3898,31 @@ class OpenstackPlatformController(BaseController):
             self.app.render(resp, key="server_groups", headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="add openstack server group",
-        description="add openstack server group",
-        example="beehive platform openstack server-group-add Csi.LavoroFormazioneProfessionale.pangea-preprod.wf-appl -p soft-affinity -e <env>;beehive platform openstack server-group-add pippo2 -e <env>",
+        help=_("add openstack server group"),
+        description=_("add openstack server group"),
+        example=(
+            "beehive platform openstack server-group-add Csi.LavoroFormazioneProfessionale.pangea-preprod.wf-appl "
+            "-p soft-affinity -e <env>; "
+        ),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
-                    {"help": "server group name", "action": "store", "type": str},
+                    {"help": _("server group name"), "action": "store", "type": str},
                 ),
                 (
                     ["-policy"],
                     {
-                        "help": "one policy name to associate with the server group. Policy names are:"
-                        ' "anti-affinity" servers in this group must be scheduled to different hosts,'
-                        ' "affinity" servers in this group must be scheduled to the same host, '
-                        ' "soft-anti-affinity" servers in this group should be scheduled to different '
-                        "hosts if possible, but if not possible then they should still be scheduled instead "
-                        'of resulting in a build failure, "soft-affinity" servers in this group should be '
-                        "scheduled to the same host if possible, but if not possible then they should still "
-                        "be scheduled instead of resulting in a build failure",
+                        "help": _(
+                            "one policy name to associate with the server group. Policy names are:"
+                            ' "anti-affinity" servers in this group must be scheduled to different hosts,'
+                            ' "affinity" servers in this group must be scheduled to the same host, '
+                            ' "soft-anti-affinity" servers in this group should be scheduled to different '
+                            "hosts if possible, but if not possible then they should still be scheduled instead "
+                            'of resulting in a build failure, "soft-affinity" servers in this group should be '
+                            "scheduled to the same host if possible, but if not possible then they should still "
+                            "be scheduled instead of resulting in a build failure"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": "soft-anti-affinity",
@@ -4112,18 +3944,18 @@ class OpenstackPlatformController(BaseController):
                 "only anti-affinity, affinity, soft-anti-affinity and soft-affinity are supported as " "policy"
             )
         self.client.server_group.create(name, policies=[policy])
-        self.app.render({"msg": "add server group %s" % name})
+        self.app.render({"msg": f"add server group {name}"})
 
     @ex(
-        help="delete openstack server group",
-        description="delete openstack server group",
-        example="beehive platform openstack server-group-del <uuid>;beehive platform openstack server-group-del <uuid> -e <env>",
+        help=_("delete openstack server group"),
+        description=_("delete openstack server group"),
+        example="beehive platform openstack server-group-del <uuid>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server group id",
+                        "help": _("server group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4135,18 +3967,18 @@ class OpenstackPlatformController(BaseController):
     def server_group_del(self):
         oid = self.app.pargs.id
         self.client.server_group.delete(oid)
-        self.app.render({"msg": "Delete server group %s" % oid})
+        self.app.render({"msg": f"Delete server group {oid}"})
 
     @ex(
-        help="add openstack server group member",
-        description="add openstack server group member",
-        example="beehive platform openstack server-group-member-add <uuid> <uuid> -e <env>;beehive platform openstack server-group-member-add <uuid> <uuid> -e <env> -e <env>",
+        help=_("add openstack server group member"),
+        description=_("add openstack server group member"),
+        example="beehive platform openstack server-group-member-add <uuid> <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server group id",
+                        "help": _("server group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4155,7 +3987,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["server"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4172,7 +4004,7 @@ class OpenstackPlatformController(BaseController):
         sg = self.client.server_group.get(oid)
         self.client.server.get(server_id)
         if server_id in sg.get("members", []):
-            raise Exception("server %s already in server group %s" % (server_id, oid))
+            raise Exception(f"server {server_id} already in server group {oid}")
 
         date = format_date(datetime.now(), format="%Y-%m-%d %H:%M:%S")
 
@@ -4182,30 +4014,30 @@ class OpenstackPlatformController(BaseController):
         db = "nova_api"
 
         def statements(conn):
-            result = conn.execute("SELECT * from nova_api.instance_groups WHERE uuid='%s';" % oid)
+            result = conn.execute(f"SELECT * from nova_api.instance_groups WHERE uuid='{oid}';")
             group = result.fetchall()
             if len(group) == 1:
                 group_id = group[0][2]
                 conn.execute(
                     "INSERT INTO `instance_group_member`(created_at, instance_uuid, group_id) "
-                    "values ('%s', '%s','%s');" % (date, server_id, group_id)
+                    f"values ('{date}', '{server_id}', '{group_id}');"
                 )
             return True
 
         server = self.__get_mariadb_engine(hosts[0], port, user, db)
         server.exec_statements(statements)
-        self.app.render({"msg": "add server %s in server group %s" % (server_id, oid)})
+        self.app.render({"msg": f"add server {server_id} in server group {oid}"})
 
     @ex(
-        help="delete openstack server group member",
-        description="delete openstack server group member",
-        example="beehive platform openstack server-group-member-del <uuid> <uuid> -e <env>;beehive platform openstack server-group-member-del <uuid> <uuid> -e <env>",
+        help=_("delete openstack server group member"),
+        description=_("delete openstack server group member"),
+        example="beehive platform openstack server-group-member-del <uuid> <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server group id",
+                        "help": _("server group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4214,7 +4046,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["server"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4231,7 +4063,7 @@ class OpenstackPlatformController(BaseController):
         sg = self.client.server_group.get(oid)
         self.client.server.get(server_id)
         if server_id not in sg.get("members", []):
-            raise Exception("server %s not in server group %s" % (server_id, oid))
+            raise Exception(f"server {server_id} not in server group {oid}")
 
         hosts = self.mariadb.get("hosts", [])
         port = self.mariadb.get("port")
@@ -4239,27 +4071,27 @@ class OpenstackPlatformController(BaseController):
         db = "nova_api"
 
         def statements(conn):
-            result = conn.execute("SELECT * from nova_api.instance_groups WHERE uuid='%s';" % oid)
+            result = conn.execute(f"SELECT * from nova_api.instance_groups WHERE uuid='{oid}';")
             group = result.fetchall()
             if len(group) == 1:
-                group_id = group[0][2]
-                conn.execute("DELETE FROM nova_api.instance_group_member WHERE instance_uuid='%s';" % server_id)
+                #group_id = group[0][2]
+                conn.execute(f"DELETE FROM nova_api.instance_group_member WHERE instance_uuid='{server_id}';")
             return True
 
         server = self.__get_mariadb_engine(hosts[0], port, user, db)
         server.exec_statements(statements)
-        self.app.render({"msg": "delete server %s from server group %s" % (server_id, oid)})
+        self.app.render({"msg": f"delete server {server_id} from server group {oid}"})
 
     @ex(
-        help="get servers",
-        description="get servers",
-        example="beehive platform openstack server-get -e <env> -id <uuid>;beehive platform openstack server-get -id <uuid> -e <env>",
+        help=_("get servers"),
+        description=_("get servers"),
+        example="beehive platform openstack server-get -id <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4268,7 +4100,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-host"],
                     {
-                        "help": "compute node name",
+                        "help": _("compute node name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4277,8 +4109,18 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-status"],
                     {
-                        "help": "server status",
+                        "help": _("server status"),
                         "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["-power_state"],
+                    {
+                        "help": _("server power stage"),
+                        "action": "store",
+                        "choices": ["NOSTATE", "RUNNING", "PAUSED", "SHUTDOWN", "CRASHED", "SUSPENDED"],
                         "type": str,
                         "default": None,
                     },
@@ -4286,13 +4128,19 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-updated_at"],
                     {
-                        "help": "Filter the server list result by a date and time stamp when the instance was "
-                        "updated. The date and timestamp format is ISO 8601: "
-                        "CCYY-MM-DDThh:mm:ss±hh:mm. For example, 2015-08-27T09:49:58-05:00",
+                        "help": _(
+                            "Filter the server list result by a date and time stamp when the instance was "
+                            "updated. The date and timestamp format is ISO 8601: "
+                            "CCYY-MM-DDThh:mm:ss±hh:mm. For example, 2015-08-27T09:49:58-05:00"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
+                ),
+                (
+                    ["-ip"],
+                    {"help": _("Filter by ip address"), "action": "store", "type": str, "default": None},
                 ),
             ]
         ),
@@ -4338,12 +4186,16 @@ class OpenstackPlatformController(BaseController):
             pargs = self.app.pargs
             if pargs.project is not None:
                 all_tenants = False
+                self.app.warning("Some filters may not be available when filtering by project")
+
             res = server.list(
                 detail=True,
                 host=pargs.host,
                 status=pargs.status,
                 updated_at=pargs.updated_at,
                 all_tenants=all_tenants,
+                ip=self.app.pargs.ip,
+                power_state=self.app.pargs.power_state,
             )
             for i in res:
                 i["addr"] = ",".join(a[0].get("addr") for a in i.get("addresses", []).values() if len(a) > 0)
@@ -4373,14 +4225,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="print host status",
-        description="print host status",
+        help=_("print host status"),
+        description=_("print host status"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-host"],
                     {
-                        "help": "node name",
+                        "help": _("node name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4389,7 +4241,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-loop"],
                     {
-                        "help": "if value > 1 enable query loop",
+                        "help": _("if value > 1 enable query loop"),
                         "action": "store",
                         "type": int,
                         "default": 1,
@@ -4417,8 +4269,6 @@ class OpenstackPlatformController(BaseController):
                     "rebuild": 0,
                 }
                 for i in res:
-                    # if i['id'] == '<uuid>':
-                    #     continue
                     status = i["status"]
                     if status == "ACTIVE":
                         resp["active"] += 1
@@ -4430,19 +4280,19 @@ class OpenstackPlatformController(BaseController):
                         resp["rebuild"] += 1
                     elif i["OS-EXT-STS:power_state"] == 0:
                         resp["no-state"] += 1
-                print("host: %s, server: %s" % (host, resp))
+                print(f"host: {host}, server: {resp}")
                 if loop > 1:
                     sleep(5)
 
     @ex(
-        help="start servers for a host",
-        description="start servers for a host",
+        help=_("start servers for a host"),
+        description=_("start servers for a host"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-host"],
                     {
-                        "help": "node name",
+                        "help": _("node name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4460,38 +4310,38 @@ class OpenstackPlatformController(BaseController):
             #     print('server %s REBUILD' % i['id'])
             if status == "SHUTOFF":
                 self.client.server.start(i["id"])
-                print("start server %s" % i["id"])
+                print(f"start server {i['id']}")
                 sleep(2)
             elif status == "ERROR":
                 self.client.server.reset_state(i["id"], "error")
-                print("reset state server %s" % i["id"])
+                print(f"reset state server {i['id']}")
                 self.client.server.reboot(i["id"])
-                print("hard reboot server %s" % i["id"])
+                print(f"hard reboot server {i['id']}")
                 sleep(2)
             elif status == "REBUILD":
                 self.client.server.reset_state(i["id"], "error")
-                print("reset state server %s" % i["id"])
+                print(f"reset state server {i['id']}")
                 self.client.server.reboot(i["id"])
-                print("hard reboot server %s" % i["id"])
+                print(f"hard reboot server {i['id']}")
                 sleep(2)
             elif i["OS-EXT-STS:power_state"] in [0, 3]:
                 self.client.server.reset_state(i["id"], "error")
-                print("reset state server %s" % i["id"])
+                print(f"reset state server {i['id']}")
                 self.client.server.reboot(i["id"])
-                print("hard reboot server %s" % i["id"])
+                print(f"hard reboot server {i['id']}")
                 sleep(2)
             elif status == "ACTIVE":
-                print("server %s OK" % i["id"])
+                print(f"server {i['id']} OK")
 
     @ex(
-        help="reset servers state for a host",
-        description="reset servers state for a host",
+        help=_("reset servers state for a host"),
+        description=_("reset servers state for a host"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-host"],
                     {
-                        "help": "node name",
+                        "help": _("node name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4511,21 +4361,21 @@ class OpenstackPlatformController(BaseController):
             status = i["status"]
             if status == "ERROR":
                 self.client.server.reset_state(i["id"], "active")
-                print("hard reboot server %s" % i["id"])
+                print(f"hard reboot server {i['id']}")
             # if status == 'SHUTOFF':
             #     self.client.server.start(i['id'])
             #     print('start server %s' % i['id'])
             sleep(2)
 
     @ex(
-        help="ping servers for a host",
-        description="ping servers for a host",
+        help=_("ping servers for a host"),
+        description=_("ping servers for a host"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-host"],
                     {
-                        "help": "node name",
+                        "help": _("node name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4534,7 +4384,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "vm name",
+                        "help": _("vm name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4545,7 +4395,7 @@ class OpenstackPlatformController(BaseController):
     )
     def server_smart_ping(self):
         host = self.app.pargs.host
-        name = self.app.pargs.name
+        #name = self.app.pargs.name
         res = self.client.server.list(detail=True, host=host)
         for i in res:
             addr = list(i.get("addresses").values())
@@ -4557,23 +4407,18 @@ class OpenstackPlatformController(BaseController):
                 addr = addr["addr"]
             i["addr"] = addr
 
-            # status = i['status']
-            # if status == 'SHUTOFF':
-            #     self.client.server.start(i['id'])
-            #     print('start server %s' % i['id'])
-            #     sleep(5)
-            print("ping -c 3 %s" % addr)
+            print(f"ping -c 3 {addr}")
 
     @ex(
-        help="add openstack server",
-        description="add openstack server",
+        help=_("add openstack server"),
+        description=_("add openstack server"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "server name", "action": "store", "type": str}),
+                (["name"], {"help": _("server name"), "action": "store", "type": str}),
                 (
                     ["-flavor"],
                     {
-                        "help": "flavor reference id",
+                        "help": _("flavor reference id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4582,7 +4427,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-boot_volume"],
                     {
-                        "help": "boot volume id",
+                        "help": _("boot volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4591,7 +4436,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-admin_pass"],
                     {
-                        "help": "admin password",
+                        "help": _("admin password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4600,7 +4445,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-description"],
                     {
-                        "help": "description",
+                        "help": _("description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4609,7 +4454,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-security_groups"],
                     {
-                        "help": "security groups",
+                        "help": _("security groups"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4618,7 +4463,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-networks"],
                     {
-                        "help": "list of networks",
+                        "help": _("list of networks"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4627,7 +4472,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-config_drive"],
                     {
-                        "help": "list of networks",
+                        "help": _("list of networks"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -4636,7 +4481,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "availability zone",
+                        "help": _("availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4645,7 +4490,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-image"],
                     {
-                        "help": "The UUID of the image to use for your server instance.",
+                        "help": _("The UUID of the image to use for your server instance."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4671,20 +4516,20 @@ class OpenstackPlatformController(BaseController):
         networks = self.app.pargs.networks
         if networks is not None:
             params["networks"] = [
-                {"uuid": a, "tag": "nic%s" % e} for e, a in enumerate(self.app.pargs.networks.split(","))
+                {"uuid": a, "tag": f"nic{e}"} for e, a in enumerate(self.app.pargs.networks.split(","))
             ]
         res = self.client.server.create(name, flavor, **params)
-        self.app.render({"msg": "add server %s with id %s" % (name, res["id"])})
+        self.app.render({"msg": f"add server {name} with id {res['id']}"})
 
     @ex(
-        help="update openstack server",
-        description="update openstack server",
+        help=_("update openstack server"),
+        description=_("update openstack server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4693,7 +4538,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "server name",
+                        "help": _("server name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4702,8 +4547,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "server description",
-                        "action": "store",
+                        "help": _("server description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -4718,18 +4562,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        res = self.client.server.update(oid, name, desc, **params)
-        self.app.render({"msg": "update server %s" % oid})
+        self.client.server.update(oid, name, desc, **params)
+        self.app.render({"msg": f"update server {oid}"})
 
     @ex(
-        help="rebuild openstack server",
-        description="rebuild openstack server",
+        help=_("rebuild openstack server"),
+        description=_("rebuild openstack server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4738,7 +4582,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-image"],
                     {
-                        "help": "The UUID of the image to use for your server instance.",
+                        "help": _("The UUID of the image to use for your server instance."),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4751,18 +4595,18 @@ class OpenstackPlatformController(BaseController):
         params = {}
         oid = self.app.pargs.id
         params = self.add_field_from_pargs_to_data("image", params, "image")
-        res = self.client.server.rebuild(oid, **params)
-        self.app.render({"msg": "update server %s" % oid})
+        self.client.server.rebuild(oid, **params)
+        self.app.render({"msg": f"update server {oid}"})
 
     @ex(
-        help="delete openstack server",
-        description="delete openstack server",
+        help=_("delete openstack server"),
+        description=_("delete openstack server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4774,48 +4618,17 @@ class OpenstackPlatformController(BaseController):
     def server_del(self):
         oid = self.app.pargs.id
         self.client.server.delete(oid)
-        self.app.render({"msg": "Delete server %s" % oid})
+        self.app.render({"msg": f"Delete server {oid}"})
 
     @ex(
-        help="reset state of openstack server",
-        description="reset state of  openstack server",
+        help=_("get openstack server diagnostics"),
+        description=_("get openstack server diagnostics"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["state"],
-                    {
-                        "help": "server state",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-            ]
-        ),
-    )
-    def server_reset_state(self):
-        oid = self.app.pargs.id
-        state = self.app.pargs.state
-        obj = self.client.server.reset_state(oid, state)
-
-    @ex(
-        help="get openstack server diagnostics",
-        description="get openstack server diagnostics",
-        arguments=OPENSTACK_ARGS(
-            [
-                (
-                    ["id"],
-                    {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4831,14 +4644,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get openstack server console",
-        description="get openstack server console",
+        help=_("get openstack server console"),
+        description=_("get openstack server console"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4851,17 +4664,16 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         res = self.client.server.get_vnc_console(oid)
         self.app.render([res], headers=["type", "url"], maxsize=400)
-        # sh.firefox(res.get('url'))
 
     @ex(
-        help="get openstack server console output",
-        description="get openstack server console output",
+        help=_("get openstack server console output"),
+        description=_("get openstack server console output"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4876,14 +4688,14 @@ class OpenstackPlatformController(BaseController):
         print(res)
 
     @ex(
-        help="get openstack server ports",
-        description="get openstack server ports",
+        help=_("get openstack server ports"),
+        description=_("get openstack server ports"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4900,14 +4712,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=80)
 
     @ex(
-        help="add openstack server port",
-        description="add openstack server port",
+        help=_("add openstack server port"),
+        description=_("add openstack server port"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4916,7 +4728,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-port"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4925,7 +4737,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-net"],
                     {
-                        "help": "network id",
+                        "help": _("network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4934,7 +4746,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-ipaddress"],
                     {
-                        "help": "ip address",
+                        "help": _("ip address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4943,7 +4755,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "subnet id",
+                        "help": _("subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4962,18 +4774,18 @@ class OpenstackPlatformController(BaseController):
         if ip_address is not None and subnet_id is not None:
             fixed_ips = [[{"ip_address": ip_address, "subnet_id": subnet_id}]]
         self.client.server.add_port_interfaces(oid, port_id=port_id, net_id=net_id, fixed_ips=fixed_ips)
-        msg = "Add network interface to server %s" % oid
+        msg = f"Add network interface to server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete openstack server port",
-        description="delete openstack server port",
+        help=_("delete openstack server port"),
+        description=_("delete openstack server port"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4982,7 +4794,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["port"],
                     {
-                        "help": "port id",
+                        "help": _("port id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -4995,18 +4807,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         port_id = self.app.pargs.port
         self.client.server.remove_port_interfaces(oid, port_id)
-        msg = "Delete port %s from server %s" % (port_id, oid)
+        msg = f"Delete port {port_id} from server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="get openstack server security group",
-        description="get openstack server security group",
+        help=_("get openstack server security group"),
+        description=_("get openstack server security group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5023,14 +4835,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=80)
 
     @ex(
-        help="add openstack server security group",
-        description="add openstack server security group",
+        help=_("add openstack server security group"),
+        description=_("add openstack server security group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5039,7 +4851,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["sg"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5052,18 +4864,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
         self.client.server.add_security_group(oid, security_group)
-        msg = "Add security group %s to server %s" % (security_group, oid)
+        msg = f"Add security group {security_group} to server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete openstack server security group",
-        description="delete openstack server security group",
+        help=_("delete openstack server security group"),
+        description=_("delete openstack server security group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5072,7 +4884,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["sg"],
                     {
-                        "help": "security group id",
+                        "help": _("security group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5085,18 +4897,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         security_group = self.app.pargs.sg
         self.client.server.remove_security_group(oid, security_group)
-        msg = "Delete security group %s from server %s" % (security_group, oid)
+        msg = f"Delete security group {security_group} from server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="get openstack server volumes",
-        description="get openstack server volumes",
+        help=_("get openstack server volumes"),
+        description=_("get openstack server volumes"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5113,14 +4925,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=80)
 
     @ex(
-        help="add openstack server volume",
-        description="add openstack server volume",
+        help=_("add openstack server volume"),
+        description=_("add openstack server volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["server_id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5129,7 +4941,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume_id"],
                     {
-                        "help": "volume id (see volume-add to create it.)",
+                        "help": _("volume id (see volume-add to create it.)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5142,18 +4954,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.server_id
         volume = self.app.pargs.volume_id
         self.client.server.add_volume(oid, volume)
-        msg = "Add volume %s to server %s" % (volume, oid)
+        msg = f"Add volume {volume} to server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete openstack server volume",
-        description="delete openstack server volume",
+        help=_("delete openstack server volume"),
+        description=_("delete openstack server volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5162,7 +4974,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5175,18 +4987,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         volume = self.app.pargs.volume
         self.client.server.remove_volume(oid, volume)
-        msg = "Delete volume %s from server %s" % (volume, oid)
+        msg = f"Delete volume {volume} from server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="get openstack server metadata",
-        description="get openstack server metadata",
+        help=_("get openstack server metadata"),
+        description=_("get openstack server metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5204,14 +5016,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=80)
 
     @ex(
-        help="add openstack server metadata",
-        description="add openstack server metadata",
+        help=_("add openstack server metadata"),
+        description=_("add openstack server metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5220,7 +5032,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5238,19 +5050,19 @@ class OpenstackPlatformController(BaseController):
         else:
             metadata = metadata.split(":")
             metadata = {metadata[0]: metadata[1]}
-        res = self.client.server.add_metadata(oid, metadata)
-        msg = "Add metadata %s to server %s" % (metadata, oid)
+        self.client.server.add_metadata(oid, metadata)
+        msg = f"Add metadata {metadata} to server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete openstack server metadata",
-        description="delete openstack server metadata",
+        help=_("delete openstack server metadata"),
+        description=_("delete openstack server metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5259,7 +5071,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["key_name"],
                     {
-                        "help": "key name",
+                        "help": _("key name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5271,19 +5083,19 @@ class OpenstackPlatformController(BaseController):
     def server_metadata_del(self):
         oid = self.app.pargs.id
         key = self.app.pargs.key_name
-        res = self.client.server.remove_metadata(oid, key)
-        msg = "Delete metadata %s from server %s" % (key, oid)
+        self.client.server.remove_metadata(oid, key)
+        msg = f"Delete metadata {key} from server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="get server actions",
-        description="get server actions",
+        help=_("get server actions"),
+        description=_("get server actions"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5292,7 +5104,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-action"],
                     {
-                        "help": "action id",
+                        "help": _("action id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5306,10 +5118,6 @@ class OpenstackPlatformController(BaseController):
         action = getattr(self.app.pargs, "action", None)
         if action is not None:
             res = self.client.server.get_actions(oid, action_id=action)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             res = self.client.server.get_actions(oid)
@@ -5340,27 +5148,27 @@ class OpenstackPlatformController(BaseController):
     def __wait_for_server_status(self, oid, func=None):
         status = None
         required_status = ["ACTIVE", "SHUTOFF", "ERROR"]
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while status not in required_status:
             server = self.__get_server_info(oid)
             status = server.get("status")
             if func is not None:
                 func(server)
             else:
-                # stdout.write(".")
-                stdout.write(next(bar))
+                stdout.write(next(rot_bar))
                 stdout.flush()
             sleep(1)
+        stoprotation()
 
     @ex(
-        help="start server",
-        description="start server",
+        help=_("start server"),
+        description=_("start server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5371,19 +5179,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_start(self):
         oid = self.app.pargs.id
-        obj = self.client.server.start(oid)
-        msg = "Start server %s" % oid
+        self.client.server.start(oid)
+        msg = f"Start server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="stop server",
-        description="stop server",
+        help=_("stop server"),
+        description=_("stop server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5394,19 +5202,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_stop(self):
         oid = self.app.pargs.id
-        obj = self.client.server.stop(oid)
-        msg = "Stop server %s" % oid
+        self.client.server.stop(oid)
+        msg = f"Stop server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="reboot server",
-        description="reboot server",
+        help=_("reboot server"),
+        description=_("reboot server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5418,19 +5226,19 @@ class OpenstackPlatformController(BaseController):
     def server_reboot(self):
         oid = self.app.pargs.id
         self.client.server.reset_state(oid, "active")
-        obj = self.client.server.reboot(oid)
-        msg = "Reboot server %s" % oid
+        self.client.server.reboot(oid)
+        msg = f"Reboot server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="pause server",
-        description="pause server",
+        help=_("pause server"),
+        description=_("pause server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5441,19 +5249,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_pause(self):
         oid = self.app.pargs.id
-        obj = self.client.server.pause(oid)
-        msg = "Pause server %s" % oid
+        self.client.server.pause(oid)
+        msg = f"Pause server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="unpause server",
-        description="unpause server",
+        help=_("unpause server"),
+        description=_("unpause server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5464,19 +5272,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_unpause(self):
         oid = self.app.pargs.id
-        obj = self.client.server.unpause(oid)
-        msg = "Unpause server %s" % oid
+        self.client.server.unpause(oid)
+        msg = f"Unpause server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="lock server",
-        description="lock server",
+        help=_("lock server"),
+        description=_("lock server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5487,19 +5295,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_lock(self):
         oid = self.app.pargs.id
-        obj = self.client.server.lock(oid)
-        msg = "Lock server %s" % oid
+        self.client.server.lock(oid)
+        msg = f"Lock server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="unlock server",
-        description="unlock server",
+        help=_("unlock server"),
+        description=_("unlock server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5510,19 +5318,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_unlock(self):
         oid = self.app.pargs.id
-        obj = self.client.server.unlock(oid)
-        msg = "Unlock server %s" % oid
+        self.client.server.unlock(oid)
+        msg = f"Unlock server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="suspend server",
-        description="suspend server",
+        help=_("suspend server"),
+        description=_("suspend server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5533,19 +5341,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_suspend(self):
         oid = self.app.pargs.id
-        obj = self.client.server.suspend(oid)
-        msg = "Suspend server %s" % oid
+        self.client.server.suspend(oid)
+        msg = f"Suspend server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="resume server",
-        description="resume server",
+        help=_("resume server"),
+        description=_("resume server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5556,19 +5364,19 @@ class OpenstackPlatformController(BaseController):
     )
     def server_resume(self):
         oid = self.app.pargs.id
-        obj = self.client.server.resume(oid)
-        msg = "Resume server %s" % oid
+        self.client.server.resume(oid)
+        msg = f"Resume server {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="reset server state",
-        description="reset server state",
+        help=_("reset server state"),
+        description=_("reset server state"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5577,7 +5385,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["state"],
                     {
-                        "help": "server state",
+                        "help": _("server state"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5589,19 +5397,19 @@ class OpenstackPlatformController(BaseController):
     def server_reset_state(self):
         oid = self.app.pargs.id
         state = self.app.pargs.state
-        obj = self.client.server.reset_state(oid, state)
-        msg = "Reset state for server %s to %s" % (oid, state)
+        self.client.server.reset_state(oid, state)
+        msg = f"Reset state for server {oid} to {state}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="set server flavor",
-        description="set server flavor",
+        help=_("set server flavor"),
+        description=_("set server flavor"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5610,7 +5418,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["flavor"],
                     {
-                        "help": "flavor id",
+                        "help": _("flavor id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5622,20 +5430,19 @@ class OpenstackPlatformController(BaseController):
     def server_resize(self):
         oid = self.app.pargs.id
         flavor = self.app.pargs.flavor
-        obj = self.client.server.set_flavor(oid, flavor)
-        # obj = self.client.server.confirm_set_flavor(oid)
-        msg = "Resize server %s using flavor %s" % (oid, flavor)
+        self.client.server.set_flavor(oid, flavor)
+        msg = f"Resize server {oid} using flavor {flavor}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="server migration list",
-        description="server migration list",
+        help=_("server migration list"),
+        description=_("server migration list"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5662,14 +5469,14 @@ class OpenstackPlatformController(BaseController):
         )
 
     @ex(
-        help="force server migration",
-        description="force server migration",
+        help=_("force server migration"),
+        description=_("force server migration"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5678,7 +5485,39 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["migration_id"],
                     {
-                        "help": "server migration id",
+                        "help": _("server migration id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def server_migration_force(self):
+        oid = self.app.pargs.id
+        migration_id = self.app.pargs.migration_id
+        self.client.server.force_migration(oid, migration_id)
+        self.app.render({"msg": f"force server {oid} migration {migration_id}"})
+
+    @ex(
+        help=_("abort server migration"),
+        description=_("abort server migration"),
+        arguments=OPENSTACK_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("server id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+                (
+                    ["migration_id"],
+                    {
+                        "help": _("server migration id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5690,50 +5529,18 @@ class OpenstackPlatformController(BaseController):
     def server_migration_del(self):
         oid = self.app.pargs.id
         migration_id = self.app.pargs.migration_id
-        res = self.client.server.force_migration(oid, migration_id)
-        self.app.render({"msg": "force server %s migration %s" % (oid, migration_id)})
+        self.client.server.abort_migration(oid, migration_id)
+        self.app.render({"msg": f"abort server {oid} migration {migration_id}"})
 
     @ex(
-        help="abort server migration",
-        description="abort server migration",
+        help=_("migrate server"),
+        description=_("migrate server"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["migration_id"],
-                    {
-                        "help": "server migration id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-            ]
-        ),
-    )
-    def server_migration_del(self):
-        oid = self.app.pargs.id
-        migration_id = self.app.pargs.migration_id
-        res = self.client.server.abort_migration(oid, migration_id)
-        self.app.render({"msg": "abort server %s migration %s" % (oid, migration_id)})
-
-    @ex(
-        help="migrate server",
-        description="migrate server",
-        arguments=OPENSTACK_ARGS(
-            [
-                (
-                    ["id"],
-                    {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5742,7 +5549,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-host"],
                     {
-                        "help": "host id",
+                        "help": _("host id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5751,7 +5558,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-live"],
                     {
-                        "help": "if true enable live migration",
+                        "help": _("if true enable live migration"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -5765,25 +5572,25 @@ class OpenstackPlatformController(BaseController):
         host = self.app.pargs.host
         live = str2bool(self.app.pargs.live)
         if live is False:
-            obj = self.client.server.migrate(oid, host)
+            self.client.server.migrate(oid, host)
         else:
-            obj = self.client.server.live_migrate(oid, host)
+            self.client.server.live_migrate(oid, host)
 
         def print_host(server):
             print(server.get("OS-EXT-SRV-ATTR:host"))
 
         self.__wait_for_server_status(oid, print_host)
-        self.app.render({"msg": "Migrate server %s" % oid})
+        self.app.render({"msg": f"Migrate server {oid}"})
 
     @ex(
-        help="create image from a server",
-        description="server create image",
+        help=_("create image from a server"),
+        description=_("server create image"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "server id",
+                        "help": _("server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5792,7 +5599,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "image name",
+                        "help": _("image name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5805,17 +5612,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         res = self.client.server.create_image(oid, name)
-        self.app.render({"msg": "Creating image %s from server %s" % (res["image_id"], oid)})
+        self.app.render({"msg": f"Creating image {res['image_id']} from server {oid}"})
 
     @ex(
-        help="migrate servers",
-        description="migrate servers",
+        help=_("migrate servers"),
+        description=_("migrate servers"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["from_host"],
                     {
-                        "help": "starting host",
+                        "help": _("starting host"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5824,7 +5631,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-to_host"],
                     {
-                        "help": "destination host",
+                        "help": _("destination host"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5833,7 +5640,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-live"],
                     {
-                        "help": "if true enable live migration",
+                        "help": _("if true enable live migration"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -5851,57 +5658,32 @@ class OpenstackPlatformController(BaseController):
             oid = s["id"]
 
             if live is False:
-                obj = self.client.server.migrate(oid, to_host)
+                self.client.server.migrate(oid, to_host)
             else:
-                obj = self.client.server.live_migrate(oid, to_host)
+                self.client.server.live_migrate(oid, to_host)
 
             def print_host(server):
                 print(server.get("OS-EXT-SRV-ATTR:host"))
 
             self.__wait_for_server_status(oid, print_host)
-            self.app.render({"msg": "Migrate server %s" % oid})
-
-    #
-    # stack
-    #
-    # def wait_stack_create(self, name, oid):
-    #     res = self.client.heat.stack.get(stack_name=name, oid=oid)
-    #     status = res['stack_status']
-    #
-    #     while status == 'CREATE_IN_PROGRESS':
-    #         self.self.app.log.debug(status)
-    #         sleep(1)
-    #         res = self.client.heat.stack.get(stack_name=name, oid=oid)
-    #         status = res['stack_status']
-    #         print status
-    #
-    # def wait_stack_delete(self, name, oid):
-    #     res = self.client.heat.stack.get(stack_name=name, oid=oid)
-    #     status = res['stack_status']
-    #
-    #     while status == 'DELETE_IN_PROGRESS':
-    #         self.app.log.debug(status)
-    #         sleep(1)
-    #         res = self.client.heat.stack.get(stack_name=name, oid=oid)
-    #         status = res['stack_status']
-    #         print('.')
+            self.app.render({"msg": f"Migrate server {oid}"})
 
     def __get_stack(self, oid):
         obj = self.client.heat.stack.list(oid=oid)
         if len(obj) <= 0:
-            raise Exception("Stack %s not found" % oid)
+            raise Exception(f"Stack {oid} not found")
         obj = obj[0]
         return obj
 
     @ex(
-        help="get stacks",
-        description="get stacks",
+        help=_("get stacks"),
+        description=_("get stacks"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5915,7 +5697,7 @@ class OpenstackPlatformController(BaseController):
         if oid is not None:
             stack = self.client.heat.stack.list(oid=oid)
             if len(stack) == 0:
-                raise Exception("Stack %s was not found" % oid)
+                raise Exception(f"Stack {oid} was not found")
             stack = stack[0]
             res = self.client.heat.stack.get(stack["stack_name"], oid)
 
@@ -5963,15 +5745,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add openstack stack",
-        description="add openstack stack",
+        help=_("add openstack stack"),
+        description=_("add openstack stack"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "stack name", "action": "store", "type": str}),
+                (["name"], {"help": _("stack name"), "action": "store", "type": str}),
                 (
                     ["project"],
                     {
-                        "help": "parent project id",
+                        "help": _("parent project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -5980,16 +5762,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["physical_stack"],
                     {
-                        "help": "physical stack",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-segmentation_id"],
-                    {
-                        "help": "segmentation id",
+                        "help": _("physical stack"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6002,19 +5775,19 @@ class OpenstackPlatformController(BaseController):
         name = self.app.pargs.name
         tenant_id = self.app.pargs.tenant
         physical_stack = self.app.pargs.physical_stack
-        segmentation_id = self.app.pargs.segmentation_id
-        self.client.heat.stack.create(name, tenant_id, physical_stack, segmentation_id=segmentation_id)
-        self.app.render({"msg": "add stack %s" % name})
+        # segmentation_id = self.app.pargs.segmentation_id
+        self.client.heat.stack.create(name, tenant_id, physical_stack)  # , segmentation_id=segmentation_id)
+        self.app.render({"msg": f"add stack {name}"})
 
     @ex(
-        help="update openstack stack",
-        description="update openstack stack",
+        help=_("update openstack stack"),
+        description=_("update openstack stack"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6023,7 +5796,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "stack name",
+                        "help": _("stack name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6032,8 +5805,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "stack description",
-                        "action": "store",
+                        "help": _("stack description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -6047,18 +5819,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         desc = self.app.pargs.desc
-        res = self.client.heat.stack.update(oid, name, desc)
-        self.app.render({"msg": "update stack %s" % oid})
+        self.client.heat.stack.update(oid, name, desc)
+        self.app.render({"msg": f"update stack {oid}"})
 
     @ex(
-        help="delete openstack stack",
-        description="delete openstack stack",
+        help=_("delete openstack stack"),
+        description=_("delete openstack stack"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6072,18 +5844,18 @@ class OpenstackPlatformController(BaseController):
         obj = self.__get_stack(oid)
         self.client.heat.stack.delete(obj["stack_name"], oid)
         # self.wait_stack_delete(obj['stack_name'], oid)
-        res = {"msg": "Delete stack %s" % oid}
+        res = {"msg": f"Delete stack {oid}"}
         self.app.render(res, headers=["msg"])
 
     @ex(
-        help="get heat stack resources",
-        description="get heat stack resources",
+        help=_("get heat stack resources"),
+        description=_("get heat stack resources"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6092,7 +5864,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-resource"],
                     {
-                        "help": "stack resource name",
+                        "help": _("stack resource name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6121,14 +5893,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res[0], details=True, maxsize=200)
 
     @ex(
-        help="mark the specified resource in the stack as unhealthy",
-        description="mark the specified resource in the stack as unhealthy",
+        help=_("mark the specified resource in the stack as unhealthy"),
+        description=_("mark the specified resource in the stack as unhealthy"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "stack id",
+                        "help": _("stack id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6137,7 +5909,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-resource"],
                     {
-                        "help": "stack resource name",
+                        "help": _("stack resource name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6151,21 +5923,21 @@ class OpenstackPlatformController(BaseController):
         resource = self.app.pargs.resource
         stack = self.__get_stack(oid)
         res = self.client.heat.stack.resource.patch(stack_name=stack["stack_name"], oid=oid, name=resource)
-        res = {"msg": "mark the resource %s in the stack as unhealthy" % resource}
+        res = {"msg": f"mark the resource {resource} in the stack as unhealthy"}
         self.app.render(res, headers=["msg"], maxsize=200)
 
     #
     # share
     #
     @ex(
-        help="get manila share types",
-        description="get manila share types",
+        help=_("get manila share types"),
+        description=_("get manila share types"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share type id",
+                        "help": _("share type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6174,7 +5946,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "share type description",
+                        "help": _("share type description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6188,10 +5960,6 @@ class OpenstackPlatformController(BaseController):
         desc = self.app.pargs.desc
         if oid is not None:
             res = self.client.manila.share_type.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {"desc": desc}
@@ -6214,7 +5982,7 @@ class OpenstackPlatformController(BaseController):
             def extra_specs_func(data):
                 res = []
                 for k, v in data.items():
-                    res.append("%s=%s" % (k, v))
+                    res.append(f"{k}={v}")
                 return "\n".join(res)
 
             transform = {
@@ -6224,8 +5992,8 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=200, transform=transform)
 
     @ex(
-        help="get manila share limits",
-        description="get manila share limits",
+        help=_("get manila share limits"),
+        description=_("get manila share limits"),
         arguments=OPENSTACK_ARGS(),
     )
     def share_limit_get(self):
@@ -6233,14 +6001,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="get manila share messages",
-        description="get manila share messages",
+        help=_("get manila share messages"),
+        description=_("get manila share messages"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6253,10 +6021,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.manila.messages(resource_id=oid)[0]
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -6283,14 +6047,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=200, transform=None)
 
     @ex(
-        help="get manila shares",
-        description="get manila shares",
+        help=_("get manila shares"),
+        description=_("get manila shares"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6347,14 +6111,36 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add manila share",
-        description="add manila share",
+        help=_("get export locations of a manila share"),
+        description=_("get export locations of a manila share"),
+        arguments=OPENSTACK_ARGS(
+            [
+                (
+                    ["id"],
+                    {
+                        "help": _("share id"),
+                        "action": "store",
+                        "type": str,
+                        "default": None,
+                    },
+                ),
+            ]
+        ),
+    )
+    def share_export_locations_get(self):
+        oid = getattr(self.app.pargs, "id", None)
+        exports = self.client.manila.share.list_export_locations(oid)
+        self.app.render(exports, headers=["id", "path"], maxsize=200)
+
+    @ex(
+        help=_("add manila share"),
+        description=_("add manila share"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "share name",
+                        "help": _("share name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6363,7 +6149,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "share size in GB",
+                        "help": _("share size in GB"),
                         "action": "store",
                         "type": int,
                         "default": 1,
@@ -6372,7 +6158,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["proto"],
                     {
-                        "help": "share protocol (NFS, CIFS, GlusterFS, HDFS, or CephFS. CephFS)",
+                        "help": _("share protocol (NFS, CIFS, GlusterFS, HDFS, or CephFS. CephFS)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6381,7 +6167,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["type"],
                     {
-                        "help": "share type id",
+                        "help": _("share type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6390,7 +6176,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-snapshot"],
                     {
-                        "help": "share snapshot id",
+                        "help": _("share snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6399,7 +6185,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-group"],
                     {
-                        "help": "share group id",
+                        "help": _("share group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6408,9 +6194,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "the id of a share network where the share server exists or will be created. "
-                        "If is None and you provide a snapshot_id, the network value from the snapshot "
-                        "is used",
+                        "help": _(
+                            "the id of a share network where the share server exists or will be created. "
+                            "If is None and you provide a snapshot_id, the network value from the snapshot "
+                            "is used"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6439,17 +6227,17 @@ class OpenstackPlatformController(BaseController):
             share_group_id=group,
             share_network_id=network,
         )
-        self.app.render({"msg": "add manila share %s" % res["id"]})
+        self.app.render({"msg": f"add manila share {res['id']}"})
 
     @ex(
-        help="delete manila shares",
-        description="delete manila shares",
+        help=_("delete manila shares"),
+        description=_("delete manila shares"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6458,7 +6246,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force delete",
+                        "help": _("if true force delete"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -6474,17 +6262,17 @@ class OpenstackPlatformController(BaseController):
             self.client.manila.share.action.force_delete(oid)
         else:
             self.client.manila.share.delete(oid)
-        self.app.render({"msg": "delete manila share %s" % oid})
+        self.app.render({"msg": f"delete manila share {oid}"})
 
     @ex(
-        help="extend manila share size",
-        description="extend manila share size",
+        help=_("extend manila share size"),
+        description=_("extend manila share size"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6493,7 +6281,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "new size of the share, in GBs.",
+                        "help": _("new size of the share, in GBs."),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -6506,17 +6294,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         new_size = self.app.pargs.size
         self.client.manila.share.action.extend(oid, new_size)
-        self.app.render({"msg": "Extend share %s to %s" % (oid, new_size)})
+        self.app.render({"msg": f"Extend share {oid} to {new_size}"})
 
     @ex(
-        help="shrink manila share size",
-        description="shrink manila share size",
+        help=_("shrink manila share size"),
+        description=_("shrink manila share size"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6525,7 +6313,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "new size of the share, in GBs.",
+                        "help": _("new size of the share, in GBs."),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -6538,20 +6326,20 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         new_size = self.app.pargs.size
         self.client.manila.share.action.shrink(oid, new_size)
-        self.app.render({"msg": "Shrink share %s to %s" % (oid, new_size)})
+        self.app.render({"msg": f"Shrink share {oid} to {new_size}"})
 
     #
     # share network
     #
     @ex(
-        help="get manila share networks",
-        description="get manila share networks",
+        help=_("get manila share networks"),
+        description=_("get manila share networks"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share network id",
+                        "help": _("share network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6560,7 +6348,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "neutron network id",
+                        "help": _("neutron network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6569,7 +6357,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "neutron subnet id",
+                        "help": _("neutron subnet id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6582,10 +6370,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.manila.network.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -6611,14 +6395,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add manila share network",
-        description="add manila share network",
+        help=_("add manila share network"),
+        description=_("add manila share network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "share network name",
+                        "help": _("share network name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6627,7 +6411,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "share network description",
+                        "help": _("share network description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6636,9 +6420,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["network"],
                     {
-                        "help": "The UUID of a neutron network when setting up or updating a share network subnet "
-                        "with neutron. Specify both a neutron network and a neutron subnet that belongs "
-                        "to that neutron network.",
+                        "help": _(
+                            "The UUID of a neutron network when setting up or updating a share network subnet "
+                            "with neutron. Specify both a neutron network and a neutron subnet that belongs "
+                            "to that neutron network."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6647,9 +6433,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["subnet"],
                     {
-                        "help": "The UUID of the neutron subnet when setting up or updating a share network subnet "
-                        "with neutron. Specify both a neutron network and a neutron subnet that belongs to "
-                        "that neutron network.",
+                        "help": _(
+                            "The UUID of the neutron subnet when setting up or updating a share network subnet "
+                            "with neutron. Specify both a neutron network and a neutron subnet that belongs to "
+                            "that neutron network."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6658,7 +6446,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "The UUID or name of an availability zone for the share network subnet.",
+                        "help": _("The UUID or name of an availability zone for the share network subnet."),
                         "action": "store",
                         "type": str,
                         "default": "nova",
@@ -6682,17 +6470,17 @@ class OpenstackPlatformController(BaseController):
             neutron_subnet_id=subnet,
             availability_zone=availability_zone,
         )
-        self.app.render({"msg": "add manila share network %s" % name})
+        self.app.render({"msg": f"add manila share network {name}"})
 
     @ex(
-        help="update manila share network",
-        description="update manila share network",
+        help=_("update manila share network"),
+        description=_("update manila share network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share network id",
+                        "help": _("share network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6701,7 +6489,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "share network name",
+                        "help": _("share network name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6710,7 +6498,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "share network description",
+                        "help": _("share network description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6719,9 +6507,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "The UUID of a neutron network when setting up or updating a share network subnet "
-                        "with neutron. Specify both a neutron network and a neutron subnet that belongs "
-                        "to that neutron network.",
+                        "help": _(
+                            "The UUID of a neutron network when setting up or updating a share network subnet "
+                            "with neutron. Specify both a neutron network and a neutron subnet that belongs "
+                            "to that neutron network."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6730,9 +6520,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-subnet"],
                     {
-                        "help": "The UUID of the neutron subnet when setting up or updating a share network subnet "
-                        "with neutron. Specify both a neutron network and a neutron subnet that belongs to "
-                        "that neutron network.",
+                        "help": _(
+                            "The UUID of the neutron subnet when setting up or updating a share network subnet "
+                            "with neutron. Specify both a neutron network and a neutron subnet that belongs to "
+                            "that neutron network."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6756,17 +6548,17 @@ class OpenstackPlatformController(BaseController):
             neutron_net_id=network,
             neutron_subnet_id=subnet,
         )
-        self.app.render({"msg": "update manila share network %s" % oid})
+        self.app.render({"msg": f"update manila share network {oid}"})
 
     @ex(
-        help="delete manila share networks",
-        description="delete manila share networks",
+        help=_("delete manila share networks"),
+        description=_("delete manila share networks"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share network id",
+                        "help": _("share network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6778,17 +6570,17 @@ class OpenstackPlatformController(BaseController):
     def share_network_del(self):
         oid = self.app.pargs.id
         self.client.manila.network.delete(oid)
-        self.app.render({"msg": "delete manila share %s" % oid})
+        self.app.render({"msg": f"delete manila share {oid}"})
 
     @ex(
-        help="add security service to share network",
-        description="add security service to share network",
+        help=_("add security service to share network"),
+        description=_("add security service to share network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share network id",
+                        "help": _("share network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6797,7 +6589,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["service"],
                     {
-                        "help": "security service id",
+                        "help": _("security service id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6810,17 +6602,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         service = self.app.pargs.service
         self.client.manila.network.add_security_service(oid, service)
-        self.app.render({"msg": "add security service to share network %s" % oid})
+        self.app.render({"msg": f"add security service to share network {oid}"})
 
     @ex(
-        help="delete security service from share network",
-        description="delete security service from share network",
+        help=_("delete security service from share network"),
+        description=_("delete security service from share network"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share network id",
+                        "help": _("share network id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6829,7 +6621,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["service"],
                     {
-                        "help": "security service id",
+                        "help": _("security service id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6842,20 +6634,20 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         service = self.app.pargs.service
         self.client.manila.network.add_security_service(oid, service)
-        self.app.render({"msg": "delete security service from share network %s" % oid})
+        self.app.render({"msg": f"delete security service from share network {oid}"})
 
     #
     # share server
     #
     @ex(
-        help="get manila share servers",
-        description="get manila share servers",
+        help=_("get manila share servers"),
+        description=_("get manila share servers"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "share server id",
+                        "help": _("share server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6868,10 +6660,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.manila.server.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -6897,14 +6685,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="delete manila share servers",
-        description="delete manila share servers",
+        help=_("delete manila share servers"),
+        description=_("delete manila share servers"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share server id",
+                        "help": _("share server id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6916,21 +6704,23 @@ class OpenstackPlatformController(BaseController):
     def share_server_del(self):
         oid = self.app.pargs.id
         self.client.manila.server.delete(oid)
-        self.app.render({"msg": "delete manila share %s" % oid})
+        self.app.render({"msg": f"delete manila share {oid}"})
 
     #
     # share grant
     #
     @ex(
-        help="add manila share access grant",
-        description="add manila share access grant",
-        example="beehive platform openstack share-grant-add <uuid> -level rw -type ip -to ###.###.###.###/32;beehive platform openstack share-grant-add <uuid> -level RW -type IP -to ###.###.###.###/32",
+        help=_("add manila share access grant"),
+        description=_("add manila share access grant"),
+        example=(
+            "beehive platform openstack share-grant-add <uuid> -level rw -type ip -to ###.###.###.###/32; "
+        ),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6939,8 +6729,10 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-level"],
                     {
-                        "help": "the access level to the share. rw: Read and write (RW) access. ro: Read-only (RO) "
-                        "access.",
+                        "help": _(
+                            "the access level to the share. rw: Read and write (RW) access. ro: Read-only (RO) "
+                            "access."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": "rw",
@@ -6949,9 +6741,11 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "the access rule type. ip: Authenticates an instance through its IP address. cert: "
-                        "Authenticates an instance through a TLS certificate. user: Authenticates by a user "
-                        "or group name.",
+                        "help": _(
+                            "the access rule type. ip: Authenticates an instance through its IP address. cert: "
+                            "Authenticates an instance through a TLS certificate. user: Authenticates by a user "
+                            "or group name."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": "ip",
@@ -6960,12 +6754,14 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-to"],
                     {
-                        "help": "the value that defines the access. ip: A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX."
-                        " For example 0.0.0.0/0. cert: Specify the TLS identity as the IDENTKEY. A valid value "
-                        "is any string up to 64 characters long in the common name (CN) of the certificate. The "
-                        "meaning of a string depends on its interpretation. user: A valid value is an "
-                        "alphanumeric string that can contain some special characters and is from 4 to 32 "
-                        "characters long.",
+                        "help": _(
+                            "the value that defines the access. ip: A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX."
+                            " For example 0.0.0.0/0. cert: Specify the TLS identity as the IDENTKEY. A valid value "
+                            "is any string up to 64 characters long in the common name (CN) of the certificate. The "
+                            "meaning of a string depends on its interpretation. user: A valid value is an "
+                            "alphanumeric string that can contain some special characters and is from 4 to 32 "
+                            "characters long."
+                        ),
                         "action": "store",
                         "type": str,
                         "default": "0.0.0.0/0",
@@ -6983,14 +6779,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=["id", "access_type", "access_level", "state", "access_to"])
 
     @ex(
-        help="remove manila share access grant",
-        description="remove manila share access grant",
+        help=_("remove manila share access grant"),
+        description=_("remove manila share access grant"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -6999,7 +6795,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["access_id"],
                     {
-                        "help": "grant id",
+                        "help": _("grant id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7012,17 +6808,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         access_id = self.app.pargs.access_id
         self.client.manila.share.action.revoke_access(oid, access_id)
-        self.app.render({"msg": "Revoke access %s to share %s" % (oid, access_id)})
+        self.app.render({"msg": f"Revoke access {oid} to share {access_id}"})
 
     @ex(
-        help="reset manila share status",
-        description="reset manila share status",
+        help=_("reset manila share status"),
+        description=_("reset manila share status"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7031,10 +6827,13 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-status"],
                     {
-                        "help": "the share access status, which is new, error, active",
+                        "help": _(
+                            "the share access status. One of: available, creating, migrating_to, error_deleting, "
+                            "error, migrating, deleting"
+                        ),
                         "action": "store",
                         "type": str,
-                        "default": "active",
+                        "default": "available",
                     },
                 ),
             ]
@@ -7044,20 +6843,20 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         status = self.app.pargs.status
         self.client.manila.share.action.reset_status(oid, status)
-        self.app.render({"msg": "Reset status of share %s to %s" % (oid, status)})
+        self.app.render({"msg": f"Reset status of share {oid} to {status}"})
 
     #
     # share snapshot
     #
     @ex(
-        help="revert manila share to snapshot",
-        description="revert manila share to snapshot",
+        help=_("revert manila share to snapshot"),
+        description=_("revert manila share to snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "share id",
+                        "help": _("share id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7066,7 +6865,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["snapshot_id"],
                     {
-                        "help": "the share snapshot id",
+                        "help": _("the share snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7079,20 +6878,20 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         snapshot_id = self.app.pargs.snapshot_id
         self.client.manila.share.action.revert(oid, snapshot_id)
-        self.app.render({"msg": "Revert share %s to snapshot_id %s" % (oid, snapshot_id)})
+        self.app.render({"msg": f"Revert share {oid} to snapshot_id {snapshot_id}"})
 
     #
     # volume messages
     #
     @ex(
-        help="get volume messages",
-        description="get volume messages",
+        help=_("get volume messages"),
+        description=_("get volume messages"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume message id",
+                        "help": _("volume message id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7121,15 +6920,15 @@ class OpenstackPlatformController(BaseController):
     # volume backend
     #
     @ex(
-        help="get all back-end storage pools that are known to the scheduler service",
-        description="get all back-end storage pools that are known to the scheduler service",
+        help=_("get all back-end storage pools that are known to the scheduler service"),
+        description=_("get all back-end storage pools that are known to the scheduler service"),
         example="beehive platform openstack volume-backend-get -backendname podto2-transito -e <env> -f json",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-hostname"],
                     {
-                        "help": "backend storage pool hostname",
+                        "help": _("backend storage pool hostname"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7138,7 +6937,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-backendname"],
                     {
-                        "help": "volume backend name",
+                        "help": _("volume backend name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7165,15 +6964,15 @@ class OpenstackPlatformController(BaseController):
     # volume
     #
     @ex(
-        help="get volumes",
-        description="get volumes",
-        example="beehive platform openstack volume-get -e <env> -id <uuid>;beehive platform openstack volume-get -e <env> -id <uuid>",
+        help=_("get volumes"),
+        description=_("get volumes"),
+        example="beehive platform openstack volume-get -e <env> -id <uuid>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7182,7 +6981,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-limit"],
                     {
-                        "help": "requests a page size of items. Use -1 to list all the volume",
+                        "help": _("requests a page size of items. Use -1 to list all the volume"),
                         "action": "store",
                         "type": int,
                         "default": 20,
@@ -7191,8 +6990,10 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-offset"],
                     {
-                        "help": "used in conjunction with limit to return a slice of items. offset is where to "
-                        "start in the list",
+                        "help": _(
+                            "used in conjunction with limit to return a slice of items. offset is where to "
+                            "start in the list"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": 0,
@@ -7259,46 +7060,21 @@ class OpenstackPlatformController(BaseController):
                 "created_at",
                 "attachments.0.server_id",
             ]
-            print("Page: %s" % offset)
-            print("Count: %s" % limit)
-            print("Total: %s" % self.client.volume_v3.volume_count)
+            print(f"Page: {offset}")
+            print(f"Count: {limit}")
+            print(f"Total: {self.client.volume_v3.volume_count}")
             print("Order:")
             self.app.render(res, headers=headers, fields=fields)
 
-    # @ex(
-    #     help='get volumes which are available to manage',
-    #     description='get volumes which are available to manage',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['host'], {'help': 'Cinder host on which to list manageable volumes; takes the form: '
-    #                             'host@backend-name#pool', 'action': 'store', 'type': str}),
-    #         (['-limit'], {'help': 'requests a page size of items', 'action': 'store', 'type': int, 'default': 20}),
-    #         (['-offset'], {'help': 'used in conjunction with limit to return a slice of items. offset is where to '
-    #                                'start in the list', 'action': 'store', 'type': str, 'default': 0}),
-    #     ])
-    # )
-    # def volume_manageable_get(self):
-    #     host = self.app.pargs.host
-    #     limit = self.app.pargs.limit
-    #     offset = self.app.pargs.offset
-    #     params = {'limit': limit, 'offset': offset, 'host': host}
-    #     res = self.client.volume_v3.manageable_volumes(**params)
-    #     headers = ['id', 'name', 'safe_to_manage', 'reason_not_safe', 'size']
-    #     fields = ['cinder_id', 'reference.source-name', 'safe_to_manage', 'reason_not_safe', 'size']
-    #     print('Page: %s' % offset)
-    #     print('Count: %s' % limit)
-    #     print('Total: %s' % limit)
-    #     print('Order:')
-    #     self.app.render(res, headers=headers, fields=fields)
-
     @ex(
-        help="add volume",
-        description="add volume",
+        help=_("add volume"),
+        description=_("add volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "volume name",
+                        "help": _("volume name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7307,7 +7083,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["size"],
                     {
-                        "help": "volume size in Gb",
+                        "help": _("volume size in Gb"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7316,7 +7092,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-type"],
                     {
-                        "help": "volume type",
+                        "help": _("volume type"),
                         "action": "store",
                         "type": str,
                         "default": "nfsgold",
@@ -7325,7 +7101,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-snapshot_id"],
                     {
-                        "help": "the snapshot id",
+                        "help": _("the snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7346,17 +7122,17 @@ class OpenstackPlatformController(BaseController):
             "snapshot_id": snapshot_id,
         }
         res = self.client.volume_v3.create(**params)
-        self.app.render({"msg": "Created volume %s, id %s, size %s Gb" % (name, res["id"], res["size"])})
+        self.app.render({"msg": f"Created volume {name}, id {res['id']}, size {res['size']} Gb"})
 
     @ex(
-        help="migrate volume",
-        description="migrate volume",
+        help=_("migrate volume"),
+        description=_("migrate volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["volume_id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7364,12 +7140,12 @@ class OpenstackPlatformController(BaseController):
                 ),
                 (
                     ["host"],
-                    {"help": "host", "action": "store", "type": str, "default": None},
+                    {"help": _("host"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-force_host_copy"],
                     {
-                        "help": "force_host_copy",
+                        "help": _("force_host_copy"),
                         "action": "store",
                         "type": str,
                         "default": "False",
@@ -7378,7 +7154,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-lock_volume"],
                     {
-                        "help": "lock_volume",
+                        "help": _("lock_volume"),
                         "action": "store",
                         "type": bool,
                         "default": "False",
@@ -7392,12 +7168,12 @@ class OpenstackPlatformController(BaseController):
         host = self.app.pargs.host
         force_host_copy = str2bool(self.app.pargs.force_host_copy)
         lock_volume = str2bool(self.app.pargs.lock_volume)
-        res = self.client.volume_v3.migrate(volume_id, host, force_host_copy=force_host_copy, lock_volume=lock_volume)
-        self.app.render({"msg": "Migrated volume %s on host %s" % (volume_id, host)})
+        self.client.volume_v3.migrate(volume_id, host, force_host_copy=force_host_copy, lock_volume=lock_volume)
+        self.app.render({"msg": f"Migrated volume {volume_id} on host {host}"})
 
     @ex(
-        help="volume api extensions",
-        description="list volume Block Storage API extensions",
+        help=_("volume api extensions"),
+        description=_("list volume Block Storage API extensions"),
         arguments=OPENSTACK_ARGS([]),
     )
     def volume_api_extensions(self):
@@ -7407,14 +7183,14 @@ class OpenstackPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="update volume",
-        description="update volume",
+        help=_("update volume"),
+        description=_("update volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7423,7 +7199,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "volume name",
+                        "help": _("volume name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7436,18 +7212,18 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         name = self.app.pargs.name
         self.client.volume_v3.update(oid, name=name)
-        msg = "Update volume %s" % oid
+        msg = f"Update volume {oid}"
         self.app.render({"msg": msg}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete volume",
-        description="delete volume",
+        help=_("delete volume"),
+        description=_("delete volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7456,7 +7232,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "force delete",
+                        "help": _("force delete"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -7469,23 +7245,23 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         force = str2bool(self.app.pargs.force)
         self.client.volume_v3.delete(oid, force=force)
-        self.app.render({"msg": "Delete volume %s" % oid})
+        self.app.render({"msg": f"Delete volume {oid}"})
 
     @ex(
-        help="extend volume",
-        description="extend volume",
+        help=_("extend volume"),
+        description=_("extend volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                (["size"], {"help": "new volume size", "action": "store", "type": str}),
+                (["size"], {"help": _("new volume size"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -7493,17 +7269,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         size = self.app.pargs.size
         self.client.volume_v3.extend(oid, size)
-        self.app.render({"msg": "extend volume %s" % oid})
+        self.app.render({"msg": f"extend volume {oid}"})
 
     @ex(
-        help="unmanage volume",
-        description="unmanage volume",
+        help=_("unmanage volume"),
+        description=_("unmanage volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7515,27 +7291,26 @@ class OpenstackPlatformController(BaseController):
     def volume_unmanage(self):
         oid = self.app.pargs.id
         self.client.volume_v3.unmanage(oid)
-        self.app.render({"msg": "unmanage volume %s" % oid})
+        self.app.render({"msg": f"unmanage volume {oid}"})
 
     @ex(
-        help="manage volume",
-        description="manage volume",
+        help=_("manage volume"),
+        description=_("manage volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["source_volume_id"],
                     {
-                        "help": "source volume id",
+                        "help": _("source volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
                     },
                 ),
-                # (['source_volume_name'], {'help': 'source volume name', 'action': 'store', 'type': str, 'default': None}),
                 (
                     ["name"],
                     {
-                        "help": "new volume name",
+                        "help": _("new volume name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7544,7 +7319,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "new volume description",
+                        "help": _("new volume description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7553,7 +7328,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume_type"],
                     {
-                        "help": "volume type id",
+                        "help": _("volume type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7562,7 +7337,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-bootable"],
                     {
-                        "help": "bootable value",
+                        "help": _("bootable value"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -7571,7 +7346,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-host"],
                     {
-                        "help": "source volume host",
+                        "help": _("source volume host"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7580,7 +7355,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-cluster"],
                     {
-                        "help": "source volume cluster",
+                        "help": _("source volume cluster"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7591,14 +7366,13 @@ class OpenstackPlatformController(BaseController):
     )
     def volume_manage(self):
         source_volume_id = self.app.pargs.source_volume_id
-        # source_volume_name = self.app.pargs.source_volume_name
         name = self.app.pargs.name
         desc = self.app.pargs.desc
         volume_type = self.app.pargs.volume_type
         bootable = str2bool(self.app.pargs.bootable)
         host = self.app.pargs.host
         cluster = self.app.pargs.cluster
-        res = self.client.volume_v3.manage(
+        self.client.volume_v3.manage(
             source_volume_id,
             name,
             volume_type,
@@ -7608,17 +7382,17 @@ class OpenstackPlatformController(BaseController):
             host=host,
             cluster=cluster,
         )
-        self.app.render({"msg": "manage volume %s" % source_volume_id})
+        self.app.render({"msg": f"manage volume {source_volume_id}"})
 
     @ex(
-        help="set volume status",
-        description="set volume status",
+        help=_("set volume status"),
+        description=_("set volume status"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7627,7 +7401,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-status"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": "available",
@@ -7640,17 +7414,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         status = self.app.pargs.status
         self.client.volume_v3.reset_status(oid, status, "detached", "success")
-        self.app.render({"msg": "Reset volume %s status to %s" % (oid, status)})
+        self.app.render({"msg": f"Reset volume {oid} status to {status}"})
 
     @ex(
-        help="clone volume",
-        description="clone volume",
+        help=_("clone volume"),
+        description=_("clone volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "volume name",
+                        "help": _("volume name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7659,7 +7433,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7668,7 +7442,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["project"],
                     {
-                        "help": "project id",
+                        "help": _("project id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7677,7 +7451,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-volume_type"],
                     {
-                        "help": "the volume type id",
+                        "help": _("the volume type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7692,18 +7466,18 @@ class OpenstackPlatformController(BaseController):
         project_id = self.app.pargs.project
         volume_type = self.app.pargs.volume_type
         self.client.volume_v3.clone(name, volume_id, project_id, volume_type=volume_type)
-        self.app.render({"msg": "Clone volume %s" % volume_id})
+        self.app.render({"msg": f"Clone volume {volume_id}"})
 
     @ex(
-        help="get volume types",
-        description="get volume types",
-        example="beehive platform openstack volume-type-get -e <env>;beehive platform openstack volume-type-get -id beehive platform openstack volume-type-update <uuid> iscsi",
+        help=_("get volume types"),
+        description=_("get volume types"),
+        example="beehive platform openstack volume-type-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume type id",
+                        "help": _("volume type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7716,10 +7490,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.volume_v3.type.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -7729,15 +7499,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="change volume type",
-        description="change volume type",
-        example="beehive platform openstack volume-type-update <uuid> <uuid> -e <env>;beehive platform openstack volume-type-update -e <env> <uuid> <uuid>",
+        help=_("change volume type"),
+        description=_("change volume type"),
+        example="beehive platform openstack volume-type-update <uuid> <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7746,7 +7516,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume_type"],
                     {
-                        "help": "volume type id",
+                        "help": _("volume type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7758,7 +7528,7 @@ class OpenstackPlatformController(BaseController):
     def volume_type_update(self):
         oid = self.app.pargs.id
         volume_type = self.app.pargs.volume_type
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
 
         snapshots = self.client.volume_v3.snapshot.list(volume_id=oid)
         for snapshot in snapshots:
@@ -7767,12 +7537,13 @@ class OpenstackPlatformController(BaseController):
                 while True:
                     self.client.volume_v3.snapshot.get(snapshot["id"])
                     # stdout.write(".")
-                    stdout.write(next(bar))
+                    stdout.write(next(rot_bar))
                     stdout.flush()
                     sleep(1)
             except:
-                self.app.render({"msg": "remove snapshot %s" % snapshot["id"]})
-
+                stoprotation()
+                self.app.render({"msg": f"remove snapshot {snapshot['id']}"})
+        stoprotation()
         self.client.volume_v3.change_type(oid, volume_type)
         res = self.client.volume_v3.get(oid)
         status = res["status"]
@@ -7782,18 +7553,18 @@ class OpenstackPlatformController(BaseController):
             sleep(2)
             res = self.client.volume_v3.get(oid)
             status = res["status"]
-
-        self.app.render({"msg": "change volume %s type to %s" % (oid, volume_type)})
+        stoprotation()
+        self.app.render({"msg": f"change volume {oid} type to {volume_type}"})
 
     @ex(
-        help="get volume attachments",
-        description="get volume attachments",
+        help=_("get volume attachments"),
+        description=_("get volume attachments"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7802,7 +7573,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-instance"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7845,15 +7616,15 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="attach volume from server",
-        description="attach volume from server",
-        example="beehive platform openstack volume-attach <uuid> <uuid> /dev/vda -e <env>;beehive platform openstack volume-attach <uuid> <uuid> /dev/vda -e <env>",
+        help=_("attach volume from server"),
+        description=_("attach volume from server"),
+        example="beehive platform openstack volume-attach <uuid> <uuid> /dev/vda -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7862,7 +7633,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["instance"],
                     {
-                        "help": "instance id",
+                        "help": _("instance id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7871,7 +7642,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["mountpoint"],
                     {
-                        "help": "instance mountpoint. ex. /dev/vda",
+                        "help": _("instance mountpoint. ex. /dev/vda"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7885,18 +7656,18 @@ class OpenstackPlatformController(BaseController):
         instance = self.app.pargs.instance
         mountpoint = self.app.pargs.mountpoint
         self.client.volume_v3.attach_volume_to_server(oid, instance, mountpoint)
-        self.app.render({"msg": "attach volume %s" % oid})
+        self.app.render({"msg": f"attach volume {oid}"})
 
     @ex(
-        help="detach volume from server",
-        description="detach volume from server",
+        help=_("detach volume from server"),
+        description=_("detach volume from server"),
         example="beehive platform openstack volume-detach <uuid> -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7908,18 +7679,18 @@ class OpenstackPlatformController(BaseController):
     def volume_detach(self):
         oid = self.app.pargs.id
         attachment = self.client.volume_v3.attachment.list(volume_id=oid)
-        res = self.client.volume_v3.detach_volume_from_server(oid, attachment[0]["id"])
-        self.app.render({"msg": "detach volume %s" % oid})
+        self.client.volume_v3.detach_volume_from_server(oid, attachment[0]["id"])
+        self.app.render({"msg": f"detach volume {oid}"})
 
     @ex(
-        help="update volume",
-        description="update volume",
+        help=_("update volume"),
+        description=_("update volume"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7928,7 +7699,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-bootable"],
                     {
-                        "help": "bootable status",
+                        "help": _("bootable status"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -7941,21 +7712,21 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         bootable = str2bool(self.app.pargs.bootable)
         self.client.volume_v3.update_bootable_status(oid, bootable=bootable)
-        msg = "Update volume %s bootable status" % oid
+        msg = f"Update volume {oid} bootable status"
         self.app.render({"msg": msg})
 
     #
     # volume metadata
     #
     @ex(
-        help="add volume metadata",
-        description="add volume metadata",
+        help=_("add volume metadata"),
+        description=_("add volume metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7964,7 +7735,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["metadata"],
                     {
-                        "help": "key:value string metadata",
+                        "help": _("key:value string metadata"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7978,18 +7749,18 @@ class OpenstackPlatformController(BaseController):
         metadata = self.app.pargs.metadata
         metadata = metadata.split(":")
         metadata = {metadata[0]: metadata[1]}
-        res = self.client.volume_v3.add_metadata(oid, metadata)
-        self.app.render({"msg": "add metadata %s to volume %s" % (metadata, oid)})
+        self.client.volume_v3.add_metadata(oid, metadata)
+        self.app.render({"msg": f"add metadata {metadata} to volume {oid}"})
 
     @ex(
-        help="del volume metadata",
-        description="del volume metadata",
+        help=_("del volume metadata"),
+        description=_("del volume metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -7998,7 +7769,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["metadata"],
                     {
-                        "help": "metadata key",
+                        "help": _("metadata key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8010,21 +7781,21 @@ class OpenstackPlatformController(BaseController):
     def volume_metadata_del(self):
         oid = self.app.pargs.id
         metadata = self.app.pargs.metadata
-        res = self.client.volume_v3.remove_metadata(oid, metadata)
-        self.app.render({"msg": "remove metadata %s to volume %s" % (metadata, oid)})
+        self.client.volume_v3.remove_metadata(oid, metadata)
+        self.app.render({"msg": f"remove metadata {metadata} to volume {oid}"})
 
     #
     # volume image metadata
     #
     @ex(
-        help="add volume image metadata",
-        description="add volume image metadata",
+        help=_("add volume image metadata"),
+        description=_("add volume image metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8033,7 +7804,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["metadata"],
                     {
-                        "help": "key:value string metadata",
+                        "help": _("key:value string metadata"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8047,18 +7818,18 @@ class OpenstackPlatformController(BaseController):
         metadata = self.app.pargs.metadata
         metadata = metadata.split(":")
         metadata = {metadata[0]: metadata[1]}
-        res = self.client.volume_v3.set_image_metadata(oid, metadata)
-        self.app.render({"msg": "add image metadata %s to volume %s" % (metadata, oid)})
+        self.client.volume_v3.set_image_metadata(oid, metadata)
+        self.app.render({"msg": f"add image metadata {metadata} to volume {oid}"})
 
     @ex(
-        help="del volume image metadata",
-        description="del volume image metadata",
+        help=_("del volume image metadata"),
+        description=_("del volume image metadata"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8067,7 +7838,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["metadata"],
                     {
-                        "help": "metadata key",
+                        "help": _("metadata key"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8079,22 +7850,22 @@ class OpenstackPlatformController(BaseController):
     def volume_image_metadata_del(self):
         oid = self.app.pargs.id
         metadata = self.app.pargs.metadata
-        res = self.client.volume_v3.remove_image_metadata(oid, metadata)
-        self.app.render({"msg": "remove image metadata %s to volume %s" % (metadata, oid)})
+        self.client.volume_v3.remove_image_metadata(oid, metadata)
+        self.app.render({"msg": f"remove image metadata {metadata} to volume {oid}"})
 
     #
     # volume snapshot
     #
     @ex(
-        help="get volume snapshots",
-        description="get volume snapshots",
+        help=_("get volume snapshots"),
+        description=_("get volume snapshots"),
         example="beehive platform openstack volume-snapshot-get -e <env>",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8103,7 +7874,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8112,7 +7883,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-group_snapshot"],
                     {
-                        "help": "group snapshot id",
+                        "help": _("group snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8125,10 +7896,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.volume_v3.snapshot.get(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -8164,14 +7931,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add volume snapshots",
-        description="add volume snapshots",
+        help=_("add volume snapshots"),
+        description=_("add volume snapshots"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8180,7 +7947,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8189,7 +7956,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "snapshot description",
+                        "help": _("snapshot description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8198,7 +7965,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "indicates whether to snapshot, even if the volume is attached",
+                        "help": _("indicates whether to snapshot, even if the volume is attached"),
                         "action": "store",
                         "type": str,
                         "default": "true",
@@ -8215,19 +7982,19 @@ class OpenstackPlatformController(BaseController):
         data = {"name": name, "description": desc, "volume_id": volume, "force": force}
         res = self.client.volume_v3.snapshot.create(**data)
         self.app.render(
-            {"msg": "adding snapshot %s with name %s for volume %s" % (res["id"], name, volume)},
+            {"msg": f"adding snapshot {res['id']} with name {name} for volume {volume}"},
             maxsize=200,
         )
 
     @ex(
-        help="delete volume snapshot",
-        description="delete volume snapshot",
+        help=_("delete volume snapshot"),
+        description=_("delete volume snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8239,17 +8006,17 @@ class OpenstackPlatformController(BaseController):
     def volume_snapshot_del(self):
         oid = self.app.pargs.id
         self.client.volume_v3.snapshot.delete(oid)
-        self.app.render({"msg": "Delete volume snapshot %s" % oid})
+        self.app.render({"msg": f"Delete volume snapshot {oid}"})
 
     @ex(
-        help="set volume snapshot status",
-        description="set volume snapshot status",
+        help=_("set volume snapshot status"),
+        description=_("set volume snapshot status"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8258,7 +8025,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-status"],
                     {
-                        "help": "snapshot status",
+                        "help": _("snapshot status"),
                         "action": "store",
                         "type": str,
                         "default": "available",
@@ -8271,17 +8038,17 @@ class OpenstackPlatformController(BaseController):
         oid = self.app.pargs.id
         status = self.app.pargs.status
         self.client.volume_v3.snapshot.reset_status(oid, status)
-        self.app.render({"msg": "set volume snapshot %s status to %s" % (oid, status)})
+        self.app.render({"msg": f"set volume snapshot {oid} status to {status}"})
 
     @ex(
-        help="revert volume to snapshot",
-        description="revert volume to snapshot",
+        help=_("revert volume to snapshot"),
+        description=_("revert volume to snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["volume"],
                     {
-                        "help": "volume id",
+                        "help": _("volume id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8290,7 +8057,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8303,20 +8070,20 @@ class OpenstackPlatformController(BaseController):
         volume = self.app.pargs.volume
         snapshot = self.app.pargs.snapshot
         self.client.volume_v3.snapshot.revert_to(volume, snapshot)
-        self.app.render({"msg": "revert volume %s to snapshot %s" % (volume, snapshot)})
+        self.app.render({"msg": f"revert volume {volume} to snapshot {snapshot}"})
 
     #
     # volume group type
     #
     @ex(
-        help="get volume group types",
-        description="get volume group types",
+        help=_("get volume group types"),
+        description=_("get volume group types"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume group id",
+                        "help": _("volume group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8329,10 +8096,6 @@ class OpenstackPlatformController(BaseController):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
             res = self.client.volume_v3.group.get_type(oid)
-
-            # if self.is_output_text():
-            #     self.app.render(res, details=True)
-            # else:
             self.app.render(res, details=True)
         else:
             params = {}
@@ -8342,14 +8105,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add volume group type",
-        description="add volume group type",
+        help=_("add volume group type"),
+        description=_("add volume group type"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "volume group type name",
+                        "help": _("volume group type name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8358,7 +8121,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-group_specs"],
                     {
-                        "help": "volume group type specs",
+                        "help": _("volume group type specs"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8376,17 +8139,17 @@ class OpenstackPlatformController(BaseController):
         if group_specs is not None:
             data["group_specs"] = group_specs
         self.client.volume_v3.group.type_create(**data)
-        self.app.render({"msg": "add volume group type %s" % name}, maxsize=200)
+        self.app.render({"msg": f"add volume group type {name}"}, maxsize=200)
 
     @ex(
-        help="delete volume group type",
-        description="delete volume group type",
+        help=_("delete volume group type"),
+        description=_("delete volume group type"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume group type id",
+                        "help": _("volume group type id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8398,21 +8161,21 @@ class OpenstackPlatformController(BaseController):
     def volume_group_type_del(self):
         oid = self.app.pargs.id
         self.client.volume_v3.group.type_delete(oid)
-        self.app.render({"msg": "Delete volume group type %s" % oid})
+        self.app.render({"msg": f"Delete volume group type {oid}"})
 
     #
     # volume group
     #
     @ex(
-        help="get volume groups",
-        description="get volume groups",
+        help=_("get volume groups"),
+        description=_("get volume groups"),
         example="beehive platform openstack volume-group-get",
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume group id",
+                        "help": _("volume group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8452,18 +8215,18 @@ class OpenstackPlatformController(BaseController):
                 "volumes",
                 "created_at",
             ]
-            transform = {"volumes": lambda x: len(x)}
+            transform = {"volumes": len}
             self.app.render(res, headers=headers, fields=fields, transform=transform)
 
     @ex(
-        help="add volume group",
-        description="add volume group",
+        help=_("add volume group"),
+        description=_("add volume group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["name"],
                     {
-                        "help": "volume group name",
+                        "help": _("volume group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8472,7 +8235,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-availability_zone"],
                     {
-                        "help": "volume group availability zone",
+                        "help": _("volume group availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8481,15 +8244,17 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["volume_types"],
                     {
-                        "help": "the list of volume types. In an environment with multiple-storage back ends, "
-                        "the scheduler determines where to send the volume based on the volume type.",
+                        "help": _(
+                            "the list of volume types. In an environment with multiple-storage back ends, "
+                            "the scheduler determines where to send the volume based on the volume type."
+                        ),
                         "action": "store",
                         "type": str,
                     },
                 ),
                 (
                     ["group_type"],
-                    {"help": "group type id", "action": "store", "type": str},
+                    {"help": _("group type id"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -8504,18 +8269,18 @@ class OpenstackPlatformController(BaseController):
             data["availability_zone"] = availability_zone
         res = self.client.volume_v3.group.create(**data)
         res_id = res["id"]
-        self.app.render({"msg": "added volume group %s with id %s" % (name, res_id)}, maxsize=200)
+        self.app.render({"msg": f"added volume group {name} with id {res_id}"}, maxsize=200)
 
     @ex(
-        help="update volume group",
-        description="update volume group",
+        help=_("update volume group"),
+        description=_("update volume group"),
         arguments=OPENSTACK_ARGS(
             [
-                (["id"], {"help": "volume group id", "action": "store", "type": str}),
+                (["id"], {"help": _("volume group id"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "volume group name",
+                        "help": _("volume group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8524,7 +8289,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "volume group availability zone",
+                        "help": _("volume group availability zone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8533,7 +8298,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-del"],
                     {
-                        "help": "One or more volume UUIDs, separated by commas, that you want to remove from group",
+                        "help": _("One or more volume UUIDs, separated by commas, that you want to remove from group"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8542,7 +8307,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-add"],
                     {
-                        "help": "One or more volume UUIDs, separated by commas, that you want to add to group",
+                        "help": _("One or more volume UUIDs, separated by commas, that you want to add to group"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8559,17 +8324,17 @@ class OpenstackPlatformController(BaseController):
         data = self.add_field_from_pargs_to_data("del", data, "remove_volumes")
         data = self.add_field_from_pargs_to_data("add", data, "add_volumes")
         self.client.volume_v3.group.update(oid, **data)
-        self.app.render({"msg": "update volume group %s" % oid}, maxsize=200)
+        self.app.render({"msg": f"update volume group {oid}"}, maxsize=200)
 
     @ex(
-        help="delete volume group",
-        description="delete volume group",
+        help=_("delete volume group"),
+        description=_("delete volume group"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume group id",
+                        "help": _("volume group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8581,20 +8346,20 @@ class OpenstackPlatformController(BaseController):
     def volume_group_del(self):
         oid = self.app.pargs.id
         self.client.volume_v3.group.delete(oid)
-        self.app.render({"msg": "Delete volume group %s" % oid})
+        self.app.render({"msg": f"Delete volume group {oid}"})
 
     #
     # volume group snapshot
     #
     @ex(
-        help="get volume group snapshots",
-        description="get volume group snapshots",
+        help=_("get volume group snapshots"),
+        description=_("get volume group snapshots"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "volume group snapshot id",
+                        "help": _("volume group snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8603,7 +8368,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-group"],
                     {
-                        "help": "volume group id",
+                        "help": _("volume group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8656,14 +8421,14 @@ class OpenstackPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add volume group snapshot",
-        description="add volume group snapshot",
+        help=_("add volume group snapshot"),
+        description=_("add volume group snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["group"],
                     {
-                        "help": "volume group id",
+                        "help": _("volume group id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8672,7 +8437,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "volume group snapshot name",
+                        "help": _("volume group snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8681,7 +8446,7 @@ class OpenstackPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "volume group snapshot description",
+                        "help": _("volume group snapshot description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8696,17 +8461,17 @@ class OpenstackPlatformController(BaseController):
         data = self.add_field_from_pargs_to_data("name", data, "name")
         data = self.add_field_from_pargs_to_data("desc", data, "description")
         self.client.volume_v3.group.create_snapshot(oid, **data)
-        self.app.render({"msg": "add volume group %s snapshot" % oid}, maxsize=200)
+        self.app.render({"msg": f"add volume group {oid} snapshot"}, maxsize=200)
 
     @ex(
-        help="delete volume group snapshot",
-        description="delete volume group snapshot",
+        help=_("delete volume group snapshot"),
+        description=_("delete volume group snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["id"],
                     {
-                        "help": "volume group snapshot id",
+                        "help": _("volume group snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -8718,787 +8483,4 @@ class OpenstackPlatformController(BaseController):
     def volume_group_snapshot_del(self):
         oid = self.app.pargs.id
         self.client.volume_v3.group.delete_snapshot(oid)
-        self.app.render({"msg": "Delete volume group snapshot %s" % oid})
-
-
-#
-#     @expose(aliases=['delete <id>'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         oid = self.app.pargs.id
-#         res = self.client.volume.delete(oid)
-#         res = {'msg': 'Delete volume %s' % oid}
-#         self.app.log.info(res)
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['status <id> <status>'], aliases_only=True)
-#     @check_error
-#     def status(self):
-#         oid = self.app.pargs.id
-#         status = self.get_arg(name='status')
-#         res = self.client.volume.reset_status(oid, status, None, None)
-#         res = {'msg': 'Reset volume %s status' % oid}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['check [delete=false]'], aliases_only=True)
-#     @check_error
-#     def check(self):
-#         """Found all the orphan volumes
-#     - delete: if true remove orphan volumes
-#         """
-#         delete = self.get_arg(name='delete', default=False, keyvalue=True)
-#         obj = self.client.volume.list(detail=True)
-#         sg_index = {i['os-vol-tenant-attr:tenant_id']: i for i in obj}
-#         projects = self.client.project.list()
-#         projects_ids = [i['id'] for i in projects]
-#         for k, v in sg_index.items():
-#             if k not in projects_ids:
-#                 print v['id'], v['name']
-#                 if delete is True:
-#                     res = self.client.volume.delete(v['id'])
-#
-#
-
-
-# class OpenstackPlatformVolumeBackupController(OpenstackPlatformControllerChild):
-#     fields = ['id', 'name', 'description', 'volume_id', 'status', 'size', 'is_incremental', 'created_at']
-#     headers = ['id', 'name', 'description', 'volume_id', 'status', 'size', 'is_incremental', 'created_at']
-#
-#     class Meta:
-#         label = 'openstack.platform.volumes.backups'
-#         alias = 'backups'
-#         aliases = ['backups']
-#         aliases_only = True
-#         stacked_on = 'openstack.platform.volumes'
-#         stacked_backup = 'nested'
-#         description = "Openstack Volume Backups management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.volume.backup
-#
-#     @expose(aliases=['list [field=value]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List volume backup.
-#         """
-#         params = self.app.kvargs
-#         params['detail'] = True
-#         res = self.client.volume.backup.list(**params)
-#         self.app.render(res, headers=self.headers, fields=self.fields)
-#
-#     @expose(aliases=['get <backup-id>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """Get volume backup.
-#
-# fields:
-#   backup-id           id of the backup"""
-#         oid = self.get_arg(name='backup-id')
-#         obj = self.client.volume.backup.get(oid)
-#         res = obj
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['add <name> <volume-id> [field=..]'], aliases_only=True)
-#     @check_error
-#     def add(self):
-#         """Add volume backup.
-#
-# fields:
-#   name                  backup name
-#   desc                  backup description [optional]
-#   volume-id             id of the volume to backup
-#   container             the container name [optional]
-#   incremental           the backup mode. A valid value is true for incremental backup mode or false for full backup
-#                         mode. [default=False]
-#   force                 indicates whether to backup, even if the volume is attached. [default=False]
-#   snapshot-id           the UUID of the source volume snapshot. [optional]"""
-#         name = self.get_arg(name='name')
-#         volume = self.get_arg(name='volume-id')
-#         desc = self.get_arg(name='desc', keyvalue=True, default=name)
-#         force = self.get_arg(name='force', keyvalue=True, default=False)
-#         incremental = self.get_arg(name='incremental', keyvalue=True, default=False)
-#         snapshot = self.get_arg(name='snapshot-id', keyvalue=True, default=None)
-#         data = {
-#             'name': name,
-#             'desc': desc,
-#             'volume_id': volume,
-#             'force': force,
-#             'incremental': incremental
-#         }
-#         if snapshot is not None:
-#             data['snapshot_id'] = snapshot
-#         res = self.client.volume.backup.create(**data)
-#         msg = 'Add volume %s backup %s' % (volume, name)
-#         self.app.render({'msg': msg}, headers=['msg'], maxsize=200)
-#
-#     @expose(aliases=['restore <backup-id> [field=..]'], aliases_only=True)
-#     @check_error
-#     def restore(self):
-#         """Restore volume backup.
-#
-# fields:
-#   backup-id             id of the backup to restore
-#   volume-id             id of the volume where restore [optional]
-#   volume-name           name of the volume where restore [optional]"""
-#         backup_id = self.get_arg(name='backup-id')
-#         volume_id = self.get_arg(name='volume-id', keyvalue=True, default=None)
-#         volume_name = self.get_arg(name='volume-name', keyvalue=True, default=None)
-#         res = self.client.volume.backup.restore(backup_id, name=volume_name, volume_id=volume_id)
-#         msg = 'Restore backup %s volume %s|%s' % (backup_id, volume_name, volume_id)
-#         self.app.render({'msg': msg}, headers=['msg'], maxsize=200)
-#
-#     @expose(aliases=['delete <backup-id>'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         """Delete volume backup.
-#
-# fields:
-#   backup-id           id of the volume"""
-#         oid = self.get_arg(name='backup-id')
-#         res = self.client.volume.backup.delete(oid)
-#         res = {'msg': 'Delete volume backup %s' % oid}
-#         self.app.render(res, headers=['msg'])
-#
-#
-# class OpenstackPlatformVolumeConsistencyGroupController(OpenstackPlatformControllerChild):
-#     fields = ['id', 'name', 'description', 'status', 'availability_zone', 'created_at']
-#     headers = ['id', 'name', 'description', 'status', 'zone', 'created_at']
-#
-#     class Meta:
-#         label = 'openstack.platform.volumes.groups'
-#         alias = 'groups'
-#         aliases = ['groups']
-#         aliases_only = True
-#         stacked_on = 'openstack.platform.volumes'
-#         stacked_consistencygroup = 'nested'
-#         description = "Openstack Volume Consistency Groups management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.volume.consistencygroup
-#
-#     @expose(aliases=['list [field=value]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List volume consistency group.
-#         """
-#         params = self.app.kvargs
-#         params['detail'] = True
-#         res = self.client.volume.consistencygroup.list(**params)
-#         self.app.render(res, headers=self.headers, fields=self.fields)
-#
-#     @expose(aliases=['get <group-id>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """Get volume consistency group.
-#
-# fields:
-#   group-id              id of the consistency group"""
-#         oid = self.get_arg(name='group-id')
-#         obj = self.client.volume.consistencygroup.get(oid)
-#         res = obj
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['add <name> <volume-id> [field=..]'], aliases_only=True)
-#     @check_error
-#     def add(self):
-#         """Add volume consistency group.
-#
-# fields:
-#   name                  consistencygroup name
-#   desc                  consistencygroup description [optional]
-#   volume-id             id of the volume to consistencygroup
-#   container             the container name [optional]
-#   incremental           the consistencygroup mode. A valid value is true for incremental consistencygroup mode or false for full consistencygroup
-#                         mode. [default=False]
-#   force                 indicates whether to consistencygroup, even if the volume is attached. [default=False]
-#   snapshot-id           the UUID of the source volume snapshot. [optional]"""
-#         name = self.get_arg(name='name')
-#         volume = self.get_arg(name='volume-id')
-#         desc = self.get_arg(name='desc', keyvalue=True, default=name)
-#         force = self.get_arg(name='force', keyvalue=True, default=False)
-#         incremental = self.get_arg(name='incremental', keyvalue=True, default=False)
-#         snapshot = self.get_arg(name='snapshot-id', keyvalue=True, default=None)
-#         data = {
-#             'name': name,
-#             'desc': desc,
-#             'volume_id': volume,
-#             'force': force,
-#             'incremental': incremental
-#         }
-#         if snapshot is not None:
-#             data['snapshot_id'] = snapshot
-#         res = self.client.volume.consistencygroup.create(**data)
-#         msg = 'Add volume %s consistency group %s' % (volume, name)
-#         self.app.render({'msg': msg}, headers=['msg'], maxsize=200)
-#
-#     @expose(aliases=['restore <group-id> [field=..]'], aliases_only=True)
-#     @check_error
-#     def restore(self):
-#         """Restore volume consistency group.
-#
-# fields:
-#   group-id              id of the consistency group to restore
-#   volume-id             id of the volume where restore [optional]
-#   volume-name           name of the volume where restore [optional]"""
-#         consistencygroup_id = self.get_arg(name='group-id')
-#         volume_id = self.get_arg(name='volume-id', keyvalue=True, default=None)
-#         volume_name = self.get_arg(name='volume-name', keyvalue=True, default=None)
-#         res = self.client.volume.consistencygroup.restore(consistencygroup_id, name=volume_name, volume_id=volume_id)
-#         msg = 'Restore consistency group %s volume %s|%s' % (consistencygroup_id, volume_name, volume_id)
-#         self.app.render({'msg': msg}, headers=['msg'], maxsize=200)
-#
-#     @expose(aliases=['delete <group-id>'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         """Delete volume consistency group.
-#
-# fields:
-#   group-id             id of the volume"""
-#         oid = self.get_arg(name='group-id')
-#         res = self.client.volume.consistencygroup.delete(oid)
-#         res = {'msg': 'Delete volume consistency group %s' % oid}
-#         self.app.render(res, headers=['msg'])
-#
-#
-
-# class OpenstackPlatformSwiftController(OpenstackPlatformControllerChild):
-#     headers = ['id', 'action', 'server_id', 'config_id', 'creation_time', 'updated_time', 'status',
-#                'status_reason']
-#
-#     class Meta:
-#         label = 'openstack.platform.swift'
-#         aliases = ['swift']
-#         aliases_only = True
-#         description = "Openstack Swift management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.swift
-#
-#     @expose()
-#     @check_error
-#     def containers(self):
-#         """List containers
-#         """
-#         res = self.client.swift.container_read()
-#         self.app.log.debug(res)
-#         if self.format == 'text':
-#             for item in res:
-#                 if isinstance(item, list):
-#                     self.app.render(item, headers=['name', 'count', 'last_modified', 'bytes'], maxsize=60)
-#                 elif isinstance(item, dict):
-#                     self.app.render(item, details=True)
-#         else:
-#             self.app.render(res, details=True)
-#
-#     @expose(aliases=['container <oid>'], aliases_only=True)
-#     @check_error
-#     def container(self):
-#         """Get container by name
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.swift.container_read(container=oid)
-#         if self.format == 'text':
-#             for item in res:
-#                 if isinstance(item, list):
-#                     self.app.render(item, headers=['name', 'hash', 'content_type', 'last_modified', 'bytes'],
-#                                 maxsize=80)
-#                 elif isinstance(item, dict):
-#                     self.app.render(item, details=True)
-#         else:
-#             self.app.render(res, details=True)
-#
-#     @expose(aliases=['container_add <oid>'], aliases_only=True)
-#     @check_error
-#     def container_add(self):
-#         container = 'prova'
-#         res = self.client.swift.container_put(container=container, x_container_meta_name={'meta1': '', 'meta2': ''})
-#
-#     @expose(aliases=['container_delete <oid>'], aliases_only=True)
-#     @check_error
-#     def container_delete(self):
-#         container = 'morbido'
-#         res = self.client.swift.container_delete(container=container)
-#
-#     @expose(aliases=['object <container> <oid>'], aliases_only=True)
-#     @check_error
-#     def object(self):
-#         """Get object by name
-#         """
-#         container = self.get_arg(name='container')
-#         oid = self.app.pargs.id
-#         res = self.client.swift.object_get(container=container, c_object=oid)
-#         if self.format == 'text':
-#             for item in res:
-#                 if isinstance(item, list):
-#                     self.app.render(item, headers=['name', 'hash', 'content_type', 'last_modified', 'bytes'],
-#                                 maxsize=80)
-#                 elif isinstance(item, dict):
-#                     self.app.render(item, details=True)
-#         else:
-#             self.app.render(res, details=True)
-#
-#     @expose(aliases=['object-delete <container> <oid>'], aliases_only=True)
-#     @check_error
-#     def object_delete(self):
-#         """Delete object by name
-#         """
-#         container = self.get_arg(name='container')
-#         oid = self.app.pargs.id
-#         res = self.client.swift.object_delete(container=container, c_object=oid)
-#         msg = {'msg': 'Delete object %s:%s' % (container, oid)}
-#         self.app.render(msg, headers=['msg'])
-#
-#
-# class OpenstackPlatformManilaController(OpenstackPlatformControllerChild):
-#     class Meta:
-#         label = 'openstack.platform.manila'
-#         aliases = ['manila']
-#         aliases_only = True
-#         description = "Openstack Manila management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila
-#
-#     @expose(aliases=['api [version]'], aliases_only=True)
-#     @check_error
-#     def api(self):
-#         """List manila api versions
-#
-# fields:
-#   version               api version [optional]"""
-#         version = self.get_arg(default=None)
-#         res = self.client.manila.api(version=version)
-#         if version is None:
-#             self.app.render(res, headers=['id', 'version', 'min_version', 'status', 'updated'])
-#         else:
-#             self.app.render(res, details=True)
-#
-#     @expose()
-#     @check_error
-#     def limits(self):
-#         """List manila limits
-#         """
-#         res = self.client.manila.limits()
-#         self.app.render(res, details=True)
-#
-#     @expose()
-#     @check_error
-#     def services(self):
-#         """List manila api services
-#         """
-#         res = self.client.manila.services()
-#         self.app.render(res, headers=['id', 'state', 'host', 'status', 'zone', 'binary', 'updated_at'])
-#
-#
-# class OpenstackPlatformManilaChildController(OpenstackPlatformControllerChild):
-#     class Meta:
-#         stacked_on = 'openstack.platform.manila'
-#         stacked_type = 'nested'
-#
-#
-# class OpenstackPlatformManilaShareController(OpenstackPlatformManilaChildController):
-#     class Meta:
-#         label = 'openstack.platform.manila.share'
-#         aliases = ['shares']
-#         aliases_only = True
-#         description = "Openstack Manila Share management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila.share
-#
-#     @expose(aliases=['list [key=value]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List manila shares
-#         """
-#         params = self.get_query_params(*self.app.pargs.extra_arguments)
-#         res = self.client.manila.share.list(details=True, **params)
-#         self.app.render(res, headers=['id', 'name', 'project_id', 'size', 'created_at', 'share_type', 'share_proto',
-#                                   'status', 'is_public'], maxsize=40)
-#
-#     @expose(aliases=['get <id>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """Get manila share by id
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share.get(oid)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['add <name> <size> <proto> <share_type>'], aliases_only=True)
-#     @check_error
-#     def add(self):
-#         """Add manila share
-#     - name: share name
-#     - size: share in GB
-#     - proto: share protocol (NFS, CIFS, GlusterFS, HDFS, or CephFS. CephFS)
-#     - share_type: share type
-#         """
-#         name = self.get_arg(name='name')
-#         size = self.get_arg(name='size')
-#         proto = self.get_arg(name='proto')
-#         share_type = self.get_arg(name='share_type')
-#         res = self.client.manila.share.create(proto, size, name=name, description=name, share_type=share_type,
-#                                        is_public=False, availability_zone='nova')
-#         res = {'msg': 'Create manila share %s' % (name)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['delete <id> [force=true]'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         """Delete manila share
-#     - force: if true force delete
-#         """
-#         oid = self.app.pargs.id
-#         force = self.get_arg(name='force', default=False, keyvalue=True)
-#         if force is True:
-#             res = self.client.manila.share.action.force_delete(oid)
-#         else:
-#             res = self.client.manila.share.delete(oid)
-#         res = {'msg': 'Delete manila share %s' % (oid)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['grant-list <id>'], aliases_only=True)
-#     @check_error
-#     def grant_list(self):
-#         """List manila share <id> access list
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share.action.list_access(oid)
-#         self.app.render(res, headers=['id', 'access_type', 'access_level', 'state', 'access_to'])
-#
-#     @expose(aliases=['grant-add <id> <level> <type> <to>'], aliases_only=True)
-#     @check_error
-#     def grant_add(self):
-#         """Add manila share <id> access grant
-#     - level: The access level to the share. To grant or deny access to a share:
-#         - rw: Read and write (RW) access.
-#         - ro: Read-only (RO) access.
-#     - type: The access rule type. Valid values are:
-#         - ip: Authenticates an instance through its IP address.
-#         - cert: Authenticates an instance through a TLS certificate.
-#         - user: Authenticates by a user or group name.
-#     - to: The value that defines the access. The back end grants or denies the access to it. Valid values are:
-#         - ip: A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX. For example 0.0.0.0/0.
-#         - cert: Specify the TLS identity as the IDENTKEY. A valid value is any string up to 64 characters long in the
-#                 common name (CN) of the certificate. The meaning of a string depends on its interpretation.
-#         - user: A valid value is an alphanumeric string that can contain some special characters and is from 4 to 32
-#                 characters long.
-#         """
-#         oid = self.app.pargs.id
-#         access_level = self.get_arg(name='access_level')
-#         access_type = self.get_arg(name='access_type')
-#         access_to = self.get_arg(name='access_to')
-#         res = self.client.manila.share.action.grant_access(oid, access_level, access_type, access_to)
-#         self.app.render(res, headers=['id', 'access_type', 'access_level', 'state', 'access_to'])
-#
-#     @expose(aliases=['grant-remove <id> <access_id>'], aliases_only=True)
-#     @check_error
-#     def grant_remove(self):
-#         """Remove manila share <id> access grant
-#         """
-#         oid = self.app.pargs.id
-#         access_id = self.get_arg(name='access_id')
-#         res = self.client.manila.share.action.revoke_access(oid, access_id)
-#         res = {'msg': 'Revoke access %s to share %s' % (oid, access_id)}
-#         self.app.render(res, headers=['msg'], maxsize=200)
-#
-#     @expose(aliases=['reset-status <id> <status>'], aliases_only=True)
-#     @check_error
-#     def reset_status(self):
-#         """Reset manila share <id> status
-#     - status: The share access status, which is new, error, active
-#         """
-#         oid = self.app.pargs.id
-#         status = self.get_arg(name='status')
-#         res = self.client.manila.share.action.reset_status(oid, status)
-#         res = {'msg': 'Reset status of share %s to %s' % (oid, status)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['size-extend <id> <new_size>'], aliases_only=True)
-#     @check_error
-#     def size_extend(self):
-#         """Extend manila share <id>
-#     - new_size: New size of the share, in GBs.
-#         """
-#         oid = self.app.pargs.id
-#         new_size = self.get_arg(name='new_size')
-#         res = self.client.manila.share.action.extend(oid, new_size)
-#         res = {'msg': 'Extend share %s to %s' % (oid, new_size)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['size-shrink <id> <new_size>'], aliases_only=True)
-#     @check_error
-#     def size_shrink(self):
-#         """Shrink manila share <id>
-#     - new_size: New size of the share, in GBs.
-#         """
-#         oid = self.app.pargs.id
-#         new_size = self.get_arg(name='new_size')
-#         res = self.client.manila.share.action.shrink(oid, new_size)
-#         res = {'msg': 'Shrink share %s to %s' % (oid, new_size)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['revert-to-snapshot <id> <snapshot_id>'], aliases_only=True)
-#     @check_error
-#     def revert_to_snapshot(self):
-#         """Revert manila share <id> to snapshot
-#     - snapshot_id: New size of the share, in GBs.
-#         """
-#         oid = self.app.pargs.id
-#         snapshot_id = self.get_arg(name='snapshot_id')
-#         res = self.client.manila.share.action.revert(oid, snapshot_id)
-#         res = {'msg': 'Revert share %s to snapshot_id %s' % (oid, snapshot_id)}
-#         self.app.render(res, headers=['msg'])
-#
-#
-# class OpenstackPlatformManilaShareSnapshotController(OpenstackPlatformManilaChildController):
-#     class Meta:
-#         label = 'openstack.platform.manila.share_snapshot'
-#         aliases = ['snapshots']
-#         aliases_only = True
-#         description = "Openstack Manila Share Snapshots management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila.share.snapshot
-#
-#     @expose(aliases=['list [key=value]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List manila share snapshots
-#         """
-#         params = self.get_query_params(*self.app.pargs.extra_arguments)
-#         res = self.client.manila.share.snapshot.list(details=True, **params)
-#         self.app.render(res, headers=['id', 'name', 'project_id', 'size', 'created_at', 'share_type', 'share_proto',
-#                                   'export_location'], maxsize=40)
-#
-#     @expose(aliases=['get <id>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """Get manila share snapshot by id
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share.snapshot.get(oid)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['add <share_id> <name>'], aliases_only=True)
-#     @check_error
-#     def add(self):
-#         """Add manila share snapshot
-#     - name: share name
-#     - share_id: id of the share
-#         """
-#         share_id = self.get_arg(name='share_id')
-#         name = self.get_arg(name='name')
-#         res = self.client.manila.share.snapshot.create(share_id, name=name)
-#         res = {'msg': 'Create %s %s' % (self.client.manila.share.snapshot, name)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['delete <id>'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share.snapshot.delete(oid)
-#         res = {'msg': 'Delete %s %s' % (self.entity_class, oid)}
-#         self.app.render(res, headers=['msg'])
-#
-#
-# class OpenstackPlatformManilaShareTypeController(OpenstackPlatformManilaChildController):
-#     class Meta:
-#         label = 'openstack.platform.manila.share_types'
-#         aliases = ['types']
-#         aliases_only = True
-#         description = "Openstack Manila Share Type management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila.share_type
-#
-#     @expose(aliases=['list [default=true/false]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List manila share types
-#     - default=true list default share types
-#         """
-#         params = self.get_query_params(*self.app.pargs.extra_arguments)
-#         res = self.client.manila.share_type.list(**params)
-#         self.app.render(res, headers=['id', 'name', 'access', 'backend'], fields=['id', 'name',
-#                     'os-share-type-access:is_public', 'extra_specs.share_backend_name'], maxsize=60)
-#
-#     @expose(aliases=['extra-spec <id>'], aliases_only=True)
-#     @check_error
-#     def extra_spec(self):
-#         """Get manila share type extra spec by id
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share_type.get_extra_spec(oid)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['access <id>'], aliases_only=True)
-#     @check_error
-#     def access(self):
-#         """Get manila share type access by id. If share type access is True this command return error.
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share_type.get_access(oid)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['add <name> [key=value]'], aliases_only=True)
-#     @check_error
-#     def add(self):
-#         """Creates a share type
-#     - name: The share type name.
-#     - desc: (Optional) The description of the share type.
-#     - is_public: (Optional) Indicates whether is publicly accessible. Default is false.
-#     - replication_type: (Optional) The share replication type.
-#     - driver_handles_share_servers: (Optional) An extra specification that defines the driver mode for share server, or
-#     storage, life cycle management. The Shared File Systems service creates a share server for the export of shares.
-#     This value is true when the share driver manages, or handles, the share server life cycle. This value is false when
-#     an administrator rather than a share driver manages the storage life cycle.
-#     - mount_snapshot_support: (Optional) Boolean extra spec used for filtering of back ends by their capability to mount
-#     share snapshots.
-#     - revert_to_snapshot_support: (Optional) Boolean extra spec used for filtering of back ends by their capability to
-#     revert shares to snapshots.
-#     - create_share_from_snapshot_support: (Optional) Boolean extra spec used for filtering of back ends by their
-#     capability to create shares from snapshots.
-#     - snapshot_support: (Optional) An extra specification that filters back ends by whether they do or do not support
-#     share snapshots.
-#         """
-#         name = self.get_arg(name='name')
-#         desc = self.get_arg(name='desc', default=name, keyvalue=True)
-#         is_public = self.get_arg(name='is_public', default=False, keyvalue=True)
-#         replication_type = self.get_arg(name='replication_type', default=None, keyvalue=True)
-#         driver_handles_share_servers = self.get_arg(name='driver_handles_share_servers', default=None, keyvalue=True)
-#         mount_snapshot_support = self.get_arg(name='mount_snapshot_support', default=None, keyvalue=True)
-#         revert_to_snapshot_support = self.get_arg(name='revert_to_snapshot_support', default=None, keyvalue=True)
-#         create_share_from_snapshot_support = self.get_arg(name='create_share_from_snapshot_support', default=None,
-#                                                           keyvalue=True)
-#         snapshot_support = self.get_arg(name='snapshot_support', default=None, keyvalue=True)
-#         res = self.client.manila.share_type.create(name, desc=desc, is_public=is_public, replication_type=replication_type,
-#                                        driver_handles_share_servers=driver_handles_share_servers,
-#                                        mount_snapshot_support=mount_snapshot_support,
-#                                        revert_to_snapshot_support=revert_to_snapshot_support,
-#                                        create_share_from_snapshot_support=create_share_from_snapshot_support,
-#                                        snapshot_support=snapshot_support)
-#         res = {'msg': 'Create %s %s' % (self.client.manila.share_type, name)}
-#         self.app.render(res, headers=['msg'])
-#
-#     @expose(aliases=['delete <id>'], aliases_only=True)
-#     @check_error
-#     def delete(self):
-#         oid = self.app.pargs.id
-#         res = self.client.manila.share_type.delete(oid)
-#         res = {'msg': 'Delete %s %s' % (self.client.manila.share_type, oid)}
-#         self.app.render(res, headers=['msg'])
-#
-#
-# class OpenstackPlatformManilaStoragePoolController(OpenstackPlatformManilaChildController):
-#     class Meta:
-#         label = 'openstack.platform.manila.storage_pool'
-#         aliases = ['storage_pools']
-#         aliases_only = True
-#         description = "Openstack Manila storage Pool management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila.storage_pool
-#
-#     @expose(aliases=['list [key=value]'], aliases_only=True)
-#     @check_error
-#     def list(self):
-#         """List manila storage pools
-#         """
-#         params = self.get_query_params(*self.app.pargs.extra_arguments)
-#         res = self.client.manila.storage_pool.list(details=True, **params)
-#         fields = ['name', 'pool', 'backend', 'host', 'capabilities.total_capacity_gb',
-#                   'capabilities.free_capacity_gb']
-#         headers = ['name', 'pool', 'backend', 'host', 'total_capacity_gb', 'free_capacity_gb']
-#         self.app.render(res, headers=headers, fields=fields, maxsize=60)
-#
-#     @expose(aliases=['get <oid>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """List manila storage pools
-#
-#         oid : pool name
-#         """
-#         oid = self.app.pargs.id
-#         res = self.client.manila.storage_pool.list(details=True, pool=oid)
-#         if len(res) == 0:
-#             raise Exception('Pool %s does not exist' % oid)
-#         self.app.render(res[0], details=True, maxsize=200)
-#
-#
-# class OpenstackPlatformManilaQuotaSetController(OpenstackPlatformManilaChildController):
-#     class Meta:
-#         label = 'openstack.platform.manila.quota_set'
-#         aliases = ['quota_set']
-#         aliases_only = True
-#         description = "Openstack Manila Quota Set management"
-#
-#     def _ext_parse_args(self):
-#         OpenstackPlatformControllerChild._ext_parse_args(self)
-#
-#         self.entity_class = self.client.manila.quota_set
-#
-#     @expose(aliases=['get-default <project_id>'], aliases_only=True)
-#     @check_error
-#     def get_default(self):
-#         """List manila default quota set per project
-#         """
-#         project_id = self.get_arg(name='project_id')
-#         res = self.client.manila.quota_set.get_default(project_id)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['get <project_id>'], aliases_only=True)
-#     @check_error
-#     def get(self):
-#         """List manila quota set per project
-#         """
-#         project_id = self.get_arg(name='project_id')
-#         res = self.client.manila.quota_set.get(project_id)
-#         self.app.render(res, details=True)
-#
-#     @expose(aliases=['update <project_id> [key=value]'], aliases_only=True)
-#     @check_error
-#     def update(self):
-#         """Update manila quota set per project
-#     - gigabytes: The number of gigabytes for the tenant.
-#     - snapshots: The number of snapshots for the tenant.
-#     - snapshot_gigabytes: The number of gigabytes for the snapshots for the tenant.
-#     - shares: The number of shares for the tenant.
-#     - share_networks: The number of share networks for the tenant.
-#     - share_groups: The number of share groups allowed for each tenant or user.
-#     - share_group_snapshots: The number of share group snapshots allowed for each tenant or user.
-#     - share_type: The name or UUID of the share type. If you specify this parameter in the URI, you show, update, or
-#     delete quotas for this share type.
-#         """
-#         project_id = self.get_arg(name='project_id')
-#         gigabytes = self.get_arg(name='gigabytes', default=None, keyvalue=True)
-#         snapshots = self.get_arg(name='snapshots', default=None, keyvalue=True)
-#         snapshot_gigabytes = self.get_arg(name='snapshot_gigabytes', default=None, keyvalue=True)
-#         shares = self.get_arg(name='shares', default=None, keyvalue=True)
-#         share_networks = self.get_arg(name='share_networks', default=None, keyvalue=True)
-#         share_groups = self.get_arg(name='share_groups', default=None, keyvalue=True)
-#         share_group_snapshots = self.get_arg(name='share_group_snapshots', default=None, keyvalue=True)
-#         share_type = self.get_arg(name='share_type', default=None, keyvalue=True)
-#         res = self.client.manila.quota_set.update(project_id, snapshots=snapshots, snapshot_gigabytes=snapshot_gigabytes,
-#                                        shares=shares, share_networks=share_networks, share_groups=share_groups,
-#                                        share_group_snapshots=share_group_snapshots, share_type=share_type,
-#                                        gigabytes=gigabytes)
-#         self.app.render(res, details=True)
-#
+        self.app.render({"msg": f"Delete volume group snapshot {oid}"})

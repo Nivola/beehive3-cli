@@ -1,23 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
 from json import loads
 from cement import ex
 from beecell.simple import merge_list
 from beedrones.grafana.client_grafana import GrafanaManager
 from beehive3_cli.core.util import load_environment_config
 from beehive3_cli.core.controller import BaseController, BASE_ARGS, PAGINATION_ARGS
+from beehive3_cli.translate import _
 
 
-def GRAFANA_ARGS(*list_args):
+def grafana_args(*list_args):
     orchestrator_args = [
         (
             ["-O", "--orchestrator"],
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "grafana platform reference label",
+                "help": _("grafana platform reference label"),
             },
         )
     ]
@@ -33,11 +35,11 @@ class GrafanaPlatformController(BaseController):
         stacked_on = "platform"
         stacked_type = "nested"
         label = "grafana"
-        description = "grafana platform management"
-        help = "grafana platform  management"
+        description = _("grafana platform management")
+        help = _("grafana platform  management")
 
     def pre_command_run(self):
-        super(GrafanaPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -50,11 +52,11 @@ class GrafanaPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No grafana default platform is available for this environment. Select " "another environment"
+                    "No grafana default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         self.conf = orchestrators.get(label)
 
         # print("-+-+- self.conf: " + str(self.conf))
@@ -81,15 +83,15 @@ class GrafanaPlatformController(BaseController):
                 pwd=grafana_pwd,
             )
 
-    @ex(help="ping grafana", description="ping grafana", arguments=GRAFANA_ARGS())
+    @ex(help=_("ping grafana"), description=_("ping grafana"), arguments=grafana_args())
     def ping(self):
         res = self.client.ping()
         self.app.render({"ping": res}, headers=["ping"])
 
     @ex(
-        help="get grafana version",
-        description="get grafana version",
-        arguments=GRAFANA_ARGS(),
+        help=_("get grafana version"),
+        description=_("get grafana version"),
+        arguments=grafana_args(),
     )
     def version(self):
         res = self.client.version()
@@ -99,14 +101,14 @@ class GrafanaPlatformController(BaseController):
     # ---- FOLDER -----
     # -----------------
     @ex(
-        help="add folder",
-        description="add folder",
-        arguments=GRAFANA_ARGS(
+        help=_("add folder"),
+        description=_("add folder"),
+        arguments=grafana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "folder name",
+                        "help": _("folder name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -121,14 +123,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["id", "uid", "title"])
 
     @ex(
-        help="delete folder",
-        description="delete folder",
-        arguments=GRAFANA_ARGS(
+        help=_("delete folder"),
+        description=_("delete folder"),
+        arguments=grafana_args(
             [
                 (
                     ["uid"],
                     {
-                        "help": "folder uid",
+                        "help": _("folder uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -140,17 +142,17 @@ class GrafanaPlatformController(BaseController):
     def folder_del(self):
         folder_uid = self.app.pargs.uid
         self.client.folder.delete(folder_uid)
-        self.app.render({"msg": "delete folder %s" % folder_uid}, headers=["msg"])
+        self.app.render({"msg": f"delete folder {folder_uid}"}, headers=["msg"])
 
     @ex(
-        help="get folder",
-        description="get folder",
-        arguments=GRAFANA_ARGS(
+        help=_("get folder"),
+        description=_("get folder"),
+        arguments=grafana_args(
             [
                 (
                     ["-uid"],
                     {
-                        "help": "folder uid",
+                        "help": _("folder uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -159,7 +161,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "folder name",
+                        "help": _("folder name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -184,14 +186,14 @@ class GrafanaPlatformController(BaseController):
             self.app.render(res, headers=["id", "uid", "title"])
 
     @ex(
-        help="get folder dashboard",
-        description="get folder dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("get folder dashboard"),
+        description=_("get folder dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": 'folder uid or "general" for general folder',
+                        "help": _('folder uid or "general" for general folder'),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -200,7 +202,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-search"],
                     {
-                        "help": "dashboard search query",
+                        "help": _("dashboard search query"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -224,14 +226,14 @@ class GrafanaPlatformController(BaseController):
         )
 
     @ex(
-        help="add folder permission",
-        description="add folder permission",
-        arguments=GRAFANA_ARGS(
+        help=_("add folder permission"),
+        description=_("add folder permission"),
+        arguments=grafana_args(
             [
                 (
                     ["uid"],
                     {
-                        "help": "folder uid",
+                        "help": _("folder uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -240,7 +242,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-team_viewer"],
                     {
-                        "help": "team id viewer",
+                        "help": _("team id viewer"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -249,7 +251,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-team_editor"],
                     {
-                        "help": "team id editor",
+                        "help": _("team id editor"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -266,14 +268,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="add folder permission",
-        description="add folder permission",
-        arguments=GRAFANA_ARGS(
+        help=_("add folder permission"),
+        description=_("add folder permission"),
+        arguments=grafana_args(
             [
                 (
                     ["uid"],
                     {
-                        "help": "folder uid",
+                        "help": _("folder uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -282,7 +284,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-team_viewer"],
                     {
-                        "help": "team id viewer",
+                        "help": _("team id viewer"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -291,7 +293,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-team_editor"],
                     {
-                        "help": "team id editor",
+                        "help": _("team id editor"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -309,14 +311,14 @@ class GrafanaPlatformController(BaseController):
     # ---- TEAM -----
     # ---------------
     @ex(
-        help="add team",
-        description="add team",
-        arguments=GRAFANA_ARGS(
+        help=_("add team"),
+        description=_("add team"),
+        arguments=grafana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "team name",
+                        "help": _("team name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -331,14 +333,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["teamId"])
 
     @ex(
-        help="delete team",
-        description="delete team",
-        arguments=GRAFANA_ARGS(
+        help=_("delete team"),
+        description=_("delete team"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -350,17 +352,17 @@ class GrafanaPlatformController(BaseController):
     def team_del(self):
         team_id = self.app.pargs.id
         self.client.team.delete(team_id)
-        self.app.render({"msg": "delete team %s" % team_id}, headers=["msg"])
+        self.app.render({"msg": f"delete team {team_id}"}, headers=["msg"])
 
     @ex(
-        help="get team",
-        description="get team",
-        arguments=GRAFANA_ARGS(
+        help=_("get team"),
+        description=_("get team"),
+        arguments=grafana_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -369,7 +371,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "team name",
+                        "help": _("team name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -400,14 +402,14 @@ class GrafanaPlatformController(BaseController):
             # self.app.render(res, details=True)
 
     @ex(
-        help="get user of team",
-        description="get user of team",
-        arguments=GRAFANA_ARGS(
+        help=_("get user of team"),
+        description=_("get user of team"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -422,14 +424,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["teamId", "userId", "email", "login"])
 
     @ex(
-        help="add user to team",
-        description="add user to team",
-        arguments=GRAFANA_ARGS(
+        help=_("add user to team"),
+        description=_("add user to team"),
+        arguments=grafana_args(
             [
                 (
                     ["team_id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -438,7 +440,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["user_id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -451,17 +453,17 @@ class GrafanaPlatformController(BaseController):
         team_id = self.app.pargs.team_id
         user_id = self.app.pargs.user_id
         message = self.client.team.add_user(team_id, user_id)
-        self.app.render({"msg": "%s" % message}, headers=["message"])
+        self.app.render({"msg": f"{message}"}, headers=["message"])
 
     @ex(
-        help="delete user from team",
-        description="delete user from team",
-        arguments=GRAFANA_ARGS(
+        help=_("delete user from team"),
+        description=_("delete user from team"),
+        arguments=grafana_args(
             [
                 (
                     ["team_id"],
                     {
-                        "help": "team id",
+                        "help": _("team id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -470,7 +472,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["user_id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -483,20 +485,20 @@ class GrafanaPlatformController(BaseController):
         team_id = self.app.pargs.team_id
         user_id = self.app.pargs.user_id
         message = self.client.team.del_user(team_id, user_id)
-        self.app.render({"msg": "%s" % message}, headers=["message"])
+        self.app.render({"msg": f"{message}"}, headers=["message"])
 
     # ---------------
     # ---- USER -----
     # ---------------
     @ex(
-        help="add user",
-        description="add user",
-        arguments=GRAFANA_ARGS(
+        help=_("add user"),
+        description=_("add user"),
+        arguments=grafana_args(
             [
                 (
                     ["-name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -504,12 +506,12 @@ class GrafanaPlatformController(BaseController):
                 ),
                 (
                     ["-email"],
-                    {"help": "email", "action": "store", "type": str, "default": None},
+                    {"help": _("email"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-login"],
                     {
-                        "help": "user login",
+                        "help": _("user login"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -518,7 +520,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-password"],
                     {
-                        "help": "password",
+                        "help": _("password"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -536,14 +538,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["id"])
 
     @ex(
-        help="update user",
-        description="update user",
-        arguments=GRAFANA_ARGS(
+        help=_("update user"),
+        description=_("update user"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -552,7 +554,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -560,12 +562,12 @@ class GrafanaPlatformController(BaseController):
                 ),
                 (
                     ["-email"],
-                    {"help": "email", "action": "store", "type": str, "default": None},
+                    {"help": _("email"), "action": "store", "type": str, "default": None},
                 ),
                 (
                     ["-login"],
                     {
-                        "help": "user login",
+                        "help": _("user login"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -575,22 +577,22 @@ class GrafanaPlatformController(BaseController):
         ),
     )
     def user_update(self):
-        id = self.app.pargs.id
+        user_id = self.app.pargs.id
         name = self.app.pargs.name
         email = self.app.pargs.email
         login = self.app.pargs.login
-        res = self.client.user.update(user_id=id, name=name, email=email, login=login)
+        res = self.client.user.update(user_id=user_id, name=name, email=email, login=login)
         self.app.render(res, headers=["id"])
 
     @ex(
-        help="delete user",
-        description="delete user",
-        arguments=GRAFANA_ARGS(
+        help=_("delete user"),
+        description=_("delete user"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "user id",
+                        "help": _("user id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -602,17 +604,17 @@ class GrafanaPlatformController(BaseController):
     def user_del(self):
         user_id = self.app.pargs.id
         self.client.user.delete(user_id)
-        self.app.render({"msg": "delete user %s" % user_id}, headers=["msg"])
+        self.app.render({"msg": f"delete user {user_id}"}, headers=["msg"])
 
     @ex(
-        help="get user",
-        description="get user",
-        arguments=GRAFANA_ARGS(
+        help=_("get user"),
+        description=_("get user"),
+        arguments=grafana_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "user uid",
+                        "help": _("user uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -621,7 +623,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "user name",
+                        "help": _("user name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -651,14 +653,14 @@ class GrafanaPlatformController(BaseController):
     # ---- ALERT NOTIFICATION -----
     # -----------------------------
     @ex(
-        help="add alert notification",
-        description="add alert notification",
-        arguments=GRAFANA_ARGS(
+        help=_("add alert notification"),
+        description=_("add alert notification"),
+        arguments=grafana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "alert notification name",
+                        "help": _("alert notification name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -667,7 +669,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["email"],
                     {
-                        "help": "alert notification email",
+                        "help": _("alert notification email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -683,14 +685,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["uid"])
 
     @ex(
-        help="update alert notification",
-        description="update alert notification",
-        arguments=GRAFANA_ARGS(
+        help=_("update alert notification"),
+        description=_("update alert notification"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "alert notification uid",
+                        "help": _("alert notification uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -699,7 +701,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["name"],
                     {
-                        "help": "alert notification name",
+                        "help": _("alert notification name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -708,7 +710,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["email"],
                     {
-                        "help": "alert notification email",
+                        "help": _("alert notification email"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -725,14 +727,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["uid"])
 
     @ex(
-        help="delete alert notification",
-        description="delete alert notification",
-        arguments=GRAFANA_ARGS(
+        help=_("delete alert notification"),
+        description=_("delete alert notification"),
+        arguments=grafana_args(
             [
                 (
                     ["id"],
                     {
-                        "help": "alert notification uid",
+                        "help": _("alert notification uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -745,19 +747,19 @@ class GrafanaPlatformController(BaseController):
         alert_notification_uid = self.app.pargs.id
         self.client.alert_notification.delete(alert_notification_uid)
         self.app.render(
-            {"msg": "delete alert_notification %s" % alert_notification_uid},
+            {"msg": f"delete alert_notification {alert_notification_uid}"},
             headers=["message"],
         )
 
     @ex(
-        help="get alert notification",
-        description="get alert notification",
-        arguments=GRAFANA_ARGS(
+        help=_("get alert notification"),
+        description=_("get alert notification"),
+        arguments=grafana_args(
             [
                 (
                     ["-id"],
                     {
-                        "help": "alert notification uid",
+                        "help": _("alert notification uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -766,7 +768,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "alert notification name",
+                        "help": _("alert notification name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -794,14 +796,14 @@ class GrafanaPlatformController(BaseController):
     # ---- DASHBOARD -----
     # --------------------
     @ex(
-        help="add dashboard",
-        description="add dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("add dashboard"),
+        description=_("add dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["data_dashboard"],
                     {
-                        "help": "dashboard data",
+                        "help": _("dashboard data"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -817,14 +819,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, headers=["uid"])
 
     @ex(
-        help="copy dashboard",
-        description="copy dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("copy dashboard"),
+        description=_("copy dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["name"],
                     {
-                        "help": "dashboard name to search",
+                        "help": _("dashboard name to search"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -833,7 +835,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["folder_uid"],
                     {
-                        "help": "folder uid where add dashboard",
+                        "help": _("folder uid where add dashboard"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -841,17 +843,17 @@ class GrafanaPlatformController(BaseController):
                 ),
                 (
                     ["organization"],
-                    {"help": "organization name", "action": "store", "type": str},
+                    {"help": _("organization name"), "action": "store", "type": str},
                 ),
                 (
                     ["division"],
-                    {"help": "division name", "action": "store", "type": str},
+                    {"help": _("division name"), "action": "store", "type": str},
                 ),
-                (["account"], {"help": "account name", "action": "store", "type": str}),
+                (["account"], {"help": _("account name"), "action": "store", "type": str}),
                 (
                     ["-dash_tag"],
                     {
-                        "help": "dash tag to add (comma separated)",
+                        "help": _("dash tag to add (comma separated)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -860,7 +862,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-dashboard_folder_from_id"],
                     {
-                        "help": "folder id where search dashboard",
+                        "help": _("folder id where search dashboard"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -896,14 +898,14 @@ class GrafanaPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="delete dashboard",
-        description="delete dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("delete dashboard"),
+        description=_("delete dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["uid"],
                     {
-                        "help": "dashboard uid",
+                        "help": _("dashboard uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -915,17 +917,17 @@ class GrafanaPlatformController(BaseController):
     def dashboard_del(self):
         dashboard_uid = self.app.pargs.uid
         self.client.dashboard.delete(dashboard_uid)
-        self.app.render({"msg": "delete dashboard %s" % dashboard_uid}, headers=["message"])
+        self.app.render({"msg": f"delete dashboard {dashboard_uid}"}, headers=["message"])
 
     @ex(
-        help="get dashboard",
-        description="get dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("get dashboard"),
+        description=_("get dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["-uid"],
                     {
-                        "help": "dashboard uid",
+                        "help": _("dashboard uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -934,7 +936,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-search"],
                     {
-                        "help": "dashboard search query",
+                        "help": _("dashboard search query"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -943,7 +945,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["-folder"],
                     {
-                        "help": "folder id - 0 for General",
+                        "help": _("folder id - 0 for General"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -967,14 +969,14 @@ class GrafanaPlatformController(BaseController):
             self.app.render(res["dashboards"], headers=["id", "uid", "title", "tags", "folderUid"])
 
     @ex(
-        help="update dashboard",
-        description="update dashboard",
-        arguments=GRAFANA_ARGS(
+        help=_("update dashboard"),
+        description=_("update dashboard"),
+        arguments=grafana_args(
             [
                 (
                     ["uid"],
                     {
-                        "help": "dashboard uid",
+                        "help": _("dashboard uid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -983,7 +985,7 @@ class GrafanaPlatformController(BaseController):
                 (
                     ["title"],
                     {
-                        "help": "dashboard new title",
+                        "help": _("dashboard new title"),
                         "action": "store",
                         "type": str,
                         "default": None,

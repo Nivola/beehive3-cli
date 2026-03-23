@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from beehive3_cli.core.controller import BaseController, PARGS, ARGS
 from cement import ex
+
+from beehive3_cli.translate import _
+from beehive3_cli.core.controller import BaseController, PARGS, ARGS
 
 
 class ResourceTagController(BaseController):
@@ -11,8 +13,8 @@ class ResourceTagController(BaseController):
         stacked_on = "res"
         stacked_type = "nested"
         label = "tags"
-        description = "tags management"
-        help = "tags management"
+        description = _("tags management")
+        help = _("tags management")
 
         cmp = {"baseuri": "/v1.0/nrs", "subsystem": "resource"}
 
@@ -36,20 +38,19 @@ class ResourceTagController(BaseController):
         ]
 
     def pre_command_run(self):
-        super(ResourceTagController, self).pre_command_run()
-
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
     @ex(
-        help="list resource tags",
-        description="list resource tags",
-        example="beehive res tags get -size -1;beehive res tags get ",
+        help=_("list resource tags"),
+        description=_("list resource tags"),
+        example="beehive res tags get",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "tag uuid",
+                        "help": _("tag uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -58,7 +59,7 @@ class ResourceTagController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "tag name",
+                        "help": _("tag name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -67,79 +68,7 @@ class ResourceTagController(BaseController):
                 (
                     ["-resource"],
                     {
-                        "help": "resource",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-container"],
-                    {
-                        "help": "container uuid or name",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-type"],
-                    {
-                        "help": "tag type",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-objid"],
-                    {
-                        "help": "tag authorization id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-ext_id"],
-                    {
-                        "help": "tag physical id",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-parent"],
-                    {
-                        "help": "tag parent",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-state"],
-                    {
-                        "help": "tag state",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-attributes"],
-                    {
-                        "help": "tag attributes",
-                        "action": "store",
-                        "type": str,
-                        "default": None,
-                    },
-                ),
-                (
-                    ["-tags"],
-                    {
-                        "help": "tag tags",
+                        "help": _("resource"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -151,7 +80,7 @@ class ResourceTagController(BaseController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/tags/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/tags/{oid}"
             res = self.cmp_get(uri)
 
             if self.is_output_text():
@@ -162,18 +91,18 @@ class ResourceTagController(BaseController):
         else:
             params = [
                 "container",
-                "type",
+                # "type",
                 "name",
-                "objid",
-                "ext_id",
-                "parent",
-                "state",
-                "tags",
+                # "objid",
+                # "ext_id",
+                # "parent",
+                # "state",
+                # "tags",
                 "resource",
             ]
             mappings = {"name": lambda n: "%" + n + "%"}
             data = self.format_paginated_query(params, mappings=mappings)
-            uri = "%s/tags" % self.baseuri
+            uri = f"{self.baseuri}/tags"
 
             def render(self, res, **kwargs):
                 self.app.render(
@@ -187,13 +116,13 @@ class ResourceTagController(BaseController):
             res = self.cmp_get_pages(uri, data=data, fn_render=render, pagesize=50)
 
     @ex(
-        help="add resource tag",
-        description="add resource tag",
+        help=_("add resource tag"),
+        description=_("add resource tag"),
         arguments=ARGS(
             [
                 (
                     ["value"],
-                    {"help": "resource tag value", "action": "store", "type": str},
+                    {"help": _("resource tag value"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -204,20 +133,20 @@ class ResourceTagController(BaseController):
         data = {
             "value": value,
         }
-        uri = "%s/tags" % self.baseuri
+        uri = f"{self.baseuri}/tags"
         res = self.cmp_post(uri, data={"resourcetag": data})
-        self.app.render({"msg": "add resource tag %s" % res["uuid"]})
+        self.app.render({"msg": f"add resource tag {res['uuid']}"})
 
     @ex(
-        help="update resource tag",
-        description="update resource tag",
+        help=_("update resource tag"),
+        description=_("update resource tag"),
         arguments=ARGS(
             [
-                (["id"], {"help": "resource tag uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("resource tag uuid"), "action": "store", "type": str}),
                 (
                     ["-value"],
                     {
-                        "help": "resource tag value",
+                        "help": _("resource tag value"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -229,19 +158,19 @@ class ResourceTagController(BaseController):
     def update(self):
         oid = self.app.pargs.id
         value = self.app.pargs.value
-        uri = "%s/tags/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/tags/{oid}"
         self.cmp_put(uri, data={"resourcetag": {"value": value}})
-        self.app.render({"msg": "update resource tag %s" % oid})
+        self.app.render({"msg": f"update resource tag {oid}"})
 
     @ex(
-        help="patch resource tags",
-        description="patch resource tags",
+        help=_("patch resource tags"),
+        description=_("patch resource tags"),
         arguments=ARGS(
             [
                 (
                     ["ids"],
                     {
-                        "help": "comma separated resource tag uuids",
+                        "help": _("comma separated resource tag uuids"),
                         "action": "store",
                         "type": str,
                     },
@@ -254,19 +183,19 @@ class ResourceTagController(BaseController):
         params = {}
         for oid in oids:
             data = {"resourcetag": params}
-            uri = "%s/tags/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/tags/{oid}"
             self.cmp_patch(uri, data=data)
-            self.app.render({"msg": "patch resource tag %s" % oid})
+            self.app.render({"msg": f"patch resource tag {oid}"})
 
     @ex(
-        help="delete resource tags",
-        description="delete resource tags",
+        help=_("delete resource tags"),
+        description=_("delete resource tags"),
         arguments=ARGS(
             [
                 (
                     ["ids"],
                     {
-                        "help": "comma separated resource tag uuids",
+                        "help": _("comma separated resource tag uuids"),
                         "action": "store",
                         "type": str,
                     },
@@ -274,7 +203,7 @@ class ResourceTagController(BaseController):
                 (
                     ["-force"],
                     {
-                        "help": "if true force the delete",
+                        "help": _("if true force the delete"),
                         "action": "store",
                         "type": str,
                         "default": True,
@@ -287,7 +216,7 @@ class ResourceTagController(BaseController):
         oids = self.app.pargs.ids.split(",")
         force = self.app.pargs.force
         for oid in oids:
-            uri = "%s/tags/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/tags/{oid}"
             if force is True:
                 uri += "?force=true"
-            self.cmp_delete(uri, entity="tag %s" % oid)
+            self.cmp_delete(uri, entity=f"tag {oid}")

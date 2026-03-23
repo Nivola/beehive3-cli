@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from os import environ
 from re import match
@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from beehive3_cli.core.connect import SshConnectionManager
 from beehive3_cli.core.controller import CliController, BaseController
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
 class SshController(CliController):
@@ -15,8 +16,8 @@ class SshController(CliController):
         label = "ssh"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "server connection manager"
-        help = "server connection manager"
+        description = _("server connection manager")
+        help = _("server connection manager")
 
     def _default(self):
         self._parser.print_help()
@@ -30,12 +31,12 @@ class SshControllerChild(BaseController):
         cmp = {"baseuri": "/v1.0/gas", "subsystem": "ssh"}
 
     def pre_command_run(self):
-        super(SshControllerChild, self).pre_command_run()
+        super().pre_command_run()
         self.configure_cmp_api_client()
 
         environ["ANSIBLE_HOST_KEY_CHECKING"] = "False"
         self.ansible_path = self.app.config.get("beehive", "ansible_path")
-        self.console_playbook = "%s/console.yml" % self.ansible_path
+        self.console_playbook = f"{self.ansible_path}/console.yml"
 
         self.verbosity = 0
         self.new_verbosity = getattr(self.app.pargs, "verbosity", None)
@@ -58,7 +59,7 @@ class SshControllerChild(BaseController):
             data["node"] = node
         if node_name is not None:
             data["node_name"] = node_name
-        uri = "%s/ansible" % self.baseuri
+        uri = f"{self.baseuri}/ansible"
         res = self.cmp_get(uri, data=urlencode(data))
         inventory_dict = res.get("ansible")
         return inventory_dict
@@ -76,12 +77,12 @@ class SshControllerChild(BaseController):
         res = {}
         if group is not None:
             data = {"group_id": group}
-            uri = "%s/nodes" % self.baseuri
+            uri = f"{self.baseuri}/nodes"
             nodes = self.cmp_get(uri, data=urlencode(data)).get("nodes")
-            for node in nodes:
-                res[node["uuid"]] = scm.sshcmd2node(node=node, user=user, cmd=cmd)
+            for l_node in nodes:
+                res[l_node["uuid"]] = scm.sshcmd2node(node=node, user=user, cmd=cmd)
         elif node is not None:
-            uri = "%s/nodes/%s" % (self.baseuri, node)
+            uri = f"{self.baseuri}/nodes/{node}"
             node = self.cmp_get(uri).get("node", {})
             res[node["uuid"]] = scm.sshcmd2node(node=node, user=user, cmd=cmd)
 
@@ -100,10 +101,10 @@ class SshControllerChild(BaseController):
         if match("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(node)):
             host_id = node
         # get obj by ip
-        elif match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", str(node)):
+        elif match(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", str(node)):
             host_ip = node
         # get obj by name
-        elif match("[\-\w\d]+", str(node)):
+        elif match(r"[\-\w\d]+", str(node)):
             host_name = node
 
         return {"host_id": host_id, "host_ip": host_ip, "host_name": host_name}

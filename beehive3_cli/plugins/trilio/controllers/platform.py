@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import stdout
 from datetime import datetime
@@ -12,7 +12,8 @@ from beecell.types.type_list import merge_list
 from beedrones.openstack.client import OpenstackManager
 from beedrones.trilio.client import TrilioManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS
-from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar
+from beehive3_cli.core.util import load_environment_config, load_config, rotating_bar, stoprotation
+from beehive3_cli.translate import _
 
 
 def OPENSTACK_ARGS(*list_args):
@@ -22,7 +23,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "openstack platform reference label",
+                "help": _("openstack platform reference label"),
             },
         ),
         (
@@ -30,7 +31,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "openstack current project name",
+                "help": _("openstack current project name"),
             },
         ),
     ]
@@ -81,10 +82,10 @@ class TrilioPlatformController(BaseController):
             "  particular point in time. In-place restore functionality will overwrite existing volume\n"
             "  with the data from the backup media."
         )
-        help = "trilio platform"
+        help = _("trilio platform")
 
     def pre_command_run(self):
-        super(TrilioPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -97,11 +98,11 @@ class TrilioPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No openstack default platform is available for this environment. Select " "another environment"
+                    "No openstack default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         conf = orchestrators.get(label)
 
         project = getattr(self.app.pargs, "project", None)
@@ -109,12 +110,11 @@ class TrilioPlatformController(BaseController):
         if project is None:
             project = conf.get("project")
             self.all_project = True
-        uri = "%s://%s:%s%s" % (
-            conf.get("proto"),
-            conf.get("vhost"),
-            conf.get("port"),
-            conf.get("path"),
-        )
+        proto = conf.get("proto")
+        vhost = conf.get("vhost")
+        port = conf.get("port")
+        path = conf.get("path")
+        uri = f"{proto}://{vhost}:{port}{path}"
         self.oclient = OpenstackManager(uri, default_region=conf.get("region"))
         self.oclient.authorize(
             conf.get("user"),
@@ -126,8 +126,8 @@ class TrilioPlatformController(BaseController):
         self.client = TrilioManager(self.oclient)
 
     @ex(
-        help="Return the status ( true or false ) of the Cloud Wide TrilioVault Job Scheduler",
-        description="Return the status ( true or false ) of the Cloud Wide TrilioVault Job Scheduler",
+        help=_("Return the status ( true or false ) of the Cloud Wide TrilioVault Job Scheduler"),
+        description=_("Return the status ( true or false ) of the Cloud Wide TrilioVault Job Scheduler"),
         arguments=OPENSTACK_ARGS(),
     )
     def status(self):
@@ -144,8 +144,8 @@ class TrilioPlatformController(BaseController):
         )
 
     @ex(
-        help="Gives storage used and vms protected by tenants",
-        description="Gives storage used and vms protected by tenants",
+        help=_("Gives storage used and vms protected by tenants"),
+        description=_("Gives storage used and vms protected by tenants"),
         arguments=OPENSTACK_ARGS(),
     )
     def tenant_usage(self):
@@ -183,8 +183,8 @@ class TrilioPlatformController(BaseController):
         self.app.render(tenants_usage, headers=headers, fields=fields)
 
     @ex(
-        help="get workload storage usage",
-        description="get workload storage usage",
+        help=_("get workload storage usage"),
+        description=_("get workload storage usage"),
         arguments=OPENSTACK_ARGS(),
     )
     def storage_usage(self):
@@ -194,14 +194,14 @@ class TrilioPlatformController(BaseController):
             self.app.render(item, details=True)
 
     @ex(
-        help="get auditlog of workload manager",
-        description="get auditlog of workload manager",
+        help=_("get auditlog of workload manager"),
+        description=_("get auditlog of workload manager"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-time_in_minutes"],
                     {
-                        "help": "time in minutes(default is 24 hrs.)",
+                        "help": _("time in minutes(default is 24 hrs.)"),
                         "action": "store",
                         "type": int,
                         "default": 720,
@@ -210,7 +210,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-time_from"],
                     {
-                        "help": "From date time in format MM-DD-YYYY",
+                        "help": _("From date time in format MM-DD-YYYY"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -219,7 +219,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-time_to"],
                     {
-                        "help": "To date time in format MM-DD-YYYY (default is current day)",
+                        "help": _("To date time in format MM-DD-YYYY (default is current day)"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -239,45 +239,45 @@ class TrilioPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="get protected vm",
-        description="get protected vm",
+        help=_("get protected vm"),
+        description=_("get protected vm"),
         arguments=OPENSTACK_ARGS(),
     )
     def protected_vm_get(self):
         res = self.client.job_scheduler.get_protected_vms()
         self.app.render(res, headers=["id"])
 
-    @ex(help="list license", description="list license", arguments=OPENSTACK_ARGS())
+    @ex(help=_("list license"), description=_("list license"), arguments=OPENSTACK_ARGS())
     def license_get(self):
         res = self.client.license.list()
         self.app.render(res, details=True)
 
-    @ex(help="check license", description="check license", arguments=OPENSTACK_ARGS())
+    @ex(help=_("check license"), description=_("check license"), arguments=OPENSTACK_ARGS())
     def license_check(self):
         res = self.client.license.check()
         self.app.render({"msg": res}, maxsize=200)
 
     @ex(
-        help="add license",
-        description="add license",
+        help=_("add license"),
+        description=_("add license"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["license_file"],
-                    {"help": "license file name", "action": "store", "type": str},
+                    {"help": _("license file name"), "action": "store", "type": str},
                 )
             ]
         ),
     )
     def license_add(self):
         license_file = self.app.pargs.license_file
-        license = load_config(license_file)
-        resp = self.client.license.add(license)
+        l_license = load_config(license_file)
+        resp = self.client.license.add(l_license)
         self.app.render(resp, details=True, maxsize=200)
 
     @ex(
-        help="display workload types",
-        description="display workload types",
+        help=_("display workload types"),
+        description=_("display workload types"),
         arguments=OPENSTACK_ARGS(),
     )
     def workload_types(self):
@@ -287,8 +287,8 @@ class TrilioPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="display workloads status with the last snapshot",
-        description="display workloads status with the last snapshot",
+        help=_("display workloads status with the last snapshot"),
+        description=_("display workloads status with the last snapshot"),
         arguments=OPENSTACK_ARGS(),
     )
     def workload_status(self):
@@ -341,14 +341,14 @@ class TrilioPlatformController(BaseController):
         self.app.render(works, headers=headers, fields=fields)
 
     @ex(
-        help="get workload",
-        description="get workload",
+        help=_("get workload"),
+        description=_("get workload"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -357,7 +357,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-verbose"],
                     {
-                        "help": "workload verbose info",
+                        "help": _("workload verbose info"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -421,19 +421,19 @@ class TrilioPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields, maxsize=45)
 
     @ex(
-        help="add a workload. Project with -P must be specified",
-        description="add a workload. Project with -P must be specified",
+        help=_("add a workload. Project with -P must be specified"),
+        description=_("add a workload. Project with -P must be specified"),
         arguments=OPENSTACK_ARGS(
             [
-                (["name"], {"help": "workload name", "action": "store", "type": str}),
+                (["name"], {"help": _("workload name"), "action": "store", "type": str}),
                 (
                     ["type_id"],
-                    {"help": "workload type id", "action": "store", "type": str},
+                    {"help": _("workload type id"), "action": "store", "type": str},
                 ),
                 (
                     ["instances"],
                     {
-                        "help": "comme separated list of instances",
+                        "help": _("comme separated list of instances"),
                         "action": "store",
                         "type": str,
                     },
@@ -441,7 +441,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-metadata"],
                     {
-                        "help": "metadata",
+                        "help": _("metadata"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -450,7 +450,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "workload description",
+                        "help": _("workload description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -459,7 +459,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-fullbackup_interval"],
                     {
-                        "help": "fullbackup interval [default=2]",
+                        "help": _("fullbackup interval [default=2]"),
                         "action": "store",
                         "type": int,
                         "default": 2,
@@ -468,7 +468,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-start_date"],
                     {
-                        "help": "start date. Ex. '06/05/2014'",
+                        "help": _("start date. Ex. '06/05/2014'"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -477,7 +477,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-end_date"],
                     {
-                        "help": "end date. Ex. '07/15/2014'",
+                        "help": _("end date. Ex. '07/15/2014'"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -486,7 +486,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-start_time"],
                     {
-                        "help": "start time. Ex. '2:30 PM' [default='4:00 AM']",
+                        "help": _("start time. Ex. '2:30 PM' [default='4:00 AM']"),
                         "action": "store",
                         "type": str,
                         "default": "4:00 AM",
@@ -495,7 +495,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-interval"],
                     {
-                        "help": "interval. [default=24hrs]",
+                        "help": _("interval. [default=24hrs]"),
                         "action": "store",
                         "type": str,
                         "default": "24hrs",
@@ -504,7 +504,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-snapshots_to_retain"],
                     {
-                        "help": "snapshots to retain [default=4]",
+                        "help": _("snapshots to retain [default=4]"),
                         "action": "store",
                         "type": int,
                         "default": 4,
@@ -513,7 +513,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-timezone"],
                     {
-                        "help": "timezone [default=Europe/Rome]",
+                        "help": _("timezone [default=Europe/Rome]"),
                         "action": "store",
                         "type": str,
                         "default": "Europe/Rome",
@@ -539,7 +539,7 @@ class TrilioPlatformController(BaseController):
             desc = name
         if start_date is None:
             now = datetime.today()
-            start_date = "%s/%s/%s" % (now.day, now.month, now.year)
+            start_date = f"{now.day}/{now.month}/{now.year}"
         if metadata is None:
             metadata = {}
 
@@ -559,25 +559,26 @@ class TrilioPlatformController(BaseController):
         )
         workload = res["id"]
         status = res["status"]
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while status not in ["available", "error"]:
             res = self.client.workload.get(workload)
             status = res["status"]
             # stdout.write(".")
-            stdout.write(next(bar))
+            stdout.write(next(rot_bar))
             stdout.flush()
             sleep(2)
-        self.app.render({"msg": "Workload %s created" % workload}, headers=["msg"], maxsize=200)
+        stoprotation()
+        self.app.render({"msg": f"Workload {workload} created"}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="update the workload. Project with -P must be specified",
-        description="update the workload. Project with -P must be specified",
+        help=_("update the workload. Project with -P must be specified"),
+        description=_("update the workload. Project with -P must be specified"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -586,7 +587,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "workload name",
+                        "help": _("workload name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -595,7 +596,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-instances"],
                     {
-                        "help": "comme separated list of instances",
+                        "help": _("comme separated list of instances"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -604,7 +605,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-metadata"],
                     {
-                        "help": "metadata",
+                        "help": _("metadata"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -613,7 +614,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "workload description",
+                        "help": _("workload description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -622,7 +623,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-fullbackup_interval"],
                     {
-                        "help": "fullbackup interval",
+                        "help": _("fullbackup interval"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -631,7 +632,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-start_date"],
                     {
-                        "help": "start date. Ex. '06/05/2014'",
+                        "help": _("start date. Ex. '06/05/2014'"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -640,7 +641,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-end_date"],
                     {
-                        "help": "end date. Ex. '07/15/2014'",
+                        "help": _("end date. Ex. '07/15/2014'"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -649,7 +650,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-start_time"],
                     {
-                        "help": "start time. Ex. '2:30 PM'",
+                        "help": _("start time. Ex. '2:30 PM'"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -658,7 +659,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-interval"],
                     {
-                        "help": "interval",
+                        "help": _("interval"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -667,7 +668,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-snapshots_to_retain"],
                     {
-                        "help": "snapshots to retain",
+                        "help": _("snapshots to retain"),
                         "action": "store",
                         "type": int,
                         "default": None,
@@ -676,7 +677,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-timezone"],
                     {
-                        "help": "timezone",
+                        "help": _("timezone"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -685,7 +686,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-enabled"],
                     {
-                        "help": "enable workloa",
+                        "help": _("enable workloa"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -728,25 +729,26 @@ class TrilioPlatformController(BaseController):
             enabled=enabled,
         )
         status = None
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while status not in ["available", "error"]:
             res = self.client.workload.get(workload_id)
             status = res["status"]
             # stdout.write(".")
-            stdout.write(next(bar))
+            stdout.write(next(rot_bar))
             stdout.flush()
             sleep(2)
-        self.app.render({"msg": "Workload %s updated" % workload_id}, headers=["msg"], maxsize=200)
+        stoprotation()
+        self.app.render({"msg": f"Workload {workload_id} updated"}, headers=["msg"], maxsize=200)
 
     @ex(
-        help="delete the workload. Project with -P must be specified",
-        description="delete the workload. Project with -P must be specified",
+        help=_("delete the workload. Project with -P must be specified"),
+        description=_("delete the workload. Project with -P must be specified"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -758,27 +760,28 @@ class TrilioPlatformController(BaseController):
     def workload_del(self):
         workload_id = self.app.pargs.workload
         self.client.workload.delete(workload_id)
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while True:
             try:
                 self.client.workload.get(workload_id)
                 # stdout.write(".")
-                stdout.write(next(bar))
+                stdout.write(next(rot_bar))
                 stdout.flush()
                 sleep(2)
             except:
                 break
-        self.app.render({"msg": "Workload %s deleted" % workload_id}, maxsize=200)
+        stoprotation()
+        self.app.render({"msg": f"Workload {workload_id} deleted"}, maxsize=200)
 
     @ex(
-        help="unlock the workload",
-        description="unlock the workload",
+        help=_("unlock the workload"),
+        description=_("unlock the workload"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -789,31 +792,35 @@ class TrilioPlatformController(BaseController):
     )
     def workload_unlock(self):
         workload_id = self.app.pargs.workload
-        resp = self.client.workload.unlock(workload_id)
-        self.app.render({"msg": "Workload %s unlocked" % workload_id}, maxsize=200)
+        self.client.workload.unlock(workload_id)
+        self.app.render({"msg": f"Workload {workload_id} unlocked"}, maxsize=200)
 
     @ex(
-        help="Reset the workload. TrilioVault uses storage based snapshots for calculating backup images of application"
-        " resources. For cinder volumes, it uses cinder snapshots and for ceph based nova backends, it uses ceph "
-        "snapshots for calculating the backup images. Depending the state of the workload backup operation, each "
-        "of these resources may have one or more snapshots outstanding. Workload-reset deletes all outstanding "
-        "snapshots on all resources of the application. Workload-reset is useful if you want to decommission the "
-        "application, but you still want to keep all the backups of the application. NOTE: It is highly "
-        "recommended to perform workload-reset before deleting any application resources from OpenStack.",
-        description="Reset the workload. TrilioVault uses storage based snapshots for calculating backup images of "
-        "application resources. For cinder volumes, it uses cinder snapshots and for ceph based nova "
-        "backends, it uses ceph snapshots for calculating the backup images. Depending the state of the "
-        "workload backup operation, each of these resources may have one or more snapshots outstanding. "
-        "Workload-reset deletes all outstanding snapshots on all resources of the application. "
-        "Workload-reset is useful if you want to decommission the application, but you still want to keep "
-        "all the backups of the application. NOTE: It is highly recommended to perform workload-reset "
-        "before deleting any application resources from OpenStack.",
+        help=_(
+            "Reset the workload. TrilioVault uses storage based snapshots for calculating backup images of application"
+            " resources. For cinder volumes, it uses cinder snapshots and for ceph based nova backends, it uses ceph "
+            "snapshots for calculating the backup images. Depending the state of the workload backup operation, each "
+            "of these resources may have one or more snapshots outstanding. Workload-reset deletes all outstanding "
+            "snapshots on all resources of the application. Workload-reset is useful if you want to decommission the "
+            "application, but you still want to keep all the backups of the application. NOTE: It is highly "
+            "recommended to perform workload-reset before deleting any application resources from OpenStack."
+        ),
+        description=_(
+            "Reset the workload. TrilioVault uses storage based snapshots for calculating backup images of "
+            "application resources. For cinder volumes, it uses cinder snapshots and for ceph based nova "
+            "backends, it uses ceph snapshots for calculating the backup images. Depending the state of the "
+            "workload backup operation, each of these resources may have one or more snapshots outstanding. "
+            "Workload-reset deletes all outstanding snapshots on all resources of the application. "
+            "Workload-reset is useful if you want to decommission the application, but you still want to keep "
+            "all the backups of the application. NOTE: It is highly recommended to perform workload-reset "
+            "before deleting any application resources from OpenStack."
+        ),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -825,17 +832,17 @@ class TrilioPlatformController(BaseController):
     def workload_reset(self):
         workload_id = self.app.pargs.workload
         self.client.workload.reset(workload_id)
-        self.app.render({"msg": "Workload %s resetted" % workload_id}, maxsize=200)
+        self.app.render({"msg": f"Workload {workload_id} resetted"}, maxsize=200)
 
     @ex(
-        help="display the snapshots of the specified workload",
-        description="display the snapshots of the specified workload",
+        help=_("display the snapshots of the specified workload"),
+        description=_("display the snapshots of the specified workload"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -844,7 +851,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-id"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -854,8 +861,10 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-date_from"],
                     {
-                        "help": "From date in format 'YYYY-MM-DDTHH:MM:SS' eg 2016-10-10T00:00:00, If don't "
-                        "specify time then it takes 00:00 by default [default=3 day ago]",
+                        "help": _(
+                            "From date in format 'YYYY-MM-DDTHH:MM:SS' eg 2016-10-10T00:00:00, If don't "
+                            "specify time then it takes 00:00 by default [default=3 day ago]"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -864,9 +873,11 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-date_to"],
                     {
-                        "help": "To date in format 'YYYY-MM-DDTHH:MM:SS', Specify HH:MM:SS to get snapshots "
-                        "within same day inclusive/exclusive results for date_from and date_to "
-                        "[default=today]",
+                        "help": _(
+                            "To date in format 'YYYY-MM-DDTHH:MM:SS', Specify HH:MM:SS to get snapshots "
+                            "within same day inclusive/exclusive results for date_from and date_to "
+                            "[default=today]"
+                        ),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -893,21 +904,21 @@ class TrilioPlatformController(BaseController):
             else:
                 self.app.render(resp, details=True)
         else:
-            # all = str2bool(self.app.pargs.all)
-            all = True
+            # l_all = str2bool(self.app.pargs.all)
+            l_all = True
             workload_id = self.app.pargs.workload
             # if workload_id is not None:
-            #     all = False
+            #     l_all = False
 
             date_from = self.app.pargs.date_from
             date_to = self.app.pargs.date_to
 
             if date_from is None and date_to is None:
                 now = datetime.today()
-                date_from = "%s-%s-%sT" % (now.year, now.month, now.day - 1)
-                date_to = "%s-%s-%sT" % (now.year, now.month, now.day + 1)
+                date_from = f"{now.year}-{now.month}-{now.day - 1}T"
+                date_to = f"{now.year}-{now.month}-{now.day + 1}T"
 
-            res = self.client.snapshot.list(all=all, workload_id=workload_id, date_from=date_from, date_to=date_to)
+            res = self.client.snapshot.list(all=l_all, workload_id=workload_id, date_from=date_from, date_to=date_to)
             headers = [
                 "id",
                 "name",
@@ -927,14 +938,14 @@ class TrilioPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="add a snapshot. Project with -P must be specified",
-        description="add a snapshot. Project with -P must be specified",
+        help=_("add a snapshot. Project with -P must be specified"),
+        description=_("add a snapshot. Project with -P must be specified"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["workload"],
                     {
-                        "help": "workload id",
+                        "help": _("workload id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -943,7 +954,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "snapshot name",
+                        "help": _("snapshot name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -952,7 +963,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "snapshot description",
+                        "help": _("snapshot description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -961,7 +972,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-full"],
                     {
-                        "help": "snapshot full flag.If True make a full snapshot",
+                        "help": _("snapshot full flag.If True make a full snapshot"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -979,14 +990,14 @@ class TrilioPlatformController(BaseController):
         self.app.render(resp, details=True)
 
     @ex(
-        help="delete a snapshot",
-        description="delete a snapshot",
+        help=_("delete a snapshot"),
+        description=_("delete a snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -998,20 +1009,24 @@ class TrilioPlatformController(BaseController):
     def snapshot_del(self):
         snapshot_id = self.app.pargs.snapshot
         self.client.snapshot.delete(snapshot_id)
-        self.app.render({"msg": "Delete snapshot %s" % snapshot_id}, maxsize=200)
+        self.app.render({"msg": f"Delete snapshot {snapshot_id}"}, maxsize=200)
 
     @ex(
-        help="cancel a snapshot that is running. If the snapshot operation is in the middle of the data transfer of a "
-        "resource, it waits for the data transfer operation is complete before terminating the snapshot operation.",
-        description="cancel a snapshot that is running. If the snapshot operation is in the middle of the data transfer"
-        " of aresource, it waits for the data transfer operation is complete before terminating the "
-        "snapshot operation.",
+        help=_(
+            "cancel a snapshot that is running. If the snapshot operation is in the middle of the data transfer of a "
+            "resource, it waits for the data transfer operation is complete before terminating the snapshot operation."
+        ),
+        description=_(
+            "cancel a snapshot that is running. If the snapshot operation is in the middle of the data transfer"
+            " of aresource, it waits for the data transfer operation is complete before terminating the "
+            "snapshot operation."
+        ),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1023,11 +1038,11 @@ class TrilioPlatformController(BaseController):
     def snapshot_cancel(self):
         snapshot_id = self.app.pargs.snapshot
         self.client.snapshot.cancel(snapshot_id)
-        self.app.render({"msg": "Cancel snapshot %s" % snapshot_id}, maxsize=200)
+        self.app.render({"msg": f"Cancel snapshot {snapshot_id}"}, maxsize=200)
 
     @ex(
-        help="list of all mounted snapshots",
-        description="list of all mounted snapshots",
+        help=_("list of all mounted snapshots"),
+        description=_("list of all mounted snapshots"),
         arguments=OPENSTACK_ARGS(),
     )
     def snapshot_mounted(self):
@@ -1037,14 +1052,14 @@ class TrilioPlatformController(BaseController):
         self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="mount a snapshot to an instance",
-        description="mount a snapshot to an instance",
+        help=_("mount a snapshot to an instance"),
+        description=_("mount a snapshot to an instance"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1053,7 +1068,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["instance"],
                     {
-                        "help": "instance id where mount snapshot",
+                        "help": _("instance id where mount snapshot"),
                         "action": "store",
                         "type": str,
                     },
@@ -1064,17 +1079,17 @@ class TrilioPlatformController(BaseController):
     def snapshot_mount(self):
         snapshot_id = self.app.pargs.snapshot
         instance_id = self.app.pargs.instance
-        res = self.client.snapshot.mount(snapshot_id, instance_id)
+        self.client.snapshot.mount(snapshot_id, instance_id)
 
     @ex(
-        help="umount a snapshot from an instance",
-        description="umount a snapshot from an instance",
+        help=_("umount a snapshot from an instance"),
+        description=_("umount a snapshot from an instance"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1088,14 +1103,14 @@ class TrilioPlatformController(BaseController):
         self.client.snapshot.dismount(snapshot_id)
 
     @ex(
-        help="display the snapshot restore",
-        description="display the snapshot restore",
+        help=_("display the snapshot restore"),
+        description=_("display the snapshot restore"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["-snapshot"],
                     {
-                        "help": "snapshot id",
+                        "help": _("snapshot id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1104,7 +1119,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-id"],
                     {
-                        "help": "snapshot restore id",
+                        "help": _("snapshot restore id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1162,14 +1177,14 @@ class TrilioPlatformController(BaseController):
             self.app.render(res, headers=headers, fields=fields)
 
     @ex(
-        help="follow the execution of a shapshot restore",
-        description="follow the execution of a shapshot restore",
+        help=_("follow the execution of a shapshot restore"),
+        description=_("follow the execution of a shapshot restore"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["restore"],
                     {
-                        "help": "unique identifier of trilio workload snapshot restore",
+                        "help": _("unique identifier of trilio workload snapshot restore"),
                         "action": "store",
                         "type": str,
                     },
@@ -1180,13 +1195,14 @@ class TrilioPlatformController(BaseController):
     def restore_follow(self):
         restore_id = self.app.pargs.restore
         resp = self.client.restore.get(restore_id)
-        bar = rotating_bar()
+        rot_bar = rotating_bar()
         while resp["status"] not in ["available", "error"]:
             # stdout.write(".")
-            stdout.write(next(bar))
+            stdout.write(next(rot_bar))
             stdout.flush()
             sleep(2)
             resp = self.client.restore.get(restore_id)
+        stoprotation()
         headers = [
             "id",
             "name",
@@ -1212,14 +1228,14 @@ class TrilioPlatformController(BaseController):
             raise Exception(resp.get("error_msg", ""))
 
     @ex(
-        help="delete the shapshot restore",
-        description="delete the shapshot restore",
+        help=_("delete the shapshot restore"),
+        description=_("delete the shapshot restore"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["restore"],
                     {
-                        "help": "unique identifier of trilio workload snapshot restore",
+                        "help": _("unique identifier of trilio workload snapshot restore"),
                         "action": "store",
                         "type": str,
                     },
@@ -1231,17 +1247,17 @@ class TrilioPlatformController(BaseController):
         restore_ids = self.app.pargs.restore.split(",")
         for restore_id in restore_ids:
             self.client.restore.delete(restore_id)
-            self.app.render({"msg": "delete restore %s" % restore_id})
+            self.app.render({"msg": f"delete restore {restore_id}"})
 
     @ex(
-        help="cancel the shapshot restore",
-        description="cancel the shapshot restore",
+        help=_("cancel the shapshot restore"),
+        description=_("cancel the shapshot restore"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["restore"],
                     {
-                        "help": "unique identifier of trilio workload snapshot restore",
+                        "help": _("unique identifier of trilio workload snapshot restore"),
                         "action": "store",
                         "type": str,
                     },
@@ -1253,54 +1269,24 @@ class TrilioPlatformController(BaseController):
         restore_id = self.app.pargs.restore
         self.client.restore.cancel(restore_id)
 
-    # @ex(
-    #     help='selective restore of a snapshot',
-    #     description='selective restore of a snapshot',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['snapshot'], {'help': 'unique identifier of trilio workload snapshot', 'action': 'store', 'type': str}),
-    #         (['config_file'], {'help': 'restore config file', 'action': 'store', 'type': str})
-    #     ])
-    # )
-    # def restore_selective(self):
-    #     snapshot_id = self.app.pargs.snapshot
-    #     config_file = self.app.pargs.config_file
-    #     config = load_config(config_file)
-    #     res = self.client.restore.selective(snapshot_id, config)
-    #     self.app.render(res, details=True)
-    #
-    # @ex(
-    #     help='inplace restore of a snapshot',
-    #     description='inplace restore of a snapshot',
-    #     arguments=OPENSTACK_ARGS([
-    #         (['snapshot'], {'help': 'unique identifier of trilio workload snapshot', 'action': 'store', 'type': str}),
-    #         (['config_file'], {'help': 'restore config file', 'action': 'store', 'type': str})
-    #     ])
-    # )
-    # def restore_inplace(self):
-    #     snapshot_id = self.app.pargs.snapshot
-    #     config_file = self.app.pargs.config_file
-    #     config = load_config(config_file)
-    #     res = self.client.restore.inplace(snapshot_id, config)
-    #     self.app.render(res, details=True)
-
     @ex(
-        help="restore a server from a snapshot. Project with -P must be specified",
-        description="restore a server from a snapshot. Project with -P must be specified",
+        help=_("restore a server from a snapshot. Project with -P must be specified"),
+        description=_("restore a server from a snapshot. Project with -P must be specified"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "unique identifier of trilio workload snapshot",
+                        "help": _("unique identifier of trilio workload snapshot"),
                         "action": "store",
                         "type": str,
                     },
                 ),
-                (["server"], {"help": "server id", "action": "store", "type": str}),
+                (["server"], {"help": _("server id"), "action": "store", "type": str}),
                 (
                     ["-server_name"],
                     {
-                        "help": "server name [default=<orig name>-restore-<..>]",
+                        "help": _("server name [default=<orig name>-restore-<..>]"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1309,7 +1295,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-overwrite"],
                     {
-                        "help": "if True overwrite server",
+                        "help": _("if True overwrite server"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -1318,7 +1304,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-name"],
                     {
-                        "help": "restore name",
+                        "help": _("restore name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1327,7 +1313,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-desc"],
                     {
-                        "help": "restore description",
+                        "help": _("restore description"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1336,7 +1322,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-network"],
                     {
-                        "help": "target <network id>:<subnet id>",
+                        "help": _("target <network id>:<subnet id>"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1345,7 +1331,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-keep_ip"],
                     {
-                        "help": "keep original ip",
+                        "help": _("keep original ip"),
                         "action": "store",
                         "type": str,
                         "default": "false",
@@ -1366,8 +1352,8 @@ class TrilioPlatformController(BaseController):
         else:
             try:
                 network_id, subnet_id = network.split(":")
-            except:
-                raise Exception("network syntax is <network id>:<subnet id>")
+            except Exception as exc:
+                raise Exception('network syntax is <network id>:<subnet id>') from exc
         res = self.client.restore.server(
             snapshot_id,
             server_id,
@@ -1380,23 +1366,23 @@ class TrilioPlatformController(BaseController):
         self.app.render(res, details=True)
 
     @ex(
-        help="restore a volume from a snapshot",
-        description="restore a volume from a snapshot",
+        help=_("restore a volume from a snapshot"),
+        description=_("restore a volume from a snapshot"),
         arguments=OPENSTACK_ARGS(
             [
                 (
                     ["snapshot"],
                     {
-                        "help": "unique identifier of trilio workload snapshot",
+                        "help": _("unique identifier of trilio workload snapshot"),
                         "action": "store",
                         "type": str,
                     },
                 ),
-                (["volume"], {"help": "volume id", "action": "store", "type": str}),
+                (["volume"], {"help": _("volume id"), "action": "store", "type": str}),
                 (
                     ["-restore_name"],
                     {
-                        "help": "restore name",
+                        "help": _("restore name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -1405,7 +1391,7 @@ class TrilioPlatformController(BaseController):
                 (
                     ["-restore_desc"],
                     {
-                        "help": "restore description",
+                        "help": _("restore description"),
                         "action": "store",
                         "type": str,
                         "default": None,

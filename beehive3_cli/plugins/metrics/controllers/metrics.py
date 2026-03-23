@@ -1,21 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from urllib.parse import urlencode
 from datetime import datetime
-from six import string_types
 from requests import get as req_get
 from cement.ext.ext_argparse import ex
-from beehive3_cli.core.controller import BaseController, PARGS
-from beehive3_cli.core.util import load_environment_config
+
 from beecell.simple import dict_get
 from beecell.db import MysqlManager
 from beecell.simple import jsonDumps
 from beedrones.openstack.client import OpenstackManager
 from beedrones.trilio.client import TrilioManager
 from beedrones.zabbix.client import ZabbixManager
+from beehive3_cli.core.controller import BaseController, PARGS
+from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
 logger = getLogger(__name__)
@@ -23,30 +24,19 @@ logger = getLogger(__name__)
 
 class MetricsBaseController(BaseController):
     class Meta:
-        # cmp = {'baseuri': '/v1.0/nrs/provider', 'subsystem': 'resource'}
         cmp_resource = {"baseuri": "/v1.0/nrs", "subsystem": "resource"}
         cmp_service = {"baseuri": "/v1.0/nws", "subsystem": "service"}
 
-    @property
-    def cmpService(self):
-        return self._meta.cmp_service
-
-    @property
-    def cmpResource(self):
-        return self._meta.cmp_resource
-
     def configure_cmp_resource(self):
         self._meta.cmp = self._meta.cmp_resource
-        # print('######################### CONFIGURED CMP  ###################### {}' .format(pprint(self._meta.cmp)))
         self.configure_cmp_api_client()
 
     def configure_cmp_service(self):
         self._meta.cmp = self._meta.cmp_service
-        # print('######################### CONFIGURED CMP  ###################### {}' .format(pprint(self._meta.cmp)))
         self.configure_cmp_api_client()
 
     def pre_command_run(self):
-        super(MetricsBaseController, self).pre_command_run()
+        super().pre_command_run()
         self.config = load_environment_config(self.app)
 
 
@@ -55,8 +45,8 @@ class MetricsController(MetricsBaseController):
         label = "metrics"
         stacked_on = "base"
         stacked_type = "nested"
-        description = "api metrics management"
-        help = "api metrics management"
+        description = _("api metrics management")
+        help = _("api metrics management")
 
         compute_zones_headers = [
             "uuid",
@@ -119,21 +109,15 @@ class MetricsController(MetricsBaseController):
             "monit_hosts",
         ]
 
-    # def _default(self):
-    #     self._parser.print_help()
-
-    def pre_command_run(self):
-        super(MetricsController, self).pre_command_run()
-
     @ex(
-        help="backup",
-        description="get bck",
+        help=_("backup"),
+        description=_("get bck"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -144,7 +128,6 @@ class MetricsController(MetricsBaseController):
     )
     def get_bck(self):
         oid = getattr(self.app.pargs, "id", None)
-        account = {}
         accounts = self.get_accounts(oid)
         compute_zones = self.get_compute_zones()
 
@@ -164,7 +147,7 @@ class MetricsController(MetricsBaseController):
                     "trilio_used_capacity": used_capacity,
                     "veeam_used_capacity": veeam_usage.get(cz_id, {}),
                 }
-        res = [value for value in accounts.values()]
+        res = list(accounts.values())
         self.app.render(
             res,
             headers=self._meta.backup_headers,
@@ -172,14 +155,14 @@ class MetricsController(MetricsBaseController):
         )
 
     @ex(
-        help="backup",
-        description="add bck metrics",
+        help=_("backup"),
+        description=_("add bck metrics"),
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "account id",
+                        "help": _("account id"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -219,7 +202,7 @@ class MetricsController(MetricsBaseController):
         accounts = accounts.values()
         for a in accounts:
             try:
-                print("add or replace metrics for account %s %s" % (a.get("uuid"), a.get("name")))
+                print(f"add or replace metrics for account {a.get('uuid')} {a.get('name')}")
                 service_id = a.get("compute_service", {}).get("id", None)
                 trilio_used_capacity = dict_get(a, "compute_service.trilio_used_capacity.tot")
                 veeam_used_capacity = dict_get(a, "compute_service.veeam_used_capacity.tot")
@@ -227,7 +210,7 @@ class MetricsController(MetricsBaseController):
                 # now = datetime.today().date()
                 # date = '%sT00:00:00Z' % str(now)
                 date = datetime.today().strftime("%Y-%m-%dT%H:%M:%SZ")
-                print("===========================%s" % date)
+                print(f"==========================={date}")
 
                 os_metrictype = "vm_backup_os1"
                 if trilio_used_capacity is not None and trilio_used_capacity > 500:
@@ -236,14 +219,14 @@ class MetricsController(MetricsBaseController):
                     self.add_or_replace_metric(service_id, trilio_used_capacity, os_metrictype, date)
                 if service_id is not None and veeam_used_capacity is not None:
                     self.add_or_replace_metric(service_id, veeam_used_capacity, "vm_backup_com", date)
-            except Exception as ex:
-                logger.warning(ex, exc_info=True)
+            except Exception as exception:
+                logger.warning(exception, exc_info=True)
                 print("==============ERR")
                 print(ex)
 
     @ex(
-        help="monitoring metrics",
-        description="Create monitoring metrics",
+        help=_("monitoring metrics"),
+        description=_("Create monitoring metrics"),
         arguments=PARGS([]),
     )
     def add_monit_metrics(self):
@@ -256,16 +239,15 @@ class MetricsController(MetricsBaseController):
         self.configure_cmp_service()
         self.metrictypes = self.get_metrictypes()
         metricsdate = datetime.today().strftime("%Y-%m-%dT%H:%M:%SZ")
-        print("===========================%s" % metricsdate)
+        print(f"==========================={metricsdate}")
         usage_list = self.get_monit_list()
 
         for item in usage_list:
             self.add_or_replace_metric(item["compute_service_id"], item["monit_hosts"], "vm_monit", metricsdate)
-            pass
 
     @ex(
-        help="get monitoring metrics",
-        description="Get monitoring metrics",
+        help=_("get monitoring metrics"),
+        description=_("Get monitoring metrics"),
         arguments=PARGS([]),
     )
     def get_monit_metrics(self):
@@ -278,7 +260,7 @@ class MetricsController(MetricsBaseController):
         self.configure_cmp_service()
         self.metrictypes = self.get_metrictypes()
         metricsdate = datetime.today().strftime("%Y-%m-%dT%H:%M:%SZ")
-        print("===========================%s" % metricsdate)
+        print(f"==========================={metricsdate}")
         usage_list = self.get_monit_list()
         self.app.render(
             usage_list,
@@ -286,7 +268,7 @@ class MetricsController(MetricsBaseController):
             fields=self._meta.monit_headers_fields,
         )
 
-    @ex(help="update-volumes", description="update-volumes", arguments=PARGS([]))
+    @ex(help=_("update-volumes"), description=_("update-volumes"), arguments=PARGS([]))
     def add_volumes_info(self):
         """estrai dati circa i volumi e li carica nelle strutture temporanee di gestione dei volumi.
         N.B. idempotente
@@ -301,15 +283,15 @@ class MetricsController(MetricsBaseController):
             connection = server.engine.connect()
             for item in vols:
                 self.add_or_update_volume_item(connection, item)
-        except Exception as ex:
-            logger.warning(ex, exc_info=True)
+        except Exception as exception:
+            logger.warning(exception, exc_info=True)
             print(ex)
         finally:
             if connection is not None:
                 self.finalize_volumes_update(connection)
                 connection.close()
 
-    @ex(help="update-oracle", description="update-oracle", arguments=PARGS([]))
+    @ex(help=_("update-oracle"), description=_("update-oracle"), arguments=PARGS([]))
     def add_oracle_info(self):
         """estrai dati circa i database oracle e li carica nelle strutture temporanee di gestione dei db.
         N.B. idempotente
@@ -323,8 +305,8 @@ class MetricsController(MetricsBaseController):
             connection = server.engine.connect()
             for item in dbs:
                 self.add_or_update_ora_dbitem(connection, item)
-        except Exception as ex:
-            logger.warning(ex, exc_info=True)
+        except Exception as exception:
+            logger.warning(exception, exc_info=True)
             print(ex)
         finally:
             if connection is not None:
@@ -338,36 +320,32 @@ class MetricsController(MetricsBaseController):
     def get_compute_zones(self, index="uuid"):
         self.configure_cmp_resource()
         data = urlencode({"size": -1})
-        uri = "%s/provider/compute_zones" % self.baseuri
+        uri = f"{self.baseuri}/provider/compute_zones"
         res = self.cmp_get(uri, data=data)
-        print("Total compute zone instances: %s" % len(res))
-        # print('######################### get_compute_service ###################### {}' .format(pprint(res.get('compute_zones'))))
+        print(f"Total compute zone instances: {len(res)}")
 
         return res.get("compute_zones", [])
 
     def get_compute_services(self):
         self.configure_cmp_service()
         data = urlencode({"plugintype": "ComputeService", "size": -1})
-        uri = "%s/serviceinsts" % self.baseuri
+        uri = f"{self.baseuri}/serviceinsts"
         res = self.cmp_get(uri, data=data)
-        print("Total compute services instances:: %s" % len(res))
-
-        # print('######################### get_compute_service ###################### {}' .format(pprint(res)))
-
+        print(f"Total compute services instances:: {len(res)}")
         return res.get("serviceinsts", [])
 
     def get_accounts(self, oid=None):
         self.configure_cmp_service()
         data = urlencode({"size": -1})
-        uri = "%s/accounts" % self.baseuri
+        uri = f"{self.baseuri}/accounts"
         accounts = []
         if oid is not None:
-            uri = "%s/accounts/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/accounts/{oid}"
             account = self.cmp_get(uri, data=data).get("account", [])
             accounts = [account]
         else:
             accounts = self.cmp_get(uri, data=data).get("accounts", [])
-        print("Total accounts: %s" % len(accounts))
+        print(f"Total accounts: {len(accounts)}")
         return {str(a["id"]): a for a in accounts}
 
     def get_veeam_usage(self):
@@ -375,14 +353,14 @@ class MetricsController(MetricsBaseController):
         uri = self.config["orchestrators"]["veeam"].get("usage_uri", None)
 
         if uri is not None:
-            res = req_get(uri)
+            res = req_get(uri, timeout=120)
             data = res.json()
             jobs = {}
 
             for item in data:
                 job_names = item["Job"]
 
-                if isinstance(job_names, string_types):
+                if isinstance(job_names, str):
                     job_names = [job_names]
 
                 for job_name in job_names:
@@ -410,7 +388,6 @@ class MetricsController(MetricsBaseController):
                             "tot": used_capacity,
                             "name": job_name,
                         }
-            # print('######################### tenants_veeam_usage ###################### {}' .format(pprint(tenants_usage)))
 
         return tenants_usage
 
@@ -436,7 +413,7 @@ class MetricsController(MetricsBaseController):
         # get storage usage by tenant
         res = trilio_client.job_scheduler.get_tenant_usage()
         for item in res["tenants_usage"].items():
-            if item[1].__contains__("tenant_name"):
+            if 'tenant_name' in item[1]:
                 name = item[1]["tenant_name"][0:23]
                 # keep only tenants with non-null backup
                 if item[1].get("used_capacity") > 0:
@@ -450,8 +427,7 @@ class MetricsController(MetricsBaseController):
                             self.env: used_capacity,
                             "tot": used_capacity,
                         }
-        print("get trilio usage pod %s" % self.env)
-        # print('######################### tenants_trilio_usage ###################### {}' .format(pprint(tenants_usage)))
+        print(f"get trilio usage pod {self.env}")
 
         return tenants_usage
 
@@ -499,12 +475,12 @@ class MetricsController(MetricsBaseController):
 
     def get_metrictypes(self):
         data = urlencode({"size": -1})
-        uri = "%s/services/metricstypes" % self.baseuri
+        uri = f"{self.baseuri}/services/metricstypes"
         res = self.cmp_get(uri, data=data)
         return {r["name"]: r for r in res["metric_types"]}
 
     def get_metric(self, service_instance_id, metric_type, creation_date):
-        uri = "%s/services/metrics" % self.baseuri
+        uri = f"{self.baseuri}/services/metrics"
         data = {"service_instance_id": service_instance_id, "metric_type": metric_type}
         if creation_date is not None:
             data["creation_date"] = creation_date
@@ -512,47 +488,46 @@ class MetricsController(MetricsBaseController):
         res = self.cmp_get(uri, data=data).get("metrics", [])
         if len(res) > 0:
             return res[0]
-        else:
-            return None
+        return None
 
     def add_or_replace_metric(self, service_id, value, metrictype, date):
-        print("==== ADDING %s to service %s value %s " % (metrictype, service_id, value))
+        print(f"==== ADDING {metrictype} to service {service_id} value {value} ")
         metrictype_id = self.metrictypes.get(metrictype).get("id")
         metric = self.get_metric(service_id, metrictype, date)
-        print("get metric: %s %s %s" % (service_id, metrictype, date))
+        print(f"get metric: {service_id} {metrictype} {date}")
         if metric is not None:
             try:
-                print("==============need delete metric %s" % metric)
+                print(f"==============need delete metric {metric}")
                 oid = metric.get("id", None)
                 if oid is not None:
                     self.del_metric(service_id, oid)
-                    print("del metric:%s %s %s" % (service_id, metrictype, date))
-            except Exception as ex:
-                print("ERROR deleting metric:  %s" % (ex))
-        res = self.add_metric(metrictype_id, value, service_id, date)
-        print("add metric: %s %s %s %s" % (service_id, value, metrictype, date))
+                    print(f"del metric:{service_id} {metrictype} {date}")
+            except Exception as exception:
+                print(f"ERROR deleting metric: {exception}")
+        self.add_metric(metrictype_id, value, service_id, date)
+        print(f"add metric: {service_id} {value} {metrictype} {date}")
 
     def del_metric(self, service_uuid, metricid):
         try:
-            uri = "%s/services/metrics" % self.baseuri
+            uri = f"{self.baseuri}/services/metrics"
             data = {
                 "metric": {
                     "metric_oid": str(metricid),
                     "service_instance_oid": str(service_uuid),
                 }
             }
-            res = self.cmp_delete(uri, data=data)
-        except Exception as ex:
-            print(ex)
+            self.cmp_delete(uri, data=data)
+        except Exception as exception:
+            print(exception)
 
     def add_metric(self, metrictype_id, value, service_uuid, date):
-        uri = "%s/services/metrics" % self.baseuri
+        uri = f"{self.baseuri}/services/metrics"
         data = {
             "metric": {
                 "value": value,
-                "metric_type_id": "%s" % metrictype_id,
+                "metric_type_id": f"{metrictype_id}",
                 "metric_num": "0",
-                "service_instance_oid": "%s" % service_uuid,
+                "service_instance_oid": f"{service_uuid}",
                 "job_id": "1",
                 "creation_date": date,
             }
@@ -595,10 +570,7 @@ class MetricsController(MetricsBaseController):
                         account_item["monit_hosts"] += int(group_item["hosts"])
                     if not account_item["match_found"]:
                         for hypervisor in ["vmware", "openstack"]:
-                            full_name_hyperv = "%s-%s" % (
-                                account_item["name"],
-                                hypervisor,
-                            )
+                            full_name_hyperv = f"{account_item['name']}-{hypervisor}"
                             if full_name_hyperv == group_item["name"]:
                                 account_item["match_found"] = True
                                 account_item["monit_hosts"] += int(group_item["hosts"])
@@ -631,16 +603,16 @@ class MetricsController(MetricsBaseController):
             zabbix_client.authorize(user, password, key=self.key)
         else:
             raise Exception("ZabbixError: missing configuration settings.")
-        print("Getting hosts monitored by account in '%s' environment ..." % self.env)  # for debug purposes
+        print(f"Getting hosts monitored by account in '{self.env}' environment ...")  # for debug purposes
         # get list of Zabbix hostgroups
         res = zabbix_client.hostgroup.list(selecthosts="hostids")
         # print(jsonDumps(res, ensure_ascii=False, indent=2 ))
         for item in res:
             host_lst = item.get("hosts", {})
             if len(host_lst) > 0:
-                item["hosts"] = "%s" % str(len(host_lst))
+                item["hosts"] = f"{len(host_lst)!s}"
                 hostgroups.append(item)
-        print("got zabbix usage pod %s" % self.env)
+        print(f"got zabbix usage pod {self.env}")
         return hostgroups
 
     # VOLUMES METHODS
@@ -648,7 +620,7 @@ class MetricsController(MetricsBaseController):
         self.configure_cmp_resource()
         data = {"size": -1}
         data = urlencode(data)
-        uri = "%s/provider/volumes" % self.baseuri
+        uri = f"{self.baseuri}/provider/volumes"
         res = self.cmp_get(uri, data=data, timeout=120)
         return res.get("volumes", None)
 
@@ -658,7 +630,7 @@ class MetricsController(MetricsBaseController):
         port = conf.get("port")
         db = conf.get("db")
         pwd = conf.get("pwd")
-        db_uri = "mysql+pymysql://%s:%s@%s:%s/%s" % ("service", pwd, host, port, db)
+        db_uri = f"mysql+pymysql://service:{pwd}@{host}:{port}/{db}"
         server = MysqlManager(1, db_uri)
         return server
 
@@ -723,7 +695,7 @@ class MetricsController(MetricsBaseController):
                         container_name=container_name,
                         params=params,
                     )
-                    print("inserting volume resource_uuid: {resource_uuid}".format(resource_uuid=resource_uuid))
+                    print(f"inserting volume resource_uuid: {resource_uuid}")
                     # print(sqlstmnt)
                     dbconn.execute(sqlstmnt)
                 elif row["modification_date"] != modified_date:
@@ -747,17 +719,17 @@ class MetricsController(MetricsBaseController):
                         container_name=container_name,
                         params=params,
                     )
-                    print("updating volume resource_uuid: {resource_uuid}".format(resource_uuid=resource_uuid))
+                    print(f"updating volume resource_uuid: {resource_uuid}")
                     # print(sqlstmnt)
                     dbconn.execute(sqlstmnt)
                 else:
                     print(
-                        "Volume resource_uuid: {resource_uuid} already up to date".format(resource_uuid=resource_uuid)
+                        f"Volume resource_uuid: {resource_uuid} already up to date"
                     )
 
                 res.close()
-            except Exception as ex:
-                logger.warning(ex, exc_info=True)
+            except Exception as exception:
+                logger.warning(exception, exc_info=True)
                 print(ex)
                 if res:
                     res.close()
@@ -765,80 +737,187 @@ class MetricsController(MetricsBaseController):
                 pass
 
     def finalize_volumes_update(self, dbconn):
-        """esegue le elaborazioni sicessive al caricamento delle info sui volumi"""
-        sqlstmnts = [
-            # cerco la servicnce isnstance che rappresenta la macchina che monta il volume
+        """
+        Esegue le elaborazioni successive al caricamento delle informazioni sui volumi.
+        """
+
+        sql_statements = [
+
+            # 1. Determina la service instance della macchina che monta il volume
             """
-            UPDATE tmp_volumes_  tv set instance_uuid = (SELECT  si.uuid from service_instance si
-                    WHERE si.id = (select max(ss.id) from service_instance ss WHERE ss.resource_uuid = tv.instance_resource_uuid))
-            WHERE tv.instance_uuid is NULL and tv.instance_resource_uuid != '' """,
-            # determino l'account dalla serviceinstance che monta il volume
+            UPDATE tmp_volumes_ tv
+            SET instance_uuid = (
+                SELECT si.uuid
+                FROM service_instance si
+                WHERE si.id = (
+                    SELECT MAX(ss.id)
+                    FROM service_instance ss
+                    WHERE ss.resource_uuid = tv.instance_resource_uuid
+                )
+            )
+            WHERE tv.instance_uuid IS NULL
+              AND tv.instance_resource_uuid != ''
+            """,
+
+            # 2. Determina l'account dalla service instance che monta il volume
             """
-            UPDATE tmp_volumes_ tv set fk_account_id = (SELECT  si.fk_account_id from service_instance si WHERE si.uuid = tv.instance_uuid )
-            WHERE tv.fk_account_id is NULL and tv.instance_uuid is not NULL""",
-            # cambio service definition per volumi di tio db usndo le regole di nomenclatura
+            UPDATE tmp_volumes_ tv
+            SET fk_account_id = (
+                SELECT si.fk_account_id
+                FROM service_instance si
+                WHERE si.uuid = tv.instance_uuid
+            )
+            WHERE tv.fk_account_id IS NULL
+              AND tv.instance_uuid IS NOT NULL
+            """,
+
+            # 3. Eredita l'objid dalla service instance che monta il volume
             """
-            UPDATE tmp_volumes_  tv set objid   = (SELECT  si.objid from service_instance si where si.uuid = tv.instance_uuid )
-            WHERE tv.objid ='' and tv.instance_uuid is not NULL""",
-            # assegno al volume lo stesso objectid della itanza che lo monta eredita gli stessi permessi
-            """ UPDATE tmp_volumes_ tv set fk_service_definition_id  = 73
-            WHERE tv.name like 'dbs-%%'  and fk_service_instance_id is NULL """,
-            # creo il volume come servizio  service_instance
+            UPDATE tmp_volumes_ tv
+            SET objid = (
+                SELECT si.objid
+                FROM service_instance si
+                WHERE si.uuid = tv.instance_uuid
+            )
+            WHERE tv.objid = ''
+              AND tv.instance_uuid IS NOT NULL
+            """,
+
+            # 4. Imposta la service definition per volumi di database
             """
-            INSERT INTO service.service_instance (creation_date, modification_date, expiry_date, uuid,
-                objid, `desc`, active, name, version, fk_account_id, fk_service_definition_id, params,
-                bpmn_process_id, resource_uuid, status, last_error)
+            UPDATE tmp_volumes_ tv
+            SET fk_service_definition_id = 73
+            WHERE tv.name LIKE 'dbs-%'
+              AND tv.fk_service_instance_id IS NULL
+            """,
+
+            # 5. Crea il volume come service_instance
+            """
+            INSERT INTO service.service_instance (
+                creation_date, modification_date, expiry_date, uuid, objid, `desc`,
+                active, name, version, fk_account_id, fk_service_definition_id,
+                params, bpmn_process_id, resource_uuid, status, last_error
+            )
             SELECT
-                creation_date, modification_date, NULL expiry_date, uuid, objid,
-                `desc`, 1 active, name, '1.0' version, fk_account_id, fk_service_definition_id,
-                NULL params, NULL bpmn_process_id, resource_uuid, status, NULL last_error
-            FROM
-                service.tmp_volumes_
-            WHERE fk_account_id is not NULL and fk_service_instance_id is NULL """,
-            # creo il volume come servizio  service_instance_config
+                creation_date,
+                modification_date,
+                NULL,
+                uuid,
+                objid,
+                `desc`,
+                1,
+                name,
+                '1.0',
+                fk_account_id,
+                fk_service_definition_id,
+                NULL,
+                NULL,
+                resource_uuid,
+                status,
+                NULL
+            FROM service.tmp_volumes_
+            WHERE fk_account_id IS NOT NULL
+              AND fk_service_instance_id IS NULL
+            """,
+
+            # 6. Crea la configurazione del servizio
             """
-            INSERT INTO service.service_instance_config (creation_date, modification_date, expiry_date,
-                uuid, objid, `desc`, active, name, json_cfg, fk_service_instance_id)
+            INSERT INTO service.service_instance_config (
+                creation_date, modification_date, expiry_date,
+                uuid, objid, `desc`, active, name,
+                json_cfg, fk_service_instance_id
+            )
             SELECT
-	            si.creation_date, si.modification_date, NULL expiry_date, uuid() uuid, si.objid,
-                CONCAT('cfg ',si.name) `desc`, 1 active, CONCAT('cfg ' ,si.name) name,
-                tv.params json_cfg, si.id fk_service_instance_id
-            FROM
-                service.tmp_volumes_ tv
-                INNER JOIN service_instance si on si.uuid = tv.uuid
-            WHERE tv.fk_service_instance_id is NULL """,
-            # aggiorno i dati del volume  e prendo nota del fatto che e' stato creato il servizio per quel volume
+                si.creation_date,
+                si.modification_date,
+                NULL,
+                UUID(),
+                si.objid,
+                CONCAT('cfg ', si.name),
+                1,
+                CONCAT('cfg ', si.name),
+                tv.params,
+                si.id
+            FROM service.tmp_volumes_ tv
+            INNER JOIN service_instance si
+                ON si.uuid = tv.uuid
+            WHERE tv.fk_service_instance_id IS NULL
+            """,
+
+            # 7. Aggiorna il riferimento alla service_instance creata
             """
-            UPDATE service.tmp_volumes_ tv set
-                fk_service_instance_id = (SELECT si.id from service.service_instance si WHERE si.resource_uuid = tv.resource_uuid)
-            WHERE fk_service_instance_id  is NULL """,
-            # agiungo i volumi alle risorse di database nel caso in cui siano volumi di database
+            UPDATE service.tmp_volumes_ tv
+            SET fk_service_instance_id = (
+                SELECT si.id
+                FROM service.service_instance si
+                WHERE si.resource_uuid = tv.resource_uuid
+            )
+            WHERE tv.fk_service_instance_id IS NULL
+            """,
+
+            # 8. Associa i volumi alle risorse database
             """
-            INSERT INTO tmp_databases_
-                (creation_date , modification_date ,uuid, dbtype ,resource_uuid,params , fk_service_instance_id )
+            INSERT INTO tmp_databases_ (
+                creation_date,
+                modification_date,
+                uuid,
+                dbtype,
+                resource_uuid,
+                params,
+                fk_service_instance_id
+            )
             SELECT
-                tv.creation_date , tv.modification_date , tv.uuid , td.dbtype, tv.resource_uuid , tv.params , tv.fk_service_instance_id
-	        FROM
-                tmp_databases_ td
-                INNER JOIN tmp_volumes_ tv on tv.instance_uuid = td.uuid
-                LEFT OUTER JOIN tmp_databases_ tdd 	on tv.uuid = tdd.uuid
-            WHERE  tdd.id is NULL """,
-            # creo service_link inst uguali a quello della service instance che rappresenta la macchina che monta il volume -- questionabile
+                tv.creation_date,
+                tv.modification_date,
+                tv.uuid,
+                td.dbtype,
+                tv.resource_uuid,
+                tv.params,
+                tv.fk_service_instance_id
+            FROM tmp_databases_ td
+            INNER JOIN tmp_volumes_ tv
+                ON tv.instance_uuid = td.uuid
+            LEFT JOIN tmp_databases_ tdd
+                ON tv.uuid = tdd.uuid
+            WHERE tdd.id IS NULL
+            """,
+
+            # 9. Replica i service_link_inst della service instance che monta il volume
             """
-            INSERT INTO service_link_inst(creation_date, modification_date, expiry_date, uuid, objid, `desc`, active, name, version, start_service_id, end_service_id, `attributes`, priority)
-            SELECT tv.creation_date creation_date, tv.modification_date modification_date, sli.expiry_date, UUID() uuid, sli.objid, concat( 'vol_', sli.`desc`), sli.active, CONCAT('lnk_', sli.start_service_id , '_', tv.fk_service_instance_id )  name,
-                sli.version, sli.start_service_id, tv.fk_service_instance_id  end_service_id, sli.`attributes`, sli.priority
-            FROM
-                tmp_volumes_ tv
-                INNER JOIN service_instance si on si.uuid = tv.instance_uuid
-                INNER JOIN service_link_inst sli on sli.end_service_id = si.id
-                LEFT JOIN  service_link_inst sli2 on sli2.end_service_id = tv.fk_service_instance_id  and sli2.start_service_id = sli.start_service_id
-            WHERE sli2.id IS NULL """,
+            INSERT INTO service_link_inst (
+                creation_date, modification_date, expiry_date,
+                uuid, objid, `desc`, active, name, version,
+                start_service_id, end_service_id, `attributes`, priority
+            )
+            SELECT
+                tv.creation_date,
+                tv.modification_date,
+                sli.expiry_date,
+                UUID(),
+                sli.objid,
+                CONCAT('vol_', sli.`desc`),
+                sli.active,
+                CONCAT('lnk_', sli.start_service_id, '_', tv.fk_service_instance_id),
+                sli.version,
+                sli.start_service_id,
+                tv.fk_service_instance_id,
+                sli.`attributes`,
+                sli.priority
+            FROM tmp_volumes_ tv
+            INNER JOIN service_instance si
+                ON si.uuid = tv.instance_uuid
+            INNER JOIN service_link_inst sli
+                ON sli.end_service_id = si.id
+            LEFT JOIN service_link_inst sli2
+                ON sli2.end_service_id = tv.fk_service_instance_id
+               AND sli2.start_service_id = sli.start_service_id
+            WHERE sli2.id IS NULL
+            """
         ]
-        for statement in sqlstmnts:
-            # print(statement)
+
+        for statement in sql_statements:
             dbconn.execute(statement)
-        pass
+
 
     # ORACLE
     def get_oracle_dbs(self):
@@ -847,7 +926,7 @@ class MetricsController(MetricsBaseController):
 
         data = {"size": -1}
         data = urlencode(data)
-        uri = "%s/provider/instances" % self.baseuri
+        uri = f"{self.baseuri}/provider/instances"
         res = self.cmp_get(uri, data=data, timeout=120)
 
         self.configure_cmp_service()
@@ -860,10 +939,10 @@ class MetricsController(MetricsBaseController):
         self.configure_cmp_service()
         data = {"plugintype": "ComputeInstance", "size": -1}
         data = urlencode(data)
-        uri = "%s/serviceinsts" % self.baseuri
+        uri = f"{self.baseuri}/serviceinsts"
         res = self.cmp_get(uri, data=data)
         res = res["serviceinsts"]
-        print("get service instances: %s" % len(res))
+        print(f"get service instances: {len(res)}")
         return res
 
     def add_or_update_ora_dbitem(self, dbconn, dbdesc):
@@ -905,7 +984,7 @@ class MetricsController(MetricsBaseController):
                         date_modified=modified_date,
                         jsondescription=sqlquote(jsonDumps(dbdesc, ensure_ascii=False)),
                     )
-                    print("inserting db ORACLE resource_uuid: {resource_uuid}".format(resource_uuid=uuid))
+                    print(f"inserting db ORACLE resource_uuid: {uuid}")
                     # print(sqlstmnt)
                     dbconn.execute(sqlstmnt)
                 elif row["modification_date"] != modified_date:
@@ -914,15 +993,15 @@ class MetricsController(MetricsBaseController):
                         date_modified=modified_date,
                         jsondescription=sqlquote(jsonDumps(dbdesc, ensure_ascii=False)),
                     )
-                    print("updating db ORACLE resource_uuid: {resource_uuid}".format(resource_uuid=uuid))
+                    print(f"updating db ORACLE resource_uuid: {uuid}")
                     # print(sqlstmnt)
                     dbconn.execute(sqlstmnt)
                 else:
-                    print("db ORACLE resource_uuid: {resource_uuid} already up to date".format(resource_uuid=uuid))
+                    print(f"db ORACLE resource_uuid: {uuid} already up to date")
 
                 res.close()
-            except Exception as ex:
-                logger.warning(ex, exc_info=True)
+            except Exception as exc:
+                logger.warning(exc, exc_info=True)
                 print(ex)
                 if res:
                     res.close()
@@ -939,7 +1018,7 @@ class MetricsController(MetricsBaseController):
         for si in sii:
             db = dbs.get(si["resource_uuid"], None)
             if db is not None:
-                db["disk_tot"] = sum([i["volume_size"] for i in db.get("block_device_mapping")])
+                db["disk_tot"] = sum(i["volume_size"] for i in db.get("block_device_mapping"))
                 si["resource"] = db
                 res.append(si)
 

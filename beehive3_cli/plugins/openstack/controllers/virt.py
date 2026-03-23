@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from base64 import b64decode
-from six import ensure_text
 from cement import ex
+
 from beecell.types.type_list import merge_list
 from beecell.types.type_dict import dict_get
+from beecell.util import ensure_text
 from beecell.simple import get_pretty_size
 from beedrones.openstack.client import OpenstackManager
 from beedrones.virt.manager import VirtManager
 from beehive3_cli.core.controller import BaseController, BASE_ARGS
 from beehive3_cli.core.util import load_environment_config
+from beehive3_cli.translate import _
 
 
 def OPENSTACK_ARGS(*list_args):
@@ -21,7 +23,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "orchestrator",
-                "help": "openstack platform reference label",
+                "help": _("openstack platform reference label"),
             },
         ),
         (
@@ -29,7 +31,7 @@ def OPENSTACK_ARGS(*list_args):
             {
                 "action": "store",
                 "dest": "project",
-                "help": "openstack current project name",
+                "help": _("openstack current project name"),
             },
         ),
     ]
@@ -42,11 +44,11 @@ class VirshPlatformController(BaseController):
         label = "virsh"
         stacked_on = "platform"
         stacked_type = "nested"
-        description = "libvirt platform"
-        help = "libvirt platform"
+        description = _("libvirt platform")
+        help = _("libvirt platform")
 
     def pre_command_run(self):
-        super(VirshPlatformController, self).pre_command_run()
+        super().pre_command_run()
 
         self.config = load_environment_config(self.app)
 
@@ -59,22 +61,23 @@ class VirshPlatformController(BaseController):
                 label = keys[0]
             else:
                 raise Exception(
-                    "No openstack default platform is available for this environment. Select " "another environment"
+                    "No openstack default platform is available for this environment. Select another environment"
                 )
 
         if label not in orchestrators:
-            raise Exception("Valid label are: %s" % ", ".join(orchestrators.keys()))
+            raise Exception(f"Valid label are: {', '.join(orchestrators.keys())}")
         conf = orchestrators.get(label)
 
         project = getattr(self.app.pargs, "project", None)
         if project is None:
             project = conf.get("project")
-        uri = "%s://%s:%s%s" % (
-            conf.get("proto"),
-            conf.get("vhost"),
-            conf.get("port"),
-            conf.get("path"),
-        )
+
+        proto = conf.get("proto")
+        host = conf.get("vhost")
+        port = conf.get("port")
+        path = conf.get("path")
+        uri = f"{proto}://{host}:{port}{path}"
+
         self.client = OpenstackManager(uri, default_region=conf.get("region"))
         self.client.authorize(
             conf.get("user"),
@@ -94,14 +97,14 @@ class VirshPlatformController(BaseController):
         fp = self.create_temp_file(data)
         keyname = fp.name
         client = VirtManager(hid, host, user=self.user, key=keyname)
-        self.app.log.info("get virtmanager: %s" % client)
+        self.app.log.info(f"get virtmanager: {client}")
         server = client.connect()
         fp.close()
         return server
 
     @ex(
-        help="get libvirt hosts",
-        description="get libvirt hosts",
+        help=_("get libvirt hosts"),
+        description=_("get libvirt hosts"),
         example="beehive platform virsh hosts -e <env>",
         arguments=OPENSTACK_ARGS(),
     )
@@ -114,9 +117,9 @@ class VirshPlatformController(BaseController):
                 server = self.__get_virt_manager(host_ip)
                 item = server.info()
                 resp.append(item)
-            except Exception as ex:
-                self.app.error(ex)
-                self.app.log.error(ex, exc_info=True)
+            except Exception as exc:
+                self.app.error(exc)
+                self.app.log.error(exc, exc_info=True)
                 resp.append({"ip_address": host_ip})
 
         headers = [
@@ -140,17 +143,19 @@ class VirshPlatformController(BaseController):
         self.app.render(resp, headers=headers, fields=fields, maxsize=200)
 
     @ex(
-        help="get libvirt host domains",
-        description="get libvirt host domains",
-        example="beehive platform virsh domain-get -e <env>;beehive platform virsh domain-get",
+        help=_("get libvirt host domains"),
+        description=_("get libvirt host domains"),
+        example="beehive platform virsh domain-get",
         arguments=OPENSTACK_ARGS(
             [
-                (["hostip"], {"help": "host ip", "action": "store", "type": str}),
+                (["hostip"], {"help": _("host ip"), "action": "store", "type": str}),
                 (
                     ["-status"],
                     {
-                        "help": "domain status can be: 1 - ACTIVE, 2 - INACTIVE, 4 - PERSISTENT, 8 - TRANSIENT, "
-                        "16 - RUNNING, 32 - PAUSED, 64 - SHUTOFF, 128 - OTHER",
+                        "help": _(
+                            "domain status can be: 1 - ACTIVE, 2 - INACTIVE, 4 - PERSISTENT, 8 - TRANSIENT, "
+                            "16 - RUNNING, 32 - PAUSED, 64 - SHUTOFF, 128 - OTHER"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 1,
@@ -159,7 +164,7 @@ class VirshPlatformController(BaseController):
                 (
                     ["-id"],
                     {
-                        "help": "domain name",
+                        "help": _("domain name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -254,7 +259,7 @@ class VirshPlatformController(BaseController):
                     "memballoon": ["model", "address.type"],
                 }
                 for k, v in devices.items():
-                    self.c("\ndevice %s" % k, "underline")
+                    self.c(f"\ndevice {k}", "underline")
                     self.app.render(v, headers=headers.get(k), maxsize=200)
                 self.c("\ninterface info", "underline")
                 interfaces = []
@@ -280,15 +285,15 @@ class VirshPlatformController(BaseController):
                 self.app.render(resp, details=True)
 
     @ex(
-        help="ping libvirt host domains",
-        description="ping libvirt host domains",
+        help=_("ping libvirt host domains"),
+        description=_("ping libvirt host domains"),
         arguments=OPENSTACK_ARGS(
             [
-                (["hostip"], {"help": "host ip", "action": "store", "type": str}),
+                (["hostip"], {"help": _("host ip"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "domain name",
+                        "help": _("domain name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -322,15 +327,15 @@ class VirshPlatformController(BaseController):
             self.app.render(domain.ext_info(), details=True)
 
     @ex(
-        help="get libvirt host domain usage date",
-        description="get libvirt host domain usage data",
+        help=_("get libvirt host domain usage date"),
+        description=_("get libvirt host domain usage data"),
         arguments=OPENSTACK_ARGS(
             [
-                (["hostip"], {"help": "host ip", "action": "store", "type": str}),
+                (["hostip"], {"help": _("host ip"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "domain name",
+                        "help": _("domain name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -355,20 +360,16 @@ class VirshPlatformController(BaseController):
             def transform_file_system(data):
                 resp = []
                 for item in data:
-                    resp.append("%s: %s" % (item["mountpoint"], item.get("usage", "%")))
+                    resp.append(f"{item['mountpoint']}: {item.get('usage', '%')}")
                 return ", ".join(resp)
 
             def transform_ifaces(data):
                 resp = []
                 for item in data:
-                    resp.append(
-                        "%s: rx %s,tx %s"
-                        % (
-                            item["name"],
-                            dict_get(item, "statistics.rx-bytes", default=""),
-                            dict_get(item, "statistics.tx-bytes", default=""),
-                        )
-                    )
+                    name = item.get("name")
+                    rx = dict_get(item, "statistics.rx-bytes", default="")
+                    tx = dict_get(item, "statistics.tx-bytes", default="")
+                    resp.append(f"{name}: rx {rx},tx {tx}")
                 return ", ".join(resp)
 
             transform = {
@@ -400,15 +401,15 @@ class VirshPlatformController(BaseController):
             self.app.render(domain.ext_info(), details=True)
 
     @ex(
-        help="get libvirt host domain stats",
-        description="get libvirt host domain stats",
+        help=_("get libvirt host domain stats"),
+        description=_("get libvirt host domain stats"),
         arguments=OPENSTACK_ARGS(
             [
-                (["hostip"], {"help": "host ip", "action": "store", "type": str}),
+                (["hostip"], {"help": _("host ip"), "action": "store", "type": str}),
                 (
                     ["-id"],
                     {
-                        "help": "domain name",
+                        "help": _("domain name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -430,10 +431,10 @@ class VirshPlatformController(BaseController):
                 block_count = item.get("block.count")
                 blocks = {}
                 for i in range(block_count):
-                    size = int(item.get("block.%s.capacity" % i))
-                    allocation = int(item.get("block.%s.allocation" % i))
+                    size = int(item.get(f"block.{i}.capacity"))
+                    allocation = int(item.get(f"block.{i}.allocation"))
                     usage = round((1 - allocation / size) * 100, 1)
-                    blocks[item.get("block.%s.name" % i)] = {
+                    blocks[item.get(f"block.{i}.name")] = {
                         "size": get_pretty_size(size),
                         "usage": str(usage) + "%",
                     }
@@ -441,12 +442,12 @@ class VirshPlatformController(BaseController):
                     "name": item["name"],
                     "net": {
                         "count": net_count,
-                        "tx": [get_pretty_size(item.get("net.%s.tx.bytes" % i)) for i in range(net_count)],
-                        "rx": [get_pretty_size(item.get("net.%s.rx.bytes" % i)) for i in range(net_count)],
+                        "tx": [get_pretty_size(item.get(f"net.{i}.tx.bytes")) for i in range(net_count)],
+                        "rx": [get_pretty_size(item.get(f"net.{i}.rx.bytes")) for i in range(net_count)],
                     },
                     "vcpu": {
                         "count": vcpu_count,
-                        "time": [item.get("vcpu.%s.time" % i) for i in range(vcpu_count)],
+                        "time": [item.get(f"vcpu.{i}.time") for i in range(vcpu_count)],
                     },
                     "block": blocks,
                     "memory": {
@@ -471,17 +472,19 @@ class VirshPlatformController(BaseController):
             self.app.render(domain.ext_info(), details=True)
 
     @ex(
-        help="get libvirt host domains",
-        description="get libvirt host domains",
-        example="beehive platform virsh domain-get -e <env>;beehive platform virsh domain-get",
+        help=_("get libvirt host domains"),
+        description=_("get libvirt host domains"),
+        example="beehive platform virsh domain-get",
         arguments=OPENSTACK_ARGS(
             [
-                (["hostip"], {"help": "host ip", "action": "store", "type": str}),
+                (["hostip"], {"help": _("host ip"), "action": "store", "type": str}),
                 (
                     ["-status"],
                     {
-                        "help": "domain status can be: 1 - ACTIVE, 2 - INACTIVE, 4 - PERSISTENT, 8 - TRANSIENT, "
-                        "16 - RUNNING, 32 - PAUSED, 64 - SHUTOFF, 128 - OTHER",
+                        "help": _(
+                            "domain status can be: 1 - ACTIVE, 2 - INACTIVE, 4 - PERSISTENT, 8 - TRANSIENT, "
+                            "16 - RUNNING, 32 - PAUSED, 64 - SHUTOFF, 128 - OTHER"
+                        ),
                         "action": "store",
                         "type": int,
                         "default": 0,

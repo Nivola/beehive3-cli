@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
@@ -9,26 +9,28 @@ from cement import ex
 from beecell.simple import format_date
 from beehive3_cli.core.controller import PARGS, ARGS, StringAction
 from beehive3_cli.plugins.auth.controllers.auth import AuthChildController
+from beehive3_cli.translate import _
 
 
 class AuthGroupController(AuthChildController):
-    class Meta:
+
+    class Meta: # type: ignore
         stacked_on = "auth"
         stacked_type = "nested"
         label = "groups"
-        description = "groups management"
-        help = "groups management"
+        description = _("groups management")
+        help = _("groups management")
 
     @ex(
-        help="get groups",
-        description="get groups",
+        help=_("get groups"),
+        description=_("get groups"),
         example="beehive auth groups get -id Group1Role; beehive auth groups get -name xxxxx",
         arguments=PARGS(
             [
                 (
                     ["-id"],
                     {
-                        "help": "account uuid",
+                        "help": _("account uuid"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -37,7 +39,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-role"],
                     {
-                        "help": "role id or name",
+                        "help": _("role id or name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -46,7 +48,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-user"],
                     {
-                        "help": "user id or name",
+                        "help": _("user id or name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -55,7 +57,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-name"],
                     {
-                        "help": "name filter",
+                        "help": _("name filter"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -64,7 +66,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-desc"],
                     {
-                        "help": "group desc",
+                        "help": _("group desc"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -73,7 +75,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-email"],
                     {
-                        "help": "email address",
+                        "help": _("email address"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -82,7 +84,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-expiry-date "],
                     {
-                        "help": "expiry date. Syntax YYYY-MM-DD",
+                        "help": _("expiry date. Syntax YYYY-MM-DD"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -91,7 +93,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-perms"],
                     {
-                        "help": "rcomma separated list of permissions",
+                        "help": _("rcomma separated list of permissions"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -103,32 +105,33 @@ class AuthGroupController(AuthChildController):
     def get(self):
         oid = getattr(self.app.pargs, "id", None)
         if oid is not None:
-            uri = "%s/groups/%s" % (self.baseuri, oid)
+            uri = f"{self.baseuri}/groups/{oid}"
             res = self.cmp_get(uri)
 
             # get roles
             data = urlencode({"group": oid, "size": -1})
-            uri = "%s/roles" % self.baseuri
+            uri = f"{self.baseuri}/roles"
             roles = self.cmp_get(uri, data).get("roles")
 
             # get users
             data = urlencode({"group": oid, "size": -1})
-            uri = "%s/users" % self.baseuri
+            uri = f"{self.baseuri}/users"
             users = self.cmp_get(uri, data).get("users")
 
             if self.is_output_text():
                 self.app.render(res, key="group", details=True)
-                self.c("\nroles", "underline")
+                self.print_section_heading("roles")
+                # headers and fields read from parent class's inner Meta
                 self.app.render(
                     roles,
-                    headers=self._meta.role_headers,
-                    fields=self._meta.role_fields,
+                    headers=self._meta.role_headers, # type: ignore
+                    fields=self._meta.role_fields, # type: ignore
                 )
-                self.c("\nusers", "underline")
+                self.print_section_heading("users")
                 self.app.render(
                     users,
-                    headers=self._meta.user_headers,
-                    fields=self._meta.user_fields,
+                    headers=self._meta.user_headers, # type: ignore
+                    fields=self._meta.user_fields, # type: ignore
                 )
             else:
                 self.app.render(res, key="group", details=True)
@@ -139,27 +142,27 @@ class AuthGroupController(AuthChildController):
             if self.app.pargs.perms:
                 ndata = {"perms.N": self.app.pargs.perms.split(",")}
                 data += urlencode(ndata)
-            uri = "%s/groups" % self.baseuri
+            uri = f"{self.baseuri}/groups"
             res = self.cmp_get(uri, data=data)
+            # headers and fields read from parent class's inner Meta
             self.app.render(
                 res,
                 key="groups",
-                headers=self._meta.group_headers,
-                fields=self._meta.group_fields,
+                headers=self._meta.group_headers, # type: ignore
+                fields=self._meta.group_fields, # type: ignore
             )
 
     @ex(
-        help="add group",
-        description="add group",
-        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno; beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
+        help=_("add group"),
+        description=_("add group"),
+        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
         arguments=ARGS(
             [
-                (["name"], {"help": "group name", "action": "store", "type": str}),
+                (["name"], {"help": _("group name"), "action": "store", "type": str}),
                 (
                     ["-desc"],
                     {
-                        "help": "group description",
-                        "action": "store",
+                        "help": _("group description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -169,7 +172,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-expirydate"],
                     {
-                        "help": "group expire date. Syntax yyyy-mm-dd",
+                        "help": _("group expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -195,20 +198,20 @@ class AuthGroupController(AuthChildController):
                 "expirydate": expirydate,
             }
         }
-        uri = "%s/groups" % self.baseuri
+        uri = f"{self.baseuri}/groups"
         res = self.cmp_post(uri, data=data)
-        self.app.render({"msg": "add group %s" % res["uuid"]})
+        self.app.render({"msg": f"add group {res['uuid']}"})
 
     @ex(
-        help="update group",
-        description="update group",
+        help=_("update group"),
+        description=_("update group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
                 (
                     ["-name"],
                     {
-                        "help": "group name",
+                        "help": _("group name"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -217,8 +220,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-desc"],
                     {
-                        "help": "group description",
-                        "action": "store",
+                        "help": _("group description"),
                         "action": StringAction,
                         "type": str,
                         "nargs": "+",
@@ -228,7 +230,7 @@ class AuthGroupController(AuthChildController):
                 (
                     ["-active"],
                     {
-                        "help": "group active",
+                        "help": _("group active"),
                         "action": "store",
                         "type": bool,
                         "default": True,
@@ -247,35 +249,35 @@ class AuthGroupController(AuthChildController):
                 "active": self.app.pargs.active,
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "update group %s" % oid})
+        self.app.render({"msg": f"update group {oid}"})
 
     @ex(
-        help="delete group",
-        description="delete group",
+        help=_("delete group"),
+        description=_("delete group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
             ]
         ),
     )
     def delete(self):
         oid = self.app.pargs.id
-        uri = "%s/groups/%s" % (self.baseuri, oid)
-        self.cmp_delete(uri, entity="group %s" % oid)
+        uri = f"{self.baseuri}/groups/{oid}"
+        self.cmp_delete(uri, entity=f"group {oid}")
 
     @ex(
-        help="add role to group",
-        description="add role to group",
+        help=_("add role to group"),
+        description=_("add role to group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
-                (["role"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
+                (["role"], {"help": _("role uuid"), "action": "store", "type": str}),
                 (
                     ["-expirydate"],
                     {
-                        "help": "group expire date. Syntax yyyy-mm-dd",
+                        "help": _("group expire date. Syntax yyyy-mm-dd"),
                         "action": "store",
                         "type": str,
                         "default": None,
@@ -299,17 +301,17 @@ class AuthGroupController(AuthChildController):
                 "roles": {"append": [(role, expirydate)], "remove": []},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add role %s to group %s" % (role, oid)})
+        self.app.render({"msg": f"add role {role} to group {oid}"})
 
     @ex(
-        help="delete role from group",
-        description="delete role from group",
+        help=_("delete role from group"),
+        description=_("delete role from group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
-                (["role"], {"help": "role uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
+                (["role"], {"help": _("role uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -321,18 +323,18 @@ class AuthGroupController(AuthChildController):
                 "roles": {"append": [], "remove": [role]},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del role %s from group %s" % (role, oid)})
+        self.app.render({"msg": f"del role {role} from group {oid}"})
 
     @ex(
-        help="add user to group",
-        description="add user to group",
-        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno ;beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
+        help=_("add user to group"),
+        description=_("add user to group"),
+        example="beehive auth groups add-user GR-xxxx abc.def@ghi.lmno",
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
-                (["user"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
+                (["user"], {"help": _("user uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -345,18 +347,18 @@ class AuthGroupController(AuthChildController):
                 "users": {"append": [user], "remove": []},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add user %s to group %s" % (user, oid)})
+        self.app.render({"msg": f"add user {user} to group {oid}"})
 
     @ex(
-        help="delete user from group",
-        description="delete user from group",
+        help=_("delete user from group"),
+        description=_("delete user from group"),
         example="beehive auth groups del-user GR-xxxx uuid",
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
-                (["user"], {"help": "user uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
+                (["user"], {"help": _("user uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -368,17 +370,17 @@ class AuthGroupController(AuthChildController):
                 "users": {"append": [], "remove": [user]},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         self.cmp_put(uri, data=data)
-        self.app.render({"msg": "del user %s from group %s" % (user, oid)})
+        self.app.render({"msg": f"del user {user} from group {oid}"})
 
     @ex(
-        help="get permissions of group",
-        description="get permissions of group",
+        help=_("get permissions of group"),
+        description=_("get permissions of group"),
         example="beehive auth groups get-perms GR-xxxx; beehive auth groups get-perms #####",
         arguments=PARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
             ]
         ),
     )
@@ -386,8 +388,8 @@ class AuthGroupController(AuthChildController):
         oid = self.app.pargs.id
         params = []
         data = self.format_paginated_query(params)
-        data += "&group=%s" % oid
-        uri = "%s/objects/perms" % self.baseuri
+        data += f"&group={oid}"
+        uri = f"{self.baseuri}/objects/perms"
         res = self.cmp_get(uri, data=data)
         self.app.render(
             res,
@@ -397,16 +399,16 @@ class AuthGroupController(AuthChildController):
         )
 
     @ex(
-        help="add permissions to group",
-        description="add permissions to group",
+        help=_("add permissions to group"),
+        description=_("add permissions to group"),
         example="beehive auth groups add-perms GR-xxxx ##### ",
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -426,20 +428,20 @@ class AuthGroupController(AuthChildController):
                 "perms": {"append": perms, "remove": []},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "add perm %s to group %s" % (res["perm_append"], oid)})
+        self.app.render({"msg": f"add perm {res['perm_append']} to group {oid}"})
 
     @ex(
-        help="delete permissions from group",
-        description="delete permissions from group",
+        help=_("delete permissions from group"),
+        description=_("delete permissions from group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
                 (
                     ["perms"],
                     {
-                        "help": "comma separated list of permission id",
+                        "help": _("comma separated list of permission id"),
                         "action": "store",
                         "type": str,
                     },
@@ -459,27 +461,27 @@ class AuthGroupController(AuthChildController):
                 "perms": {"append": [], "remove": perms},
             }
         }
-        uri = "%s/groups/%s" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}"
         res = self.cmp_put(uri, data=data)
-        self.app.render({"msg": "delete perm %s from group %s" % (res["perm_remove"], oid)})
+        self.app.render({"msg": f"delete perm {res['perm_remove']} from group {oid}"})
 
     @ex(
-        help="add attribute to group",
-        description="add attribute to group",
+        help=_("add attribute to group"),
+        description=_("add attribute to group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
                 (
                     ["attrib"],
-                    {"help": "attribute name", "action": "store", "type": str},
+                    {"help": _("attribute name"), "action": "store", "type": str},
                 ),
                 (
                     ["value"],
-                    {"help": "attribute value", "action": "store", "type": str},
+                    {"help": _("attribute value"), "action": "store", "type": str},
                 ),
                 (
                     ["desc"],
-                    {"help": "attribute description", "action": "store", "type": str},
+                    {"help": _("attribute description"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -494,19 +496,19 @@ class AuthGroupController(AuthChildController):
                 "desc": self.app.pargs.desc,
             }
         }
-        uri = "%s/groups/%s/attributes" % (self.baseuri, oid)
+        uri = f"{self.baseuri}/groups/{oid}/attributes"
         self.cmp_post(uri, data=data)
-        self.app.render({"msg": "dd/update group %s attrib %s" % (oid, attrib)})
+        self.app.render({"msg": f"add/update group {oid} attrib {attrib}"})
 
     @ex(
-        help="delete attribute from group",
-        description="delete attribute from group",
+        help=_("delete attribute from group"),
+        description=_("delete attribute from group"),
         arguments=ARGS(
             [
-                (["id"], {"help": "group uuid", "action": "store", "type": str}),
+                (["id"], {"help": _("group uuid"), "action": "store", "type": str}),
                 (
                     ["attrib"],
-                    {"help": "attribute name", "action": "store", "type": str},
+                    {"help": _("attribute name"), "action": "store", "type": str},
                 ),
             ]
         ),
@@ -514,6 +516,6 @@ class AuthGroupController(AuthChildController):
     def del_attrib(self):
         oid = self.app.pargs.id
         attrib = self.app.pargs.attrib
-        uri = "%s/groups/%s/attributes/%s" % (self.baseuri, oid, attrib)
+        uri = f"{self.baseuri}/groups/{oid}/attributes/{attrib}"
         self.cmp_delete(uri)
-        self.app.render({"msg": "delete group %s attrib %s" % (oid, attrib)})
+        self.app.render({"msg": f"delete group {oid} attrib {attrib}"})
